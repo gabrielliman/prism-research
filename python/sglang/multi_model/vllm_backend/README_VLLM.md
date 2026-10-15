@@ -15,6 +15,10 @@ Environment: `docker/prism-vllm` (kvcached's `kvcached-vllm` image + `pip instal
 The SGLang backend still needs the original environment (`docker/prism`, SGLang 0.3.4 / vLLM 0.6.3); the two
 cannot share one Python environment.
 
+> **Read first:** [ANALISE_VLLM_VS_SGLANG.md](ANALISE_VLLM_VS_SGLANG.md), a measured comparison with the
+> SGLang backend. In particular, multi-GPU Prism (`prism2`) hangs 38% of the requests with this backend
+> because there is no worker pool / GPU migration; use it with one GPU per model only.
+
 ## Design choices
 
 | Decision | Choice | Alternatives considered |

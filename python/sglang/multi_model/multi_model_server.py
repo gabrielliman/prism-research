@@ -977,6 +977,11 @@ def launch_multi_model_server(
     configure_logger(multi_model_server_args)
     if multi_model_server_args.engine_backend == "vllm":
         check_vllm_backend_args(multi_model_server_args)
+    else:
+        # Importing model_runner registers SGLang's model classes in vLLM's ModelRegistry. The shared
+        # CPU models (--enable-cpu-share-memory) are built in this process, so it must happen here
+        # (it used to be a side effect of importing the scheduler at the top of this module).
+        import sglang.srt.model_executor.model_runner  # noqa: F401
     # check whether the port are available
     if not is_port_available(multi_model_server_args.port):
         raise RuntimeError(

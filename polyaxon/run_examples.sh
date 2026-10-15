@@ -124,12 +124,18 @@ PY
 # PRISM_BACKEND=vllm (image gabrielliman/prism:vllm0.30-kvcached0.1.6): run every example with
 # --engine-backend vllm, dropping the README flags that backend does not implement (worker pool, model
 # service, CPU shared-memory weights; --use-kvcached-v0 is replaced by upstream kvcached).
+# PRISM_NO_WORKER_POOL=1 drops the same flags for the SGLang backend (to isolate the effect of the
+# worker pool from the effect of the engine).
 backend_args() {
-  [ "${PRISM_BACKEND:-sglang}" = vllm ] || { printf '%s\n' "$@"; return; }
-  echo --engine-backend; echo vllm
+  if [ "${PRISM_BACKEND:-sglang}" = vllm ]; then
+    echo --engine-backend; echo vllm
+  elif [ "${PRISM_NO_WORKER_POOL:-0}" != 1 ]; then
+    printf '%s\n' "$@"; return
+  fi
   while [ $# -gt 0 ]; do
     case $1 in
-      --enable-cpu-share-memory|--enable-model-service|--enable-worker-pool|--use-kvcached-v0) ;;
+      --enable-cpu-share-memory|--enable-model-service|--enable-worker-pool) ;;
+      --use-kvcached-v0) [ "${PRISM_BACKEND:-sglang}" = vllm ] || echo "$1" ;;
       --workers-per-gpu|--num-model-service-workers) shift ;;
       *) printf '%s\n' "$1" ;;
     esac
@@ -160,6 +166,7 @@ start_server() {
 
 run_bench() {
   local step=$1; shift
+  mkdir -p "$RESULTS/$step"
   echo "[$step] benchmark: $*"
   (cd benchmark/multi-model && timeout -k 30 "${BENCH_TIMEOUT:-0}" python3 benchmark.py "$@" \
       --results-path "$RESULTS/$step/benchmark-results" --request-path "$RESULTS/$step/output-requests") \
@@ -222,6 +229,46 @@ PY2
              --model-paths $models \
              --exp-name "prism_full_${ngpu}gpu" --e2e-benchmark --real-trace ./real_trace.pkl \
              --time-scale 1 --replication 1
+      ;;
+    cmp_parity|cmp_sweep|cmp_graph)
+      # Backend comparison (polyaxon/compare/): same 2-model config (Llama-3.1-8B + Llama-3.2-3B, 20 GB
+      # static pools, real weights) for PRISM_BACKEND=sglang and vllm. cmp_graph runs with CUDA graphs
+      # (the vLLM backend needs PRISM_VLLM_CUDA_GRAPH=1 and then refuses activate/deactivate).
+      cfg="$CFG_DIR/compare.json"; cp polyaxon/configs/compare_2_model.json "$cfg"
+      graph=(--disable-cuda-graph); [ "$step" = cmp_graph ] && graph=()
+      baseline=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits -i 0)
+      PRISM_VLLM_CUDA_GRAPH=$([ "$step" = cmp_graph ] && echo 1 || echo 0) \
+        start_server "$step" 30004 "$cfg" "${graph[@]}" --disable-radix-cache || { STATUS[$step]=1; continue; }
+      case $step in
+        cmp_parity)
+          python3 polyaxon/compare/parity.py 30004 "$RESULTS/$step/parity.json" \
+          && PRISM_GPU_BASELINE_GB=$(python3 -c "print($baseline/1024)") \
+             python3 polyaxon/compare/activation.py 30004 "$RESULTS/$step/activation.json" 10 ;;
+        *)
+          rc=0
+          for rate in ${PRISM_SWEEP_RATES:-5 10 20}; do
+            run_bench "$step/rate$rate" --base-url http://127.0.0.1:30004 --num-models 2 \
+              --model-paths model_1 model_2 --exp-name "${step}_rate$rate" --req-rate "$rate" --seed 42 || rc=1
+          done
+          [ $rc = 0 ] ;;
+      esac
+      ;;
+    cmp_overhead)
+      # Adapter overhead (vLLM backend only): Llama-3.2-3B behind Prism (compare config, static 20 GB
+      # pools, eager, no prefix cache) vs. plain `vllm serve` with the same settings.
+      cfg="$CFG_DIR/compare.json"; cp polyaxon/configs/compare_2_model.json "$cfg"
+      start_server "$step" 30004 "$cfg" --disable-cuda-graph --disable-radix-cache || { STATUS[$step]=1; continue; }
+      python3 polyaxon/compare/overhead.py prism 30004 model_2 "$RESULTS/$step/prism.json"; rc=$?
+      stop_server
+      wait_ports_free 30005 1
+      ENABLE_KVCACHED=false setsid vllm serve meta-llama/Llama-3.2-3B-Instruct --port 30005 \
+        --served-model-name model_2 --enforce-eager --no-enable-prefix-caching \
+        --kv-cache-memory-bytes $((20 * 1024 * 1024 * 1024)) --gpu-memory-utilization 0.5 \
+        --max-num-batched-tokens 8192 > "$RESULTS/$step/vllm_serve.log" 2>&1 &
+      SERVER_PID=$!
+      for _ in $(seq 1 120); do curl -sf -o /dev/null http://127.0.0.1:30005/health && break; sleep 5; done
+      python3 polyaxon/compare/overhead.py vllm 30005 model_2 "$RESULTS/$step/vllm.json" || rc=1
+      [ $rc = 0 ]
       ;;
     switch_static|switch_elastic)
       # Model switching (activate/deactivate, RECOMPUTE/RETURN preemption, resize) on the static and

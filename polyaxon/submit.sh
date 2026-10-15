@@ -20,6 +20,7 @@ mkdir -p "$STAGE/benchmark/multi-model" "$STAGE/polyaxon"
 rsync -a "$REPO/benchmark/multi-model/"{benchmark.py,trace.py,utils.py,model_configs,real_trace.pkl,model_lst.yml,model_lst_18.yml} \
   "$STAGE/benchmark/multi-model/"
 cp "$HERE/run_examples.sh" "$HERE/test_switching.py" "$STAGE/polyaxon/"
+rsync -a "$HERE/compare" "$STAGE/polyaxon/"
 rsync -a "$HERE/configs" "$STAGE/polyaxon/"
 cp "$HERE/$JOB.yaml" "$STAGE/"
 

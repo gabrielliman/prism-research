@@ -108,6 +108,9 @@ class VllmEngineAdapter:
         self.instance_idx = getattr(server_args, "instance_idx", 0)
         self.enable_elastic_memory = server_args.enable_elastic_memory
         self.ipc_name = f"ipc_{self.gpu_id}_{self.model_name}_{getpass.getuser()}"
+        self.cuda_graphs = (
+            os.environ.get("PRISM_VLLM_CUDA_GRAPH") == "1" and not server_args.disable_cuda_graph
+        )
 
         self._init_ipc()
         self._init_engine()
@@ -191,9 +194,14 @@ class VllmEngineAdapter:
             util = min(budget, 0.98 * free) / total
             kv_cache_memory_bytes = None
 
-        if not sa.disable_cuda_graph:
+        if self.cuda_graphs:
             logger.warning(
-                "The vLLM backend always runs with enforce_eager: activation re-allocates the weights, "
+                "PRISM_VLLM_CUDA_GRAPH=1: CUDA graphs enabled for measurement only; activate/deactivate "
+                "are refused because re-allocated weights would invalidate the captured graphs."
+            )
+        elif not sa.disable_cuda_graph:
+            logger.warning(
+                "The vLLM backend runs with enforce_eager: activation re-allocates the weights, "
                 "which would invalidate captured CUDA graphs."
             )
         return EngineArgs(
@@ -213,7 +221,7 @@ class VllmEngineAdapter:
             tensor_parallel_size=sa.tp_size,
             gpu_memory_utilization=util,
             kv_cache_memory_bytes=kv_cache_memory_bytes,
-            enforce_eager=True,
+            enforce_eager=not self.cuda_graphs,
             enable_prefix_caching=not sa.disable_radix_cache,
             max_num_seqs=sa.max_running_requests,
             max_num_batched_tokens=sa.chunked_prefill_size or sa.max_prefill_tokens,
@@ -635,8 +643,8 @@ class VllmEngineAdapter:
     def handle_activate_request(self, r: ActivateReqInput):
         gpu_id = self.gpu_id if r.gpu_id is None else r.gpu_id
         out = dict(rid=r.rid, gpu_id=gpu_id, model_name=r.model_name, instance_idx=r.instance_idx)
-        if self.active:
-            logger.warning("Engine is already activated")
+        if self.active or self.cuda_graphs:
+            logger.warning("Engine is already activated (or runs with CUDA graphs)")
             self._reply(ActivateReqOutput(success=False, memory_usage=self.get_memory_usage(), **out))
             return
         if self.server_args.tp_size == 1 and gpu_id != self.gpu_id:
@@ -657,8 +665,8 @@ class VllmEngineAdapter:
     def handle_deactivate_request(self, r: DeactivateReqInput):
         gpu_id = self.gpu_id if r.gpu_id is None else r.gpu_id
         out = dict(rid=r.rid, gpu_id=gpu_id, model_name=r.model_name, instance_idx=r.instance_idx)
-        if not self.active:
-            logger.warning("Engine is already deactivated")
+        if not self.active or self.cuda_graphs:
+            logger.warning("Engine is already deactivated (or runs with CUDA graphs)")
             self._reply(DeactivateReqOutput(success=False, memory_usage=self.get_memory_usage(), **out))
             return
         self.active = False
