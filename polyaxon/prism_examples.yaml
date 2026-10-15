@@ -1,0 +1,24 @@
+# README examples on 1 H200 (see run_examples.sh). Submit with polyaxon/submit.sh.
+version: 1.1
+kind: operation
+tags: [prism, readme-examples]
+queue: axia/default
+name: prism-examples__SUFFIX__
+# The cluster kills the pod after this, even if processes hang.
+termination:
+  timeout: __PLX_TIMEOUT__
+component:
+  kind: component
+  run:
+    kind: job
+    connections: [local-scratch, axia-artifacts]
+    container:
+      image: __IMAGE__
+      imagePullPolicy: Always
+      workingDir: "{{ globals.artifacts_path }}/{{ globals.uuid }}/uploads"
+      command: ["bash", "-c", "export __ENV__; export PRISM_RESULTS='{{ globals.run_outputs_path }}'; timeout -k 120 ${PRISM_TIMEOUT:-5400} bash polyaxon/run_examples.sh"]
+      resources:
+        requests:
+          nvidia.com/gpu: __GPUS__
+        limits:
+          nvidia.com/gpu: __GPUS__
