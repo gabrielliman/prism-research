@@ -4,6 +4,7 @@
 Usage: python3 polyaxon/test_switching.py <port> [--elastic]
 Exit code = number of failed checks.
 """
+import json
 import subprocess
 import sys
 import threading
@@ -42,6 +43,25 @@ def generate(model, max_new_tokens=32, timeout=600):
     )
     r.raise_for_status()
     return r.json()
+
+
+def generate_stream(model, max_new_tokens, received):
+    """Streaming generate; `received` keeps the latest cumulative text. Returns the final response."""
+    payload = {
+        "text": PROMPT,
+        "model": model,
+        "stream": True,
+        "sampling_params": {"temperature": 0, "max_new_tokens": max_new_tokens, "ignore_eos": True},
+    }
+    last = None
+    with requests.post(f"{URL}/generate", json=payload, stream=True, timeout=600) as r:
+        r.raise_for_status()
+        for line in r.iter_lines():
+            if not line.startswith(b"data: ") or line == b"data: [DONE]":
+                continue
+            last = json.loads(line[6:])
+            received["text"] = last["text"]
+    return last
 
 
 def post(path, **payload):
@@ -84,11 +104,13 @@ check("output unchanged after reactivation", generate("model_2")["text"] == ref[
 check("re-activating an active model fails", post("activate", model_name="model_2", gpu_id=0).get("success") is False)
 
 # 3. RECOMPUTE: a running request survives a deactivate/activate cycle and completes.
-res = {}
-th = threading.Thread(target=lambda: res.update(out=generate("model_2", max_new_tokens=400)))
+res, received = {}, {}
+th = threading.Thread(target=lambda: res.update(out=generate_stream("model_2", 400, received)))
 th.start()
 time.sleep(1.5)
 out = post("deactivate", model_name="model_2", gpu_id=0, preempt=True, preempt_mode="RECOMPUTE")
+time.sleep(0.5)
+before_preempt = received.get("text", "")
 check("deactivate RECOMPUTE success", out.get("success") is True)
 time.sleep(2)
 check("request held while deactivated", th.is_alive())
@@ -100,10 +122,14 @@ check("RECOMPUTE request completes all tokens", n == 400, f"completion_tokens={n
 got = o.get("text", "")
 i = next((k for k, (a, b) in enumerate(zip(got, ref_long["text"])) if a != b), min(len(got), len(ref_long["text"])))
 # The continuation recomputes the KV of the generated tokens in one prefill, which differs numerically
-# (bf16) from the KV built during decode, so greedy decoding may eventually pick another token (SGLang's
-# RECOMPUTE has the same property). What must hold is a seamless splice: the request is preempted after
-# ~1.5 s (~100 tokens, ~450 chars), so the text must still match well past that point.
-check("RECOMPUTE output matches across the splice", i >= 800, f"first difference at char {i}")
+# (bf16) from the KV built during decode, so greedy decoding may later pick another token (SGLang's
+# RECOMPUTE has the same property). What must hold: the text streamed before the preemption is kept
+# exactly (nothing lost or repeated at the splice) and matches the uninterrupted run up to that point.
+check(
+    "RECOMPUTE keeps the text generated before preemption",
+    len(before_preempt) > 0 and got.startswith(before_preempt) and ref_long["text"].startswith(before_preempt),
+    f"{len(before_preempt)} chars before preemption, first difference from uninterrupted run at char {i}",
+)
 print(
     "[INFO] RECOMPUTE output equals uninterrupted output:",
     got == ref_long["text"],

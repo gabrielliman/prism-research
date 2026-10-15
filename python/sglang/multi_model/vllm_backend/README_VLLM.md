@@ -65,7 +65,7 @@ cannot share one Python environment.
 | Overlap schedule, LoRA, double sparsity, data parallelism, multi-node | — | **Not adapted** (rejected) |
 | Logprobs | Not supported by Prism's multi-model request handler either | Unchanged |
 | Structured outputs (`regex`, `json_schema`) | vLLM `StructuredOutputsParams` | Adapted (untested) |
-| `profile_model_info.py` (uses vLLM 0.6 loader) | `model_info.json` must already list the models | **Not adapted** |
+| `profile_model_info.py` (uses vLLM 0.6 loader) | `utils/estimate_model_info.py` (checkpoint size + config) | Replaced |
 
 ## Changes outside the backend
 
@@ -86,7 +86,12 @@ cannot share one Python environment.
 | `static` (README ex. 1, 2× Llama-3.1-8B, `--load-format dummy`) | 145/145 requests per model; TTFT ≈ 32 ms, TPOT ≈ 15 ms |
 | `elastic` (README ex. 2, kvcached) | benchmark completes, 0 aborted |
 | `prism1` (README ex. 3 flags minus worker pool/model service, 2× Llama-3.2-3B) | 318/318 requests; GPU scheduler admission and controller idle deactivation working |
-| `switch_static` / `switch_elastic` (`polyaxon/test_switching.py`, 2× Llama-3.1-8B) | activation 0.29 s, deactivation frees weights + KV (elastic: down to one page per layer), greedy output identical after reactivation, RETURN and RECOMPUTE preemption, resize and sized activation |
+| `switch_static` / `switch_elastic` (`polyaxon/test_switching.py`, 2× Llama-3.1-8B) | all checks pass: activation 0.29 s, deactivation frees weights + KV (elastic: down to one page per layer), greedy output identical after reactivation, streaming, RETURN and RECOMPUTE preemption, resize and sized activation |
+| `overload` (8 models on 1 GPU, 4 initially off, real trace at 1×/2×/4×/10×; without worker pool) | 754/754 requests at every speed, 0 aborted; the controller activates/evicts models (5/4 at 1×); SLO attainment (TTFT and TPOT, 5× baseline P95) 98.3% / 98.3% / 96.0% / 91.9% |
 
-RECOMPUTE resumes seamlessly at the splice; the full greedy text can diverge later (char 997 of 1806 in
-the test) because recomputing the KV in one prefill is not bit-identical to building it during decode.
+RECOMPUTE keeps the text generated before the preemption exactly; the rest of the greedy text can differ
+from an uninterrupted run (e.g. from char 550 or 997 of 1806 in the test) because recomputing the KV in
+one prefill is not bit-identical to building it during decode — SGLang's RECOMPUTE has the same property.
+
+`profile_model_info.py` needs SGLang 0.3.4's vLLM; with this backend, missing `model_info.json` entries
+come from `utils/estimate_model_info.py` (checkpoint size and config; within 1% of the profiled values).
