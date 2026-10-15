@@ -7,7 +7,6 @@ from typing import Dict, Optional, Set
 
 import numpy as np
 import torch
-from kvcached.slab_allocator import MemoryUsageReader
 
 from sglang.multi_model.utils.get_memory_pool_size import get_model_path_to_model_size
 
@@ -43,6 +42,8 @@ class ResourceManager:
         """Initialize shared memory readers."""
         self.username = getpass.getuser()
         if self.enable_worker_pool:
+            from kvcached.slab_allocator import MemoryUsageReader
+
             self._worker_to_mem_reader = {}
             for worker_id in range(self.num_workers):
                 self._worker_to_mem_reader[worker_id] = MemoryUsageReader(
@@ -131,6 +132,10 @@ class ResourceManager:
                 )
                 return 0
         shm = self._model_name_to_shm[ipc_name]
+        # The SGLang engine (kvcached prism/shm) writes one int64: the bytes in use. Upstream kvcached,
+        # used by the vLLM backend, writes its MemInfoStruct there: int64 [total, used, prealloc].
+        if shm.size >= 3 * np.dtype(np.int64).itemsize:
+            return np.ndarray((3,), dtype=np.int64, buffer=shm.buf)[1]
         memory_in_use = np.ndarray((1,), dtype=np.int64, buffer=shm.buf)
         return memory_in_use[0]  # in bytes
 

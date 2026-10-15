@@ -39,12 +39,16 @@ from fastapi.responses import ORJSONResponse
 from packaging import version as pkg_version
 from torch import nn
 from torch.profiler import ProfilerActivity, profile, record_function
-from triton.runtime.cache import (
-    FileCacheManager,
-    default_cache_dir,
-    default_dump_dir,
-    default_override_dir,
-)
+try:
+    from triton.runtime.cache import (
+        FileCacheManager,
+        default_cache_dir,
+        default_dump_dir,
+        default_override_dir,
+    )
+except ImportError:
+    # Triton >= 3.2 (used by the vLLM backend's environment) no longer has these helpers.
+    FileCacheManager = object
 
 logger = logging.getLogger(__name__)
 

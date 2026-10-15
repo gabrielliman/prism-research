@@ -146,6 +146,7 @@ class ServerArgs:
     use_kvcached_v0: bool = False
     abort_exceed_slos: bool = False
     async_loading: bool = False
+    engine_backend: str = "sglang"
 
     # for redis generate and response queue
     generate_request_key_prefix: str = "generate_request"
