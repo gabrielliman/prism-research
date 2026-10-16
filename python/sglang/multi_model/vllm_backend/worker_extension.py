@@ -21,7 +21,13 @@ from typing import Dict, List, Tuple
 
 import torch
 
+from sglang.multi_model.vllm_backend import vllm_patches
+
 logger = logging.getLogger(__name__)
+
+# TP > 1: the ranks are separate (spawned) processes, which import this module before loading the
+# model (worker_extension_cls), so the prism_shm loader and the worker-side patches exist there too.
+vllm_patches.apply()
 
 
 class PrismWorkerExtension:

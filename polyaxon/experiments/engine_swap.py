@@ -146,50 +146,55 @@ def model_of(engine):
     return engine.engine_core.engine_core.model_executor.driver_worker.worker.model_runner.get_model()
 
 
-res = {"elastic": ELASTIC, "baseline_gb": gpu_used_gb(), "cold": {}, "swaps": [],
-       "shm_size_gb": None}
-refs = {}
-for m in MODELS:
-    engine, t = build(m, "auto")
-    refs[m], tg = generate(engine)
-    tic = time.perf_counter()
-    if TP > 1:
-        engine.collective_rpc("prism_save_weight_cache", args=(m,))
-    else:
-        weight_cache.save(model_of(engine), m)
-    res["cold"][m] = {"build_s": t, "first_generate_s": tg, "cache_save_s": time.perf_counter() - tic,
-                      "used_gb": gpu_used_gb()}
-    vllm_patches.teardown_engine(engine)
-    del engine
-    res["cold"][m]["after_teardown_gb"] = gpu_used_gb()
-    print("cold", m, res["cold"][m], flush=True)
+def main():
+    res = {"elastic": ELASTIC, "baseline_gb": gpu_used_gb(), "cold": {}, "swaps": [],
+           "shm_size_gb": None}
+    refs = {}
+    for m in MODELS:
+        engine, t = build(m, "auto")
+        refs[m], tg = generate(engine)
+        tic = time.perf_counter()
+        if TP > 1:
+            engine.collective_rpc("prism_save_weight_cache", args=(m,))
+        else:
+            weight_cache.save(model_of(engine), m)
+        res["cold"][m] = {"build_s": t, "first_generate_s": tg, "cache_save_s": time.perf_counter() - tic,
+                          "used_gb": gpu_used_gb()}
+        vllm_patches.teardown_engine(engine)
+        del engine
+        res["cold"][m]["after_teardown_gb"] = gpu_used_gb()
+        print("cold", m, res["cold"][m], flush=True)
 
-FLAGS = ("PRISM_VLLM_SKIP_PROFILE", "PRISM_VLLM_CACHE_RENDERER", "PRISM_VLLM_SKIP_WARMUP")
-VARIANTS = [  # (name, flags on, gc skipped during construction)
-    ("base", (), False),
-    ("fast_keep_warmup", ("PRISM_VLLM_SKIP_PROFILE", "PRISM_VLLM_CACHE_RENDERER"), True),
-    ("fast", FLAGS, True),
-]
-for name, flags, fast_gc in VARIANTS:
-    for f in FLAGS:
-        os.environ[f] = "1" if f in flags else "0"
-    for r in range(ROUNDS):
-        for m in MODELS:
-            with (vllm_patches.fast_build() if fast_gc else contextlib.nullcontext()):
-                engine, t = build(m, "prism_shm")
-            text, tg = generate(engine)
-            used = gpu_used_gb()
-            tic = time.perf_counter()
-            vllm_patches.teardown_engine(engine)
-            del engine
-            td = time.perf_counter() - tic
-            row = {"variant": name, "model": m.split("/")[-1], "round": r, "build_s": round(t, 3),
-                   "first_generate_s": round(tg, 3), "teardown_s": round(td, 3), "used_gb": round(used, 2),
-                   "after_teardown_gb": round(gpu_used_gb(), 2), "same_output": text == refs[m]}
-            res["swaps"].append(row)
-            print("swap", row, flush=True)
+    FLAGS = ("PRISM_VLLM_SKIP_PROFILE", "PRISM_VLLM_CACHE_RENDERER", "PRISM_VLLM_SKIP_WARMUP")
+    VARIANTS = [  # (name, flags on, gc skipped during construction)
+        ("base", (), False),
+        ("fast_keep_warmup", ("PRISM_VLLM_SKIP_PROFILE", "PRISM_VLLM_CACHE_RENDERER"), True),
+        ("fast", FLAGS, True),
+    ]
+    for name, flags, fast_gc in VARIANTS:
+        for f in FLAGS:
+            os.environ[f] = "1" if f in flags else "0"
+        for r in range(ROUNDS):
+            for m in MODELS:
+                with (vllm_patches.fast_build() if fast_gc else contextlib.nullcontext()):
+                    engine, t = build(m, "prism_shm")
+                text, tg = generate(engine)
+                used = gpu_used_gb()
+                tic = time.perf_counter()
+                vllm_patches.teardown_engine(engine)
+                del engine
+                td = time.perf_counter() - tic
+                row = {"variant": name, "model": m.split("/")[-1], "round": r, "build_s": round(t, 3),
+                       "first_generate_s": round(tg, 3), "teardown_s": round(td, 3), "used_gb": round(used, 2),
+                       "after_teardown_gb": round(gpu_used_gb(), 2), "same_output": text == refs[m]}
+                res["swaps"].append(row)
+                print("swap", row, flush=True)
 
-json.dump(res, open(OUT, "w"), indent=1)
-ok = all(s["same_output"] for s in res["swaps"])
-leak = res["swaps"][-1]["after_teardown_gb"] - res["swaps"][0]["after_teardown_gb"]
-print(f"all outputs identical: {ok}; memory drift after teardown across swaps: {leak:.2f} GB")
+    json.dump(res, open(OUT, "w"), indent=1)
+    ok = all(s["same_output"] for s in res["swaps"])
+    leak = res["swaps"][-1]["after_teardown_gb"] - res["swaps"][0]["after_teardown_gb"]
+    print(f"all outputs identical: {ok}; memory drift after teardown across swaps: {leak:.2f} GB")
+
+
+if __name__ == "__main__":  # vLLM spawns the TP workers, which re-import this module
+    main()
