@@ -810,6 +810,11 @@ def _setup_env(server_args: ServerArgs, gpu_ids: List[int]):
     # In-process EngineCore: the adapter drives it with step(), like Prism's scheduler loop.
     os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
     os.environ.setdefault("VLLM_NO_USAGE_STATS", "1")
+    if len(gpu_ids) > 1:
+        # Several TP engines share these GPUs: the symmetric-memory all-reduce's multicast setup
+        # intermittently hung the second engine's start-up (CUDA "unknown error" in
+        # init_multicast_for_block); vLLM then uses its custom all-reduce / NCCL.
+        os.environ.setdefault("VLLM_ALLREDUCE_USE_SYMM_MEM", "0")
     if server_args.enable_worker_pool:
         # A slot builds an engine per activation: use the construction shortcuts of vllm_patches.
         for flag in ("PRISM_VLLM_SKIP_PROFILE", "PRISM_VLLM_CACHE_RENDERER", "PRISM_VLLM_SKIP_WARMUP"):

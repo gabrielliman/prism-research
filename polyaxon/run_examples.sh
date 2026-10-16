@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 RESULTS="${PRISM_RESULTS:-$ROOT/results}"; mkdir -p "$RESULTS"
 exec > >(tee -a "$RESULTS/run.log") 2>&1
-STEPS="${PRISM_STEPS:-static elastic prism1}"
+STEPS="${PRISM_STEPS:-static elastic prism1}"; STEPS="${STEPS//,/ }"  # commas or spaces
 STARTUP_TIMEOUT="${PRISM_STARTUP_TIMEOUT:-1200}"
 echo "start $(date -u +%FT%TZ) steps: $STEPS  backend: ${PRISM_BACKEND:-sglang}  results: $RESULTS"
 
@@ -277,6 +277,28 @@ PY2
       for _ in $(seq 1 120); do curl -sf -o /dev/null http://127.0.0.1:30005/health && break; sleep 5; done
       python3 polyaxon/compare/overhead.py $mode 30005 model_2 "$RESULTS/$step/engine.json" || rc=1
       [ $rc = 0 ]
+      ;;
+    swap_static|swap_elastic)
+      # vLLM worker-pool core operation: switch one process's engine between models
+      # (polyaxon/experiments/engine_swap.py). vLLM backend image only.
+      mkdir -p "$RESULTS/$step"; df -h /dev/shm | tail -1
+      VLLM_NO_USAGE_STATS=1 DO_NOT_TRACK=1 ENABLE_KVCACHED=$([ "$step" = swap_elastic ] && echo true || echo false) \
+        KVCACHED_IPC_NAME="swap_$$" python3 polyaxon/experiments/engine_swap.py \
+        "$RESULTS/$step/engine_swap.json" 3 > "$RESULTS/$step/engine_swap.log" 2>&1
+      rc=$?; grep -E "^(cold|swap|phases|all outputs)" "$RESULTS/$step/engine_swap.log" | cut -c1-400
+      tail -30 "$RESULTS/$step/engine_swap.log" | grep -iE "error|Traceback" -A3 | head -20
+      [ $rc = 0 ]
+      ;;
+    wp_test)
+      # Worker pool semantics (polyaxon/test_worker_pool.py): README worker-pool flags without the global
+      # controller, so only the test moves models. PRISM_WP_GPUS=2 adds the migration check.
+      ngpu=${PRISM_WP_GPUS:-1}
+      cp polyaxon/configs/worker_pool_test.json "$CFG_DIR/$step.json"
+      start_server "$step" 30006 "$CFG_DIR/$step.json" --disable-cuda-graph --disable-radix-cache \
+          --enable-cpu-share-memory --enable-elastic-memory --use-kvcached-v0 --enable-gpu-scheduler \
+          --enable-model-service --enable-worker-pool --workers-per-gpu 2 --num-gpus "$ngpu" \
+        && { python3 polyaxon/test_worker_pool.py 30006 "$ngpu" 2>&1 | tee "$RESULTS/$step/test_worker_pool.log"; \
+             [ "${PIPESTATUS[0]}" = 0 ]; }
       ;;
     wp_tp_test)
       # TP model in the vLLM worker pool (2 GPUs): polyaxon/test_worker_pool_tp.py.
