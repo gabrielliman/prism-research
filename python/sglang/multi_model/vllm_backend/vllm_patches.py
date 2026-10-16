@@ -198,21 +198,37 @@ def fast_build():
 def teardown_engine(engine) -> None:
     """Release an in-process LLMEngine's GPU memory while keeping the process group for the next one."""
     tic = time.perf_counter()
+    steps = {}
+
+    def mark(name):
+        nonlocal tic
+        now = time.perf_counter()
+        steps[name] = round(now - tic, 3)
+        tic = now
+
+    total_tic = tic
     core = engine.engine_core.engine_core
     try:
         core.structured_output_manager.clear_backend()
     except Exception as e:
         logger.warning(f"structured output teardown: {e}")
-    core.model_executor.shutdown()
+    mark("structured_output")
+    # ModelRunner.shutdown() runs a full gc.collect() (~0.5 s); one collection below is enough.
+    with fast_build():
+        core.model_executor.shutdown()
+    mark("executor")
     core.scheduler.shutdown()
+    mark("scheduler")
     if os.environ.get("ENABLE_KVCACHED", "false").lower() in ("true", "1"):
         from kvcached.integration.vllm.interfaces import shutdown_kvcached
 
         if not shutdown_kvcached():
             logger.warning("kvcached shutdown deferred")
+    mark("kvcached")
     finalizer = getattr(engine, "_finalizer", None)
     if finalizer is not None:
         finalizer()
+    mark("finalizer")
     # Drop the references that keep the model and KV tensors alive.
     executor = core.model_executor
     worker = getattr(getattr(executor, "driver_worker", None), "worker", None)
@@ -223,8 +239,10 @@ def teardown_engine(engine) -> None:
     engine.engine_core = None
     gc.unfreeze()
     gc.collect()
+    mark("gc")
     torch.cuda.empty_cache()
+    mark("empty_cache")
     logger.info(
-        f"Prism: engine torn down in {time.perf_counter() - tic:.3f}s, "
+        f"Prism: engine torn down in {time.perf_counter() - total_tic:.3f}s {steps}, "
         f"{torch.cuda.memory_allocated() / (1 << 30):.2f} GB still allocated"
     )

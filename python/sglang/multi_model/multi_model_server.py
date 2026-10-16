@@ -949,6 +949,12 @@ def launch_worker_pool_engines(
                 multi_model_server_args=multi_model_server_args,
                 worker_id=worker_id,
             )
+            # vLLM slots: each model's configured KV pool size (first placement), used as its KV
+            # limit when an activation does not give one (instance attribute, pickled with the args).
+            server_args.prism_pool_sizes = {
+                m.model_name: (m.init_placements[0].get("max_memory_pool_size") if m.init_placements else None)
+                for m in model_configs
+            }
             # Allocate ports for inter-process communications
             port_args = PortArgs.init_with_request_handler_ipc_name(
                 start_port, request_handler_ipc_name, schedulers_to_controller_ipc_name

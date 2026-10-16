@@ -16,8 +16,8 @@ The SGLang backend still needs the original environment (`docker/prism`, SGLang 
 cannot share one Python environment.
 
 > **Read first:** [ANALISE_VLLM_VS_SGLANG.md](ANALISE_VLLM_VS_SGLANG.md), a measured comparison with the
-> SGLang backend. In particular, multi-GPU Prism (`prism2`) hangs 38% of the requests with this backend
-> because there is no worker pool / GPU migration; use it with one GPU per model only.
+> SGLang backend. For multi-GPU Prism use `--enable-worker-pool`: without it, the global policy asks for
+> GPU migrations this backend cannot do and `prism2` hangs 38% of the requests.
 
 ## Design choices
 
@@ -26,7 +26,7 @@ cannot share one Python environment.
 | Integration | Adapter around an unmodified vLLM engine | Fork vLLM's scheduler/worker/model runner |
 | Versions | vLLM 0.30.0 + kvcached 0.1.6 (kvcached's tested pair, official image) | vLLM 0.31; vLLM 0.8.4 + old kvcached patch |
 | Activation | Own weight offload in a vLLM worker extension (pinned CPU copy, like `SingleModelRunner`) | vLLM sleep mode (shares cuMem with kvcached, untested); restarting the engine |
-| Worker pool | Not supported in this version | Sleeping engine per (model, GPU); rebuilding an engine per activation |
+| Worker pool | First version: not supported. Now: a slot process rebuilds the vLLM engine of the requested model per activation, with runtime patches to vLLM (`vllm_patches.py`) and a shared CPU weight cache (`weight_cache.py`) | Sleeping engine per (model, GPU) |
 | Code layout | Selectable backend (`--engine-backend {sglang,vllm}`), SGLang path untouched | Replace SGLang |
 | Engine loop | Synchronous `LLMEngine.step()` with in-process EngineCore | `AsyncLLM` |
 | RECOMPUTE preemption | Local continuation (prompt + generated tokens resubmitted on activation) | Requeue from scratch |
@@ -62,8 +62,10 @@ cannot share one Python environment.
 | `get_memory_usage` / `get_memory_pool_size` / flush cache / abort / profile | Mapped to vLLM equivalents | Adapted |
 | `update_weights` | — | **Not adapted** (returns failure) |
 | CUDA graphs | Always `enforce_eager` (re-pointed weights would invalidate graphs) | Restricted |
-| Worker pool (`WorkerPoolModelRunner`, `RequestHandlerWorkerPool`, `--workers-per-gpu`) | — | **Not adapted** (rejected at start-up) |
-| Model service / CPU shared-memory weights (`model_sevice.py`, `--enable-cpu-share-memory`) | Each engine keeps its own pinned CPU copy | **Not adapted** (rejected at start-up) |
+| Worker pool (`WorkerPoolModelRunner`, `--workers-per-gpu`) | `VllmWorkerSlot`: builds/tears down an engine per activation (0.2-0.6 s), keeps the CUDA context and process group; warms up at start | Adapted (TP=1 only) |
+| GPU migration of a model (worker pool) | Any slot on any GPU can serve the model | Adapted |
+| Model service / CPU shared-memory weights (`model_sevice.py`, `--enable-cpu-share-memory`) | Shared CPU weight cache in /dev/shm, filled at start-up, `prism_shm` load format | Adapted (the flags are accepted) |
+| RECOMPUTE in the worker pool | The request goes back through Redis with its progress; whichever slot serves the model continues it | Adapted |
 | `--async-loading` | — | **Not adapted** (rejected) |
 | `--use-kvcached-v0` | Ignored with a warning (upstream kvcached is used) | Replaced |
 | Overlap schedule, LoRA, double sparsity, data parallelism, multi-node | — | **Not adapted** (rejected) |
@@ -91,6 +93,9 @@ cannot share one Python environment.
 | `elastic` (README ex. 2, kvcached) | benchmark completes, 0 aborted |
 | `prism1` (README ex. 3 flags minus worker pool/model service, 2× Llama-3.2-3B) | 318/318 requests; GPU scheduler admission and controller idle deactivation working |
 | `switch_static` / `switch_elastic` (`polyaxon/test_switching.py`, 2× Llama-3.1-8B) | all checks pass: activation 0.29 s, deactivation frees weights + KV (elastic: down to one page per layer), greedy output identical after reactivation, streaming, RETURN and RECOMPUTE preemption, resize and sized activation |
+| `prism2` with worker pool (2 GPUs, 6 models) | 741/741 requests; TTFT 64 ms, TPOT 11.3 ms (SGLang worker pool: 155 ms, 17.6 ms) |
+| `wp_test` (`polyaxon/test_worker_pool.py`, 2 GPUs) | all checks pass, incl. migration GPU 0 -> GPU 1 (< 1 s to first response) |
+| `overload` with worker pool | 754/754 at every speed; SLO 98.3% / 97.9% / 95.4% / 82.4% (SGLang worker pool: 88.7 / 78.1 / 91.1 / 74.5%) |
 | `overload` (8 models on 1 GPU, 4 initially off, real trace at 1×/2×/4×/10×; without worker pool) | 754/754 requests at every speed, 0 aborted; the controller activates/evicts models (5/4 at 1×); SLO attainment (TTFT and TPOT, 5× baseline P95) 98.3% / 98.3% / 96.0% / 91.9% |
 
 RECOMPUTE keeps the text generated before the preemption exactly; the rest of the greedy text can differ

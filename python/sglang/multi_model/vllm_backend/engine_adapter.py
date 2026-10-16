@@ -884,6 +884,7 @@ class VllmWorkerSlot(VllmEngineAdapter):
         vllm_patches.teardown_engine(engine)
         del engine
         self.weights_bytes, self.model_name = 0, None
+        self._warmed = True
         logger.info(f"Slot warmed up with {smallest} in {time.perf_counter() - tic:.1f}s")
 
     def _init_ipc(self):
@@ -915,7 +916,9 @@ class VllmWorkerSlot(VllmEngineAdapter):
         if cached:
             args.load_format = "prism_shm"
             args.model_loader_extra_config = {"cache_key": path}
-        locks = self._gpu_locks()
+        # Only the slot's first engine profiles GPU memory (later ones reuse the result), so only the
+        # warm-up needs to exclude the other slots on the GPU.
+        locks = self._gpu_locks() if not getattr(self, "_warmed", False) else []
         try:
             tic = time.perf_counter()
             with vllm_patches.fast_build():
@@ -952,9 +955,10 @@ class VllmWorkerSlot(VllmEngineAdapter):
             self._reply(ActivateReqOutput(success=False, memory_usage=self.get_memory_usage(), **out))
             return
         change_logger_format(prefix=f" GPU={self.gpu_id} Worker {self.worker_id} ({r.model_name}) vLLM")
-        self.kv_limit_bytes = (
-            int(r.memory_pool_size * GB) if r.memory_pool_size is not None else self._initial_kv_limit_bytes()
-        )
+        pool_gb = r.memory_pool_size
+        if pool_gb is None:
+            pool_gb = getattr(self.server_args, "prism_pool_sizes", {}).get(r.model_name)
+        self.kv_limit_bytes = int(pool_gb * GB) if pool_gb is not None else self._initial_kv_limit_bytes()
         if self.enable_elastic_memory:
             self._set_kv_limit(self.kv_limit_bytes)
         self.active = True
