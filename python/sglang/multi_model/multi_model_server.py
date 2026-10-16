@@ -296,7 +296,9 @@ def launch_engine(
     _set_envs_and_config(server_args)
 
     if server_args.engine_backend == "vllm":
-        return launch_vllm_engine(server_args, port_args, gpu_ids, instance_idx)
+        return launch_vllm_engine(
+            server_args, port_args, gpu_ids, instance_idx, model_names_to_model_paths
+        )
 
     # The SGLang runtime modules need SGLang 0.3.4's dependencies (vllm 0.6.3); import them only here.
     from sglang.srt.managers.data_parallel_controller import (
@@ -402,18 +404,27 @@ def launch_vllm_engine(
     port_args: PortArgs,
     gpu_ids: List[int],
     instance_idx: int,
+    model_names_to_model_paths: Optional[Dict[str, str]] = None,
 ):
-    """vLLM backend: one adapter process per model instance (it drives all TP ranks and detokenizes)."""
+    """vLLM backend: one adapter process per model instance (it drives all TP ranks and detokenizes),
+    or per worker-pool slot."""
     from sglang.multi_model.vllm_backend.engine_adapter import (
         kvcached_env,
         run_vllm_engine_process,
+        run_vllm_worker_process,
     )
 
     reader, writer = mp.Pipe(duplex=False)
-    proc = mp.Process(
-        target=run_vllm_engine_process,
-        args=(server_args, port_args, gpu_ids, writer),
-    )
+    if server_args.enable_worker_pool:
+        proc = mp.Process(
+            target=run_vllm_worker_process,
+            args=(server_args, port_args, gpu_ids, writer, model_names_to_model_paths),
+        )
+    else:
+        proc = mp.Process(
+            target=run_vllm_engine_process,
+            args=(server_args, port_args, gpu_ids, writer),
+        )
     # A spawned process inherits os.environ at start(); engines are launched from parallel threads.
     with _engine_env_lock:
         saved = {k: os.environ.get(k) for k in kvcached_env(server_args, gpu_ids)}
@@ -449,9 +460,6 @@ def launch_vllm_engine(
 def check_vllm_backend_args(server_args: MultiModelServerArgs):
     """Reject the Prism features the vLLM backend does not implement (see vllm_backend/README_VLLM.md)."""
     unsupported = {
-        "enable_worker_pool": "worker pool (a vLLM engine is bound to one model)",
-        "enable_model_service": "model service (vLLM workers load their own weights)",
-        "enable_cpu_share_memory": "CPU shared-memory weights (each engine keeps its own pinned copy)",
         "enable_overlap_schedule": "overlap schedule (vLLM's own scheduler is used)",
         "enable_double_sparsity": "double sparsity",
         "lora_paths": "LoRA",
@@ -466,6 +474,51 @@ def check_vllm_backend_args(server_args: MultiModelServerArgs):
         logger.warning(
             "--use-kvcached-v0 is ignored by the vLLM backend: elastic memory uses upstream kvcached."
         )
+    if server_args.enable_worker_pool and any(m.tp_size > 1 for m in server_args.model_configs):
+        raise ValueError("--engine-backend vllm supports the worker pool with tp_size=1 only.")
+    if server_args.enable_model_service or server_args.enable_cpu_share_memory:
+        logger.info(
+            "vLLM backend: --enable-model-service / --enable-cpu-share-memory are served by the shared "
+            "CPU weight cache (vllm_backend/weight_cache.py)."
+        )
+        # The SGLang model service queues and CPU models are not created for this backend.
+        server_args.enable_model_service = False
+        server_args.enable_cpu_share_memory = False
+
+
+def ensure_model_info(model_paths: List[str]):
+    """The GPU scheduler and controller need every model in utils/model_info.json. With the vLLM backend
+    profile_model_info.py cannot run (it needs SGLang 0.3.4's vLLM), so missing entries are estimated
+    from the checkpoint (utils/estimate_model_info.py, within 1% of the profiled values)."""
+    from sglang.multi_model.utils import estimate_model_info
+
+    with open(estimate_model_info.MODEL_INFO_PATH) as f:
+        model_info = json.load(f)
+    missing = [p for p in model_paths if p not in model_info]
+    if not missing:
+        return
+    for path in missing:
+        model_info[path] = estimate_model_info.estimate(path)
+        logger.info(f"model_info.json: estimated {path}: {model_info[path]}")
+    with open(estimate_model_info.MODEL_INFO_PATH, "w") as f:
+        json.dump(model_info, f)
+
+
+def prewarm_vllm_weight_cache(server_args: MultiModelServerArgs, model_paths: List[str]):
+    """Fill the vLLM backend's shared CPU weight cache before the worker-pool slots start (counterpart of
+    load_shared_cpu_models). Runs in a child process on GPU 0."""
+    from sglang.multi_model.vllm_backend.engine_adapter import run_weight_cache_prewarm
+
+    tic = time.perf_counter()
+    reader, writer = mp.Pipe(duplex=False)
+    sargs = ServerArgs.from_multi_model_server_args(server_args, worker_id=0)
+    proc = mp.Process(target=run_weight_cache_prewarm, args=(sargs, [0], model_paths, writer))
+    proc.start()
+    result = reader.recv()
+    proc.join()
+    if result != "ok":
+        raise RuntimeError(f"Weight cache prewarm failed:\n{result}")
+    logger.info(f"Weight cache ready for {len(model_paths)} models in {time.perf_counter() - tic:.1f}s")
 
 
 def launch_request_handler(
@@ -977,6 +1030,9 @@ def launch_multi_model_server(
     configure_logger(multi_model_server_args)
     if multi_model_server_args.engine_backend == "vllm":
         check_vllm_backend_args(multi_model_server_args)
+        ensure_model_info(
+            sorted({m.model_path for m in multi_model_server_args.model_configs})
+        )
     else:
         # Importing model_runner registers SGLang's model classes in vLLM's ModelRegistry. The shared
         # CPU models (--enable-cpu-share-memory) are built in this process, so it must happen here
@@ -1012,8 +1068,16 @@ def launch_multi_model_server(
 
     if multi_model_server_args.enable_worker_pool:
 
+        if multi_model_server_args.engine_backend == "vllm":
+            prewarm_vllm_weight_cache(
+                multi_model_server_args, sorted(set(model_names_to_model_paths.values()))
+            )
+
         # launch model service
-        if multi_model_server_args.enable_model_service:
+        if (
+            multi_model_server_args.enable_model_service
+            and multi_model_server_args.engine_backend != "vllm"
+        ):
             engine_ids = []
             workers_per_gpu = multi_model_server_args.workers_per_gpu
             num_gpus = multi_model_server_args.num_gpus

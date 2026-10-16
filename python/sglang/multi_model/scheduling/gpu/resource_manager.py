@@ -11,6 +11,25 @@ import torch
 from sglang.multi_model.utils.get_memory_pool_size import get_model_path_to_model_size
 
 
+class KvcachedSegmentReader:
+    """Reads the KV bytes in use from upstream kvcached's per-instance segment (/dev/shm/<name>, int64
+    [total, used, prealloc]). A worker-pool slot of the vLLM backend re-creates the segment for every
+    engine it builds, so it is reopened on every read; a missing segment means nothing is mapped."""
+
+    def __init__(self, ipc_name: str):
+        self.path = os.path.join("/dev/shm", ipc_name)
+
+    def get_memory_usage_in_bytes(self) -> int:
+        try:
+            with open(self.path, "rb") as f:
+                buf = f.read(24)
+        except FileNotFoundError:
+            return 0
+        if len(buf) < 16:
+            return 0
+        return int(np.frombuffer(buf[:16], dtype=np.int64)[1])
+
+
 class ResourceManager:
     """
     Resource manager for managing GPU memory allocation and usage tracking.
@@ -42,7 +61,11 @@ class ResourceManager:
         """Initialize shared memory readers."""
         self.username = getpass.getuser()
         if self.enable_worker_pool:
-            from kvcached.slab_allocator import MemoryUsageReader
+            try:
+                from kvcached.slab_allocator import MemoryUsageReader
+            except ImportError:
+                # Upstream kvcached (vLLM backend) has no slab_allocator.
+                MemoryUsageReader = KvcachedSegmentReader
 
             self._worker_to_mem_reader = {}
             for worker_id in range(self.num_workers):

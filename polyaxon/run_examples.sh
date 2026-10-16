@@ -122,21 +122,18 @@ PY
 
 # start_server <step> <port> <config> <extra flags...>; waits until every "on" model is ready.
 # PRISM_BACKEND=vllm (image gabrielliman/prism:vllm0.30-kvcached0.1.6): run every example with
-# --engine-backend vllm, dropping the README flags that backend does not implement (worker pool, model
-# service, CPU shared-memory weights; --use-kvcached-v0 is replaced by upstream kvcached).
-# PRISM_NO_WORKER_POOL=1 drops the same flags for the SGLang backend (to isolate the effect of the
-# worker pool from the effect of the engine).
+# --engine-backend vllm (--use-kvcached-v0 is dropped: that backend uses upstream kvcached).
+# PRISM_NO_WORKER_POOL=1 drops the worker-pool flags (worker pool, model service, CPU shared-memory
+# weights) for either backend, to compare with and without the worker pool.
 backend_args() {
-  if [ "${PRISM_BACKEND:-sglang}" = vllm ]; then
-    echo --engine-backend; echo vllm
-  elif [ "${PRISM_NO_WORKER_POOL:-0}" != 1 ]; then
-    printf '%s\n' "$@"; return
-  fi
+  [ "${PRISM_BACKEND:-sglang}" = vllm ] && { echo --engine-backend; echo vllm; }
   while [ $# -gt 0 ]; do
     case $1 in
-      --enable-cpu-share-memory|--enable-model-service|--enable-worker-pool) ;;
+      --enable-cpu-share-memory|--enable-model-service|--enable-worker-pool)
+        [ "${PRISM_NO_WORKER_POOL:-0}" = 1 ] || echo "$1" ;;
+      --workers-per-gpu|--num-model-service-workers)
+        [ "${PRISM_NO_WORKER_POOL:-0}" = 1 ] || { echo "$1"; echo "$2"; }; shift ;;
       --use-kvcached-v0) [ "${PRISM_BACKEND:-sglang}" = vllm ] || echo "$1" ;;
-      --workers-per-gpu|--num-model-service-workers) shift ;;
       *) printf '%s\n' "$1" ;;
     esac
     shift
@@ -269,6 +266,28 @@ PY2
       for _ in $(seq 1 120); do curl -sf -o /dev/null http://127.0.0.1:30005/health && break; sleep 5; done
       python3 polyaxon/compare/overhead.py vllm 30005 model_2 "$RESULTS/$step/vllm.json" || rc=1
       [ $rc = 0 ]
+      ;;
+    swap_static|swap_elastic)
+      # vLLM worker-pool core operation: switch one process's engine between models
+      # (polyaxon/experiments/engine_swap.py). vLLM backend image only.
+      mkdir -p "$RESULTS/$step"; df -h /dev/shm | tail -1
+      VLLM_NO_USAGE_STATS=1 DO_NOT_TRACK=1 ENABLE_KVCACHED=$([ "$step" = swap_elastic ] && echo true || echo false) \
+        KVCACHED_IPC_NAME="swap_$$" python3 polyaxon/experiments/engine_swap.py \
+        "$RESULTS/$step/engine_swap.json" 3 > "$RESULTS/$step/engine_swap.log" 2>&1
+      rc=$?; grep -E "^(cold|swap|phases|all outputs)" "$RESULTS/$step/engine_swap.log" | cut -c1-400
+      tail -30 "$RESULTS/$step/engine_swap.log" | grep -iE "error|Traceback" -A3 | head -20
+      [ $rc = 0 ]
+      ;;
+    wp_test)
+      # Worker pool semantics (polyaxon/test_worker_pool.py): README worker-pool flags without the global
+      # controller, so only the test moves models. PRISM_WP_GPUS=2 adds the migration check.
+      ngpu=${PRISM_WP_GPUS:-1}
+      cp polyaxon/configs/worker_pool_test.json "$CFG_DIR/$step.json"
+      start_server "$step" 30006 "$CFG_DIR/$step.json" --disable-cuda-graph --disable-radix-cache \
+          --enable-cpu-share-memory --enable-elastic-memory --use-kvcached-v0 --enable-gpu-scheduler \
+          --enable-model-service --enable-worker-pool --workers-per-gpu 2 --num-gpus "$ngpu" \
+        && { python3 polyaxon/test_worker_pool.py 30006 "$ngpu" 2>&1 | tee "$RESULTS/$step/test_worker_pool.log"; \
+             [ "${PIPESTATUS[0]}" = 0 ]; }
       ;;
     switch_static|switch_elastic)
       # Model switching (activate/deactivate, RECOMPUTE/RETURN preemption, resize) on the static and

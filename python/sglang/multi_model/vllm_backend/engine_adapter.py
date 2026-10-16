@@ -58,12 +58,17 @@ from sglang.srt.managers.io_struct import (
 )
 from sglang.srt.redis_utils import RedisClient
 from sglang.srt.server_args import PortArgs, ServerArgs
-from sglang.srt.utils import configure_logger
+from sglang.srt.utils import change_logger_format, configure_logger
 from sglang.utils import get_exception_traceback
 
 logger = logging.getLogger(__name__)
 
 GB = 1 << 30
+CONTINUATION_ATTR = "prism_continuation"
+CONTINUATION_FIELDS = (
+    "prompt_len", "prompt_ids", "prefix_token_ids", "prefix_text", "out_queue_timestamp",
+    "prefill_finish_timestamp", "decode_timestamps", "num_cached_tokens", "num_preemptions",
+)
 WORKER_EXTENSION = "sglang.multi_model.vllm_backend.worker_extension.PrismWorkerExtension"
 
 
@@ -114,18 +119,8 @@ class VllmEngineAdapter:
 
         self._init_ipc()
         self._init_engine()
-
-        self.reqs: Dict[str, _Req] = {}  # Prism rid -> request in vLLM
-        self.continuations: List[_Req] = []  # retracted with RECOMPUTE, resubmitted on activation
+        self._init_state()
         self.active = True
-        self.decode_forward_ct = 0
-        self.total_input_len = 0
-        self.num_received_requests = 0
-        self.token_count = 0
-        self.prefill_token_count = 0
-        self.decode_token_count = 0
-        self.last_tput_update_time = time.time()
-        self.kv_limit_revision = 0
 
         if self.enable_elastic_memory:
             self.kv_limit_bytes = self._initial_kv_limit_bytes()
@@ -135,6 +130,18 @@ class VllmEngineAdapter:
             self.active = False
 
     # ------------------------------------------------------------------ init
+    def _init_state(self):
+        self.reqs: Dict[str, _Req] = {}  # Prism rid -> request in vLLM
+        self.continuations: List[_Req] = []  # retracted with RECOMPUTE, resubmitted on activation
+        self.decode_forward_ct = 0
+        self.total_input_len = 0
+        self.num_received_requests = 0
+        self.token_count = 0
+        self.prefill_token_count = 0
+        self.decode_token_count = 0
+        self.last_tput_update_time = time.time()
+        self.kv_limit_revision = 0
+
     def _init_ipc(self):
         context = zmq.Context(3)
         self.recv_from_request_handler = context.socket(zmq.PULL)
@@ -242,6 +249,14 @@ class VllmEngineAdapter:
         finally:
             for f in locks:
                 f.close()
+        self._bind_engine()
+        self.weights_bytes = self._rpc("prism_snapshot_weights")
+        logger.info(
+            f"max_total_num_tokens={self.max_total_num_tokens}, max_model_len={self.max_model_len}, "
+            f"weights={self.weights_bytes / GB:.2f} GB"
+        )
+
+    def _bind_engine(self):
         core = self.engine.engine_core.engine_core
         self.vllm_scheduler = core.scheduler
         cache_config = self.engine.vllm_config.cache_config
@@ -249,11 +264,6 @@ class VllmEngineAdapter:
         self.num_gpu_blocks = cache_config.num_gpu_blocks
         self.max_total_num_tokens = self.num_gpu_blocks * self.block_size
         self.max_model_len = self.engine.model_config.max_model_len
-        self.weights_bytes = self._rpc("prism_snapshot_weights")
-        logger.info(
-            f"max_total_num_tokens={self.max_total_num_tokens}, max_model_len={self.max_model_len}, "
-            f"weights={self.weights_bytes / GB:.2f} GB"
-        )
 
     def _rpc(self, method: str, *args):
         """Call the worker extension on every TP rank and return rank 0's result."""
@@ -277,6 +287,8 @@ class VllmEngineAdapter:
         return result.get("status") in ("applied", "deferred")
 
     def _kv_used_bytes(self) -> int:
+        if getattr(self, "engine", None) is None:
+            return 0
         if self.enable_elastic_memory:
             return self._rpc("prism_kv_mapped_bytes")
         return self._rpc("prism_kv_bytes") if self.active else 0
@@ -372,6 +384,10 @@ class VllmEngineAdapter:
             assert obj.image_data is None, "Image inputs are not supported."
             prompt_len = len(obj.input_ids) if obj.input_ids is not None else 0
             req = _Req(obj=obj, prompt_len=prompt_len)
+            # A request preempted with RECOMPUTE by a worker-pool slot comes back through Redis with its
+            # progress (VllmWorkerSlot._retract_running_requests); continue it instead of restarting.
+            for k, v in (getattr(obj, CONTINUATION_ATTR, None) or {}).items():
+                setattr(req, k, v)
             self.num_received_requests += 1
             self._submit(req)
 
@@ -581,7 +597,7 @@ class VllmEngineAdapter:
                     logger.error(f"Profiling failed: {e}")
             elif isinstance(r, GetMemPoolSizeReq):
                 self.send_to_request_handler.send_pyobj(
-                    GetMemPoolSizeReqOutput(size=self.max_total_num_tokens, rid=r.rid)
+                    GetMemPoolSizeReqOutput(size=getattr(self, "max_total_num_tokens", 0), rid=r.rid)
                 )
             elif isinstance(r, GetMemoryUsageReq):
                 self.send_to_request_handler.send_pyobj(
@@ -611,6 +627,8 @@ class VllmEngineAdapter:
             self.handle_deactivate_request(deact)
 
     def flush_cache(self):
+        if getattr(self, "engine", None) is None:
+            return False
         if self.reqs:
             logger.warning("Cache not flushed because there are pending requests.")
             return False
@@ -768,19 +786,26 @@ def _setup_env(server_args: ServerArgs, gpu_ids: List[int]):
         os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(str(i) for i in gpu_ids)
     # In-process EngineCore: the adapter drives it with step(), like Prism's scheduler loop.
     os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
+    os.environ.setdefault("VLLM_NO_USAGE_STATS", "1")
+    if server_args.enable_worker_pool:
+        # A slot builds an engine per activation: use the construction shortcuts of vllm_patches.
+        for flag in ("PRISM_VLLM_SKIP_PROFILE", "PRISM_VLLM_CACHE_RENDERER", "PRISM_VLLM_SKIP_WARMUP"):
+            os.environ.setdefault(flag, "1")
     # The kvcached variables (kvcached_env) are set by the parent before this process starts: kvcached's
     # autopatch .pth imports kvcached at interpreter start-up, which fixes its IPC name then.
 
 
 def kvcached_env(server_args: ServerArgs, gpu_ids: List[int]) -> Dict[str, str]:
     """Environment for an engine process. The KV usage segment is named like the SGLang engine's
-    (ipc_{gpu}_{model}_{user}) so the GPU scheduler's ResourceManager finds it."""
+    (ipc_{gpu}_{model}_{user}, or ipc_{gpu}_{worker}_{user} for a worker-pool slot) so the GPU
+    scheduler's ResourceManager finds it."""
     if not server_args.enable_elastic_memory:
         return {"ENABLE_KVCACHED": "false"}
+    owner = server_args.worker_id if server_args.enable_worker_pool else server_args.model_name
     return {
         "ENABLE_KVCACHED": "true",
         "KVCACHED_AUTOPATCH": "1",
-        "KVCACHED_IPC_NAME": f"ipc_{gpu_ids[0]}_{server_args.model_name}_{getpass.getuser()}",
+        "KVCACHED_IPC_NAME": f"ipc_{gpu_ids[0]}_{owner}_{getpass.getuser()}",
     }
 
 
@@ -807,3 +832,222 @@ def run_vllm_engine_process(
         except Exception:
             pass
         raise
+
+
+class VllmWorkerSlot(VllmEngineAdapter):
+    """A worker-pool slot (--enable-worker-pool): one process per (GPU, worker id) that serves whichever
+    model the GPU scheduler assigns to it, like WorkerPoolModelRunner in the SGLang backend.
+
+    A vLLM engine is bound to one model, so activation builds an engine for the requested model in this
+    process and deactivation tears it down (vllm_patches.teardown_engine keeps the CUDA context and the
+    process group). Weights come from the shared CPU cache (weight_cache.py, load format `prism_shm`) and
+    are read from the checkpoint only for a model that has no cache yet, which is then saved.
+    """
+
+    def __init__(self, server_args: ServerArgs, port_args: PortArgs, gpu_ids: List[int],
+                 model_names_to_model_paths: Dict[str, str]):
+        from sglang.multi_model.vllm_backend import vllm_patches
+
+        vllm_patches.apply()
+        self.server_args = server_args
+        self.port_args = port_args
+        self.gpu_ids = gpu_ids
+        self.gpu_id = gpu_ids[0]
+        self.worker_id = server_args.worker_id
+        self.model_paths = model_names_to_model_paths
+        self.model_name = None
+        self.instance_idx = getattr(server_args, "instance_idx", 0)
+        self.enable_elastic_memory = server_args.enable_elastic_memory
+        self.ipc_name = f"ipc_{self.gpu_id}_{self.worker_id}_{getpass.getuser()}"
+        self.cuda_graphs = False
+        self.engine = None
+        self.weights_bytes = 0
+        self._init_ipc()
+        self._init_state()
+        self.active = False
+        if os.environ.get("PRISM_VLLM_WARM_SLOT", "1") == "1":
+            self._warm_up_slot()
+
+    def _warm_up_slot(self):
+        """Build and tear down one engine at start-up. The first engine of a process pays for CUDA and
+        process-group initialization and kernel JIT (~7 s measured); later ones take ~0.5 s. Prism's
+        WorkerPoolModelRunner likewise initializes its runtime before the first activation."""
+        from sglang.multi_model.vllm_backend import vllm_patches, weight_cache
+
+        cached = [m for m, p in self.model_paths.items() if weight_cache.exists(p)]
+        if not cached:
+            return
+        smallest = min(cached, key=lambda m: weight_cache.open_cache(self.model_paths[m]).nbytes)
+        tic = time.perf_counter()
+        self._build_engine(smallest)
+        engine, self.engine, self.vllm_scheduler = self.engine, None, None
+        vllm_patches.teardown_engine(engine)
+        del engine
+        self.weights_bytes, self.model_name = 0, None
+        logger.info(f"Slot warmed up with {smallest} in {time.perf_counter() - tic:.1f}s")
+
+    def _init_ipc(self):
+        super()._init_ipc()
+        # Activate/deactivate requests come from this GPU's scheduler (WorkerPool in gpu/worker_pool.py).
+        self.recv_from_gpu_scheduler = zmq.Context.instance().socket(zmq.PULL)
+        self.recv_from_gpu_scheduler.bind(f"ipc://gpu_scheduler_{self.gpu_id}_to_worker_{self.worker_id}")
+
+    def recv_control_requests(self):
+        reqs = super().recv_control_requests()
+        while True:
+            try:
+                reqs.append(self.recv_from_gpu_scheduler.recv_pyobj(zmq.NOBLOCK))
+            except zmq.ZMQError:
+                return reqs
+
+    def _build_engine(self, model_name: str):
+        from vllm import LLMEngine
+
+        from sglang.multi_model.vllm_backend import vllm_patches, weight_cache
+
+        path = self.model_paths[model_name]
+        self.model_name = model_name
+        self.server_args.model_name = model_name
+        self.server_args.model_path = path
+        self.server_args.tokenizer_path = path
+        cached = weight_cache.exists(path)
+        args = self._engine_args()
+        if cached:
+            args.load_format = "prism_shm"
+            args.model_loader_extra_config = {"cache_key": path}
+        locks = self._gpu_locks()
+        try:
+            tic = time.perf_counter()
+            with vllm_patches.fast_build():
+                self.engine = LLMEngine.from_engine_args(args)
+            logger.info(
+                f"vLLM engine for {model_name} created in {time.perf_counter() - tic:.3f}s "
+                f"(weights from {'shared cache' if cached else 'checkpoint'})"
+            )
+        finally:
+            for f in locks:
+                f.close()
+        model = self.engine.model_executor.driver_worker.worker.model_runner.get_model()
+        if not cached:
+            weight_cache.save(model, path)
+        self.weights_bytes = sum(
+            t.numel() * t.element_size()
+            for t in {p.data_ptr(): p for p in list(model.parameters()) + list(model.buffers())}.values()
+        )
+        self._bind_engine()
+
+    def handle_activate_request(self, r: ActivateReqInput):
+        gpu_id = self.gpu_id if r.gpu_id is None else r.gpu_id
+        out = dict(rid=r.rid, gpu_id=gpu_id, model_name=r.model_name, instance_idx=r.instance_idx)
+        if self.active:
+            logger.warning(f"Worker already serves {self.model_name}")
+            self._reply(ActivateReqOutput(success=False, memory_usage=self.get_memory_usage(), **out))
+            return
+        tic = time.perf_counter()
+        try:
+            self._build_engine(r.model_name)
+        except Exception:
+            logger.error(f"Activation of {r.model_name} failed:\n{get_exception_traceback()}")
+            self.engine = None
+            self._reply(ActivateReqOutput(success=False, memory_usage=self.get_memory_usage(), **out))
+            return
+        change_logger_format(prefix=f" GPU={self.gpu_id} Worker {self.worker_id} ({r.model_name}) vLLM")
+        self.kv_limit_bytes = (
+            int(r.memory_pool_size * GB) if r.memory_pool_size is not None else self._initial_kv_limit_bytes()
+        )
+        if self.enable_elastic_memory:
+            self._set_kv_limit(self.kv_limit_bytes)
+        self.active = True
+        logger.info(f"Activate model {r.model_name} time cost: {time.perf_counter() - tic:.4f}s.")
+        self._reply(ActivateReqOutput(success=True, memory_usage=self.get_memory_usage(), **out))
+
+    def _release_gpu_memory(self):
+        from sglang.multi_model.vllm_backend import vllm_patches
+
+        engine, self.engine, self.vllm_scheduler = self.engine, None, None
+        vllm_patches.teardown_engine(engine)
+        self.weights_bytes = 0
+        self.model_name = None
+
+    def _retract_running_requests(self):
+        """RECOMPUTE in a slot: the model may next run on another slot or GPU, so the requests go back to
+        the model's frontend queue carrying their progress (CONTINUATION_ATTR) and are continued by
+        whichever slot serves the model next."""
+        reqs = list(self.reqs.values())
+        if reqs:
+            self.engine.abort_request([r.rid for r in reqs])
+        for r in reqs:
+            self._forget(r)
+            r.prefix_token_ids = r.prefix_token_ids + r.token_ids
+            r.prefix_text = r.prefix_text + r.text
+            r.prompt_ids = list(self._prompt_ids(r))
+            setattr(r.obj, CONTINUATION_ATTR, {k: getattr(r, k) for k in CONTINUATION_FIELDS})
+            self.redis_client.send_pyobj(
+                key=f"{self.server_args.frontend_generate_request_key_prefix}:{self.model_name}",
+                obj=r.obj,
+            )
+        logger.info(f"Retract running requests to the frontend queue: {len(reqs)}")
+        self.send_to_controller.send_pyobj(
+            BatchRetractDecodeReq(
+                rids=[r.rid for r in reqs],
+                len_output_ids=[r.num_output_tokens for r in reqs],
+                model=self.model_name,
+                retract_time=time.time(),
+            )
+        )
+
+
+def run_vllm_worker_process(
+    server_args: ServerArgs,
+    port_args: PortArgs,
+    gpu_ids: List[int],
+    pipe_writer,
+    model_names_to_model_paths: Dict[str, str],
+):
+    configure_logger(server_args, prefix=f" GPU={gpu_ids[0]} Worker={server_args.worker_id} vLLM")
+    slot = None
+    try:
+        _setup_env(server_args, gpu_ids)
+        slot = VllmWorkerSlot(server_args, port_args, gpu_ids, model_names_to_model_paths)
+        signal.signal(signal.SIGTERM, lambda *_: (slot.cleanup(), os._exit(0)))
+        pipe_writer.send(slot.get_memory_usage())
+        slot.event_loop()
+    except Exception:
+        logger.error(get_exception_traceback())
+        try:
+            pipe_writer.send(get_exception_traceback())
+        except Exception:
+            pass
+        raise
+
+
+def run_weight_cache_prewarm(server_args: ServerArgs, gpu_ids: List[int], model_paths: List[str], pipe_writer):
+    """Fill the shared CPU weight cache for the given models (the vLLM backend's counterpart of
+    --enable-cpu-share-memory, which loads every model to shared CPU memory at start-up)."""
+    configure_logger(server_args, prefix=" WeightCache")
+    try:
+        os.environ["ENABLE_KVCACHED"] = "false"
+        _setup_env(server_args, gpu_ids)
+        from vllm import EngineArgs, LLMEngine
+
+        from sglang.multi_model.vllm_backend import vllm_patches, weight_cache
+
+        vllm_patches.apply()
+        for path in model_paths:
+            if weight_cache.exists(path):
+                continue
+            tic = time.perf_counter()
+            engine = LLMEngine.from_engine_args(EngineArgs(
+                model=path, load_format=server_args.load_format, enforce_eager=True,
+                enable_prefix_caching=False, max_model_len=-1, async_scheduling=False,
+                disable_log_stats=True, trust_remote_code=server_args.trust_remote_code,
+                dtype=server_args.dtype, kv_cache_memory_bytes=1 << 30, gpu_memory_utilization=0.5,
+            ))
+            weight_cache.save(engine.model_executor.driver_worker.worker.model_runner.get_model(), path)
+            vllm_patches.teardown_engine(engine)
+            del engine
+            logger.info(f"Cached {path} in {time.perf_counter() - tic:.1f}s")
+        pipe_writer.send("ok")
+    except Exception:
+        logger.error(get_exception_traceback())
+        pipe_writer.send(get_exception_traceback())
