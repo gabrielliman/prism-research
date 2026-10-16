@@ -250,32 +250,38 @@ PY2
           [ $rc = 0 ] ;;
       esac
       ;;
-    cmp_overhead)
-      # Prism's own overhead: Llama-3.2-3B behind Prism (compare config, static 20 GB pools, eager, no
-      # prefix cache) vs. the plain engine with the same settings: `vllm serve` for the vLLM backend,
-      # upstream SGLang 0.3.4.post2 (/sgl-workspace/sglang in the SGLang image) for the SGLang backend.
-      cfg="$CFG_DIR/compare.json"; cp polyaxon/configs/compare_2_model.json "$cfg"
+    cmp_overhead|tp_overhead)
+      # Prism's own overhead: one model behind Prism (static 20 GB pool per rank, eager, no prefix cache)
+      # vs. the plain engine with the same settings: `vllm serve` for the vLLM backend, upstream SGLang
+      # 0.3.4.post2 (/sgl-workspace/sglang in the SGLang image) for the SGLang backend.
+      # cmp_overhead: Llama-3.2-3B (compare config, model_2); tp_overhead: Llama-3.1-8B with TP=2 (2 GPUs).
+      if [ "$step" = tp_overhead ]; then
+        cfg="$CFG_DIR/$step.json"; cp polyaxon/configs/tp2_1_model.json "$cfg"
+        model=model_1; hf=meta-llama/Llama-3.1-8B-Instruct; tp=2; tokens=327680  # 64 KiB/token per rank
+      else
+        cfg="$CFG_DIR/compare.json"; cp polyaxon/configs/compare_2_model.json "$cfg"
+        model=model_2; hf=meta-llama/Llama-3.2-3B-Instruct; tp=1; tokens=187000  # 112 KiB/token
+      fi
       start_server "$step" 30004 "$cfg" --disable-cuda-graph --disable-radix-cache || { STATUS[$step]=1; continue; }
-      python3 polyaxon/compare/overhead.py prism 30004 model_2 "$RESULTS/$step/prism.json"; rc=$?
+      python3 polyaxon/compare/overhead.py prism 30004 $model "$RESULTS/$step/prism.json"; rc=$?
       stop_server
       wait_ports_free 30005 1
       if [ "${PRISM_BACKEND:-sglang}" = vllm ]; then
-        ENABLE_KVCACHED=false setsid vllm serve meta-llama/Llama-3.2-3B-Instruct --port 30005 \
-          --served-model-name model_2 --enforce-eager --no-enable-prefix-caching \
+        ENABLE_KVCACHED=false VLLM_ALLREDUCE_USE_SYMM_MEM=0 setsid vllm serve $hf --port 30005 \
+          --served-model-name $model --enforce-eager --no-enable-prefix-caching --tensor-parallel-size $tp \
           --kv-cache-memory-bytes $((20 * 1024 * 1024 * 1024)) --gpu-memory-utilization 0.5 \
           --max-num-batched-tokens 8192 > "$RESULTS/$step/engine_serve.log" 2>&1 &
         mode=vllm
       else
-        # 20 GB of KV at 114688 bytes/token (Llama-3.2-3B cell size in model_info.json).
         PYTHONPATH=/sgl-workspace/sglang/python setsid python3 -m sglang.launch_server \
-          --model-path meta-llama/Llama-3.2-3B-Instruct --port 30005 --disable-cuda-graph \
-          --disable-radix-cache --max-total-tokens 187000 --chunked-prefill-size 8192 \
+          --model-path $hf --port 30005 --disable-cuda-graph --tp $tp \
+          --disable-radix-cache --max-total-tokens $tokens --chunked-prefill-size 8192 \
           > "$RESULTS/$step/engine_serve.log" 2>&1 &
         mode=sglang
       fi
       SERVER_PID=$!
       for _ in $(seq 1 120); do curl -sf -o /dev/null http://127.0.0.1:30005/health && break; sleep 5; done
-      python3 polyaxon/compare/overhead.py $mode 30005 model_2 "$RESULTS/$step/engine.json" || rc=1
+      python3 polyaxon/compare/overhead.py $mode 30005 $model "$RESULTS/$step/engine.json" || rc=1
       [ $rc = 0 ]
       ;;
     swap_static|swap_elastic)
