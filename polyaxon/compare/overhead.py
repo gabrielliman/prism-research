@@ -1,7 +1,9 @@
 """Latency of one model behind Prism's vLLM adapter vs. a plain `vllm serve` (same model and settings), to
 measure the adapter's own overhead (Python step loop, Redis queues, request handler).
 
-Usage: python3 polyaxon/compare/overhead.py {prism|vllm} <port> <model> <out.json>
+Usage: python3 polyaxon/compare/overhead.py {prism|vllm|sglang} <port> <model> <out.json>
+  prism: Prism's /generate (either backend); vllm: `vllm serve` (OpenAI API); sglang: upstream SGLang's
+  /generate (same format as Prism's, without the `model` field).
 For concurrency 1, 8 and 32: 4 x concurrency streaming requests (fixed ~200-token prompt, 256 output
 tokens, ignore_eos); records TTFT and inter-token latency per request (client side).
 """
@@ -20,10 +22,12 @@ OUT_TOKENS = 256
 
 
 async def one(session):
-    if MODE == "prism":
+    if MODE in ("prism", "sglang"):
         url = f"{URL}/generate"
-        payload = {"text": PROMPT, "model": MODEL, "stream": True,
+        payload = {"text": PROMPT, "stream": True,
                    "sampling_params": {"temperature": 0, "max_new_tokens": OUT_TOKENS, "ignore_eos": True}}
+        if MODE == "prism":
+            payload["model"] = MODEL
     else:
         url = f"{URL}/v1/completions"
         payload = {"model": MODEL, "prompt": PROMPT, "stream": True, "temperature": 0,
@@ -37,11 +41,12 @@ async def one(session):
                 continue
             d = json.loads(line[6:])
             # Prism streams the cumulative text; vLLM's OpenAI API streams deltas.
-            text = d.get("text") if MODE == "prism" else d["choices"][0].get("text", "")
-            grew = len(text) > last_len if MODE == "prism" else bool(text)
+            cumulative = MODE in ("prism", "sglang")
+            text = d.get("text") if cumulative else d["choices"][0].get("text", "")
+            grew = len(text) > last_len if cumulative else bool(text)
             if grew:
                 stamps.append(time.perf_counter())
-                last_len = len(text) if MODE == "prism" else last_len
+                last_len = len(text) if cumulative else last_len
     itl = [b - a for a, b in zip(stamps, stamps[1:])]
     return {"ttft": stamps[0] - st if stamps else None, "itl_mean": statistics.mean(itl) if itl else None,
             "e2e": time.perf_counter() - st}

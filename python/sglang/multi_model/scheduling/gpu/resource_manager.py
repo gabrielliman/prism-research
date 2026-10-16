@@ -45,8 +45,14 @@ class ResourceManager:
         enable_worker_pool: bool,
         model_names_to_model_paths: Dict[str, str],
         num_workers: Optional[int] = None,
+        extra_worker_ids: Optional[list] = None,
+        model_tp: Optional[Dict[str, int]] = None,
     ):
         self.gpu_id = gpu_id
+        # vLLM backend: TP slots registered with this GPU (their KV usage segment is named after it).
+        self.extra_worker_ids = list(extra_worker_ids or [])
+        # A TP model holds 1/tp of its weights on each of its GPUs.
+        self.model_tp = model_tp or {}
         self.mem_frac = mem_frac
         self.active_model_names = set(active_model_names)
         self.enable_worker_pool = enable_worker_pool
@@ -68,7 +74,7 @@ class ResourceManager:
                 MemoryUsageReader = KvcachedSegmentReader
 
             self._worker_to_mem_reader = {}
-            for worker_id in range(self.num_workers):
+            for worker_id in list(range(self.num_workers)) + self.extra_worker_ids:
                 self._worker_to_mem_reader[worker_id] = MemoryUsageReader(
                     f"ipc_{self.gpu_id}_{worker_id}_{self.username}"
                 )
@@ -121,7 +127,7 @@ class ResourceManager:
         """Get total used KV cache memory in bytes."""
         if self.enable_worker_pool:
             used_sum = 0
-            for worker_id in range(self.num_workers):
+            for worker_id in self._worker_to_mem_reader:
                 used_sum += self._worker_to_mem_reader[
                     worker_id
                 ].get_memory_usage_in_bytes()
@@ -186,5 +192,6 @@ class ResourceManager:
                 model_name: model_path_to_model_size[
                     self.model_names_to_model_paths[model_name]
                 ]
+                / self.model_tp.get(model_name, 1)
                 for model_name in self.model_names_to_model_paths.keys()
             }

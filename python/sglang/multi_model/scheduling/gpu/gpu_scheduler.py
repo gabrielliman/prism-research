@@ -88,6 +88,8 @@ class GPUScheduler:
             multi_model_server_args.enable_worker_pool,
             model_names_to_model_paths,
             num_workers=multi_model_server_args.workers_per_gpu,
+            extra_worker_ids=[w for w, _, _ in self._tp_slots()],
+            model_tp=getattr(multi_model_server_args, "prism_model_tp", {}),
         )
         self._shutdown_event = Event()
         self._receiver_thread = None
@@ -116,11 +118,18 @@ class GPUScheduler:
                 logger.info(f"Waiting for models to be activated: {self._model_states}")
                 time.sleep(0.01)
 
+    def _tp_slots(self):
+        """vLLM backend: TP slots whose first GPU is this one, as (worker id, tp_size, gpu ids). The GPU
+        scheduler of a TP model's first rank schedules it, as in the paper (Prism §7)."""
+        return getattr(self.server_args, "prism_tp_slots", {}).get(self.gpu_id, [])
+
     def _maybe_init_worker_pool(self):
         """Initialize worker pool if enabled."""
         if self.server_args.enable_worker_pool:
             self.worker_pool = WorkerPool(
-                self.server_args.workers_per_gpu, self.gpu_id, self.context
+                self.server_args.workers_per_gpu, self.gpu_id, self.context,
+                tp_workers={w: tp for w, tp, _ in self._tp_slots()},
+                model_tp=getattr(self.server_args, "prism_model_tp", {}),
             )
         else:
             self.worker_pool = None

@@ -33,7 +33,14 @@ class WorkerPool:
     Manages worker allocation, release, and model activation/deactivation operations.
     """
 
-    def __init__(self, num_workers: int, gpu_id: int, zmq_context: zmq.Context):
+    def __init__(
+        self,
+        num_workers: int,
+        gpu_id: int,
+        zmq_context: zmq.Context,
+        tp_workers: Optional[Dict[int, int]] = None,
+        model_tp: Optional[Dict[str, int]] = None,
+    ):
         """
         Initialize worker pool.
         
@@ -41,9 +48,14 @@ class WorkerPool:
             num_workers: Total number of workers in the pool
             gpu_id: GPU device ID
             zmq_context: ZMQ context
+            tp_workers: vLLM backend, extra TP workers whose first GPU is this one: worker id -> tp_size
+            model_tp: model name -> tp_size (a model is only assigned to a worker with its tp_size)
         """
         self.num_workers = num_workers
         self.gpu_id = gpu_id
+        self._worker_tp: Dict[int, int] = {i: 1 for i in range(num_workers)}
+        self._worker_tp.update(tp_workers or {})
+        self._model_tp = model_tp or {}
         self._model_to_worker: Dict[str, int] = {}
         self._free_workers: Deque[int] = deque()
         self._worker_to_ipc_name: Dict[int, zmq.Socket] = {}
@@ -52,22 +64,23 @@ class WorkerPool:
 
     def _init_workers(self):
         """Initialize all workers."""
-        for i in range(self.num_workers):
+        for i in self._worker_tp:
             worker = Worker(i, self.gpu_id)
             self._free_workers.append(worker.worker_id)
             self._worker_to_ipc_name[i] = self.zmq_context.socket(zmq.PUSH)
             self._worker_to_ipc_name[i].connect(f"ipc://{worker.ipc_name}")
 
-    def get_idle_worker(self):
+    def get_idle_worker(self, tp_size: int = 1):
         """
         Get an idle worker.
         
         Returns:
-            worker_id: Idle worker ID, or None if no idle worker available
+            worker_id: Idle worker ID with the given tp_size, or None if no idle worker available
         """
-        if len(self._free_workers) == 0:
-            return None
-        return self._free_workers[0]
+        for worker_id in self._free_workers:
+            if self._worker_tp[worker_id] == tp_size:
+                return worker_id
+        return None
 
     def assign_worker(self, worker_id: int, model_name: str):
         """
@@ -120,9 +133,10 @@ class WorkerPool:
             logger.info(f"Model {model_name} is already served by a worker")
             return False
 
-        worker_id = self.get_idle_worker()
+        tp_size = self._model_tp.get(model_name, 1)
+        worker_id = self.get_idle_worker(tp_size)
         if worker_id is None:
-            logger.error(f"No idle worker found for GPU {self.gpu_id}")
+            logger.error(f"No idle worker with tp_size={tp_size} found for GPU {self.gpu_id}")
             return False
             
         self.assign_worker(worker_id, model_name)
@@ -174,7 +188,7 @@ class WorkerPool:
 
             # Get IPC file paths
             ipc_files = set()
-            for i in range(self.num_workers):
+            for i in self._worker_tp:
                 worker = Worker(i, self.gpu_id)
                 ipc_files.add(f"ipc://{worker.ipc_name}")
 

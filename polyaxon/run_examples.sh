@@ -251,43 +251,60 @@ PY2
       esac
       ;;
     cmp_overhead)
-      # Adapter overhead (vLLM backend only): Llama-3.2-3B behind Prism (compare config, static 20 GB
-      # pools, eager, no prefix cache) vs. plain `vllm serve` with the same settings.
+      # Prism's own overhead: Llama-3.2-3B behind Prism (compare config, static 20 GB pools, eager, no
+      # prefix cache) vs. the plain engine with the same settings: `vllm serve` for the vLLM backend,
+      # upstream SGLang 0.3.4.post2 (/sgl-workspace/sglang in the SGLang image) for the SGLang backend.
       cfg="$CFG_DIR/compare.json"; cp polyaxon/configs/compare_2_model.json "$cfg"
       start_server "$step" 30004 "$cfg" --disable-cuda-graph --disable-radix-cache || { STATUS[$step]=1; continue; }
       python3 polyaxon/compare/overhead.py prism 30004 model_2 "$RESULTS/$step/prism.json"; rc=$?
       stop_server
       wait_ports_free 30005 1
-      ENABLE_KVCACHED=false setsid vllm serve meta-llama/Llama-3.2-3B-Instruct --port 30005 \
-        --served-model-name model_2 --enforce-eager --no-enable-prefix-caching \
-        --kv-cache-memory-bytes $((20 * 1024 * 1024 * 1024)) --gpu-memory-utilization 0.5 \
-        --max-num-batched-tokens 8192 > "$RESULTS/$step/vllm_serve.log" 2>&1 &
+      if [ "${PRISM_BACKEND:-sglang}" = vllm ]; then
+        ENABLE_KVCACHED=false setsid vllm serve meta-llama/Llama-3.2-3B-Instruct --port 30005 \
+          --served-model-name model_2 --enforce-eager --no-enable-prefix-caching \
+          --kv-cache-memory-bytes $((20 * 1024 * 1024 * 1024)) --gpu-memory-utilization 0.5 \
+          --max-num-batched-tokens 8192 > "$RESULTS/$step/engine_serve.log" 2>&1 &
+        mode=vllm
+      else
+        # 20 GB of KV at 114688 bytes/token (Llama-3.2-3B cell size in model_info.json).
+        PYTHONPATH=/sgl-workspace/sglang/python setsid python3 -m sglang.launch_server \
+          --model-path meta-llama/Llama-3.2-3B-Instruct --port 30005 --disable-cuda-graph \
+          --disable-radix-cache --max-total-tokens 187000 --chunked-prefill-size 8192 \
+          > "$RESULTS/$step/engine_serve.log" 2>&1 &
+        mode=sglang
+      fi
       SERVER_PID=$!
       for _ in $(seq 1 120); do curl -sf -o /dev/null http://127.0.0.1:30005/health && break; sleep 5; done
-      python3 polyaxon/compare/overhead.py vllm 30005 model_2 "$RESULTS/$step/vllm.json" || rc=1
+      python3 polyaxon/compare/overhead.py $mode 30005 model_2 "$RESULTS/$step/engine.json" || rc=1
       [ $rc = 0 ]
       ;;
-    swap_static|swap_elastic)
-      # vLLM worker-pool core operation: switch one process's engine between models
-      # (polyaxon/experiments/engine_swap.py). vLLM backend image only.
-      mkdir -p "$RESULTS/$step"; df -h /dev/shm | tail -1
-      VLLM_NO_USAGE_STATS=1 DO_NOT_TRACK=1 ENABLE_KVCACHED=$([ "$step" = swap_elastic ] && echo true || echo false) \
-        KVCACHED_IPC_NAME="swap_$$" python3 polyaxon/experiments/engine_swap.py \
-        "$RESULTS/$step/engine_swap.json" 3 > "$RESULTS/$step/engine_swap.log" 2>&1
-      rc=$?; grep -E "^(cold|swap|phases|all outputs)" "$RESULTS/$step/engine_swap.log" | cut -c1-400
-      tail -30 "$RESULTS/$step/engine_swap.log" | grep -iE "error|Traceback" -A3 | head -20
-      [ $rc = 0 ]
-      ;;
-    wp_test)
-      # Worker pool semantics (polyaxon/test_worker_pool.py): README worker-pool flags without the global
-      # controller, so only the test moves models. PRISM_WP_GPUS=2 adds the migration check.
-      ngpu=${PRISM_WP_GPUS:-1}
-      cp polyaxon/configs/worker_pool_test.json "$CFG_DIR/$step.json"
-      start_server "$step" 30006 "$CFG_DIR/$step.json" --disable-cuda-graph --disable-radix-cache \
+    wp_tp_test)
+      # TP model in the vLLM worker pool (2 GPUs): polyaxon/test_worker_pool_tp.py.
+      cp polyaxon/configs/worker_pool_tp_test.json "$CFG_DIR/$step.json"
+      start_server "$step" 30008 "$CFG_DIR/$step.json" --disable-cuda-graph --disable-radix-cache \
           --enable-cpu-share-memory --enable-elastic-memory --use-kvcached-v0 --enable-gpu-scheduler \
-          --enable-model-service --enable-worker-pool --workers-per-gpu 2 --num-gpus "$ngpu" \
-        && { python3 polyaxon/test_worker_pool.py 30006 "$ngpu" 2>&1 | tee "$RESULTS/$step/test_worker_pool.log"; \
+          --enable-model-service --enable-worker-pool --workers-per-gpu 2 --num-gpus 2 \
+        && { python3 polyaxon/test_worker_pool_tp.py 30008 2>&1 | tee "$RESULTS/$step/test_worker_pool_tp.log"; \
              [ "${PIPESTATUS[0]}" = 0 ]; }
+      ;;
+    tp_switch_static|tp_switch_elastic|tp_sweep)
+      # Tensor parallelism (2 GPUs): both models with tp_size=2 on GPUs 0-1 (polyaxon/configs/tp2_2_model.json).
+      # tp_switch_*: polyaxon/test_switching.py (GPU 0 memory = rank 0); tp_sweep: synthetic load at 5/10/20 req/s.
+      cp polyaxon/configs/tp2_2_model.json "$CFG_DIR/$step.json"
+      extra=(); [ "$step" = tp_switch_elastic ] && extra=(--enable-elastic-memory --use-kvcached-v0)
+      start_server "$step" 30007 "$CFG_DIR/$step.json" --disable-cuda-graph --disable-radix-cache "${extra[@]}" \
+        || { STATUS[$step]=1; continue; }
+      if [ "$step" = tp_sweep ]; then
+        rc=0
+        for rate in ${PRISM_SWEEP_RATES:-5 10 20}; do
+          run_bench "$step/rate$rate" --base-url http://127.0.0.1:30007 --num-models 2 \
+            --model-paths model_1 model_2 --exp-name "${step}_rate$rate" --req-rate "$rate" --seed 42 || rc=1
+        done
+        [ $rc = 0 ]
+      else
+        python3 polyaxon/test_switching.py 30007 $([ "$step" = tp_switch_elastic ] && echo --elastic) \
+          2>&1 | tee "$RESULTS/$step/test_switching.log"; [ "${PIPESTATUS[0]}" = 0 ]
+      fi
       ;;
     switch_static|switch_elastic)
       # Model switching (activate/deactivate, RECOMPUTE/RETURN preemption, resize) on the static and

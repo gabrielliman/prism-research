@@ -163,8 +163,12 @@ class SimpleGlobalPolicy(GlobalPolicy):
         gpu_mem: float,
         model_weights_info: Dict[str, Dict[str, float]],
         workers_per_gpu: int,
+        model_tp: Optional[Dict[str, int]] = None,
     ):
         self.num_gpus = num_gpus
+        # Tensor parallelism (vLLM worker pool): a TP model's instance spans a GPU group and holds 1/tp
+        # of its weights on each GPU; it is scheduled at the group's first GPU (Prism, Appendix A.2.2).
+        self.model_tp = model_tp or {}
         # assume all GPUs have the same maximal usable memory size
         self.gpu_mem = gpu_mem
         self.model_weights_info = model_weights_info
@@ -232,7 +236,8 @@ class SimpleGlobalPolicy(GlobalPolicy):
             model_active_instances = {}  # GPU ID -> list of active instances
             for instance in instances:
                 if instance.state == ModelState.ACTIVE:
-                    for gpu_id in instance.gpu_ids:
+                    # A TP instance is scheduled at its first GPU.
+                    for gpu_id in instance.gpu_ids[:1]:
                         if gpu_id not in model_active_instances:
                             model_active_instances[gpu_id] = []
                         model_active_instances[gpu_id].append(instance)
@@ -743,6 +748,28 @@ class SimpleGlobalPolicy(GlobalPolicy):
                     return gpu_id
         return None
     
+    def _place_inactive_tp_model(
+        self,
+        model_name: str,
+        memory_per_rank: float,
+        gpu_available_memory: Dict[int, float],
+        model_instance_state_dict: Dict[str, List[ModelInstanceState]],
+    ) -> Optional[int]:
+        """Place an inactive TP model on one of its GPU groups: one TP part per GPU (anti-affinity), on
+        the group whose most loaded GPU has the most free memory, if every GPU fits a part. Returns the
+        group's first GPU (the instance index) or None."""
+        candidates = []
+        for instance in model_instance_state_dict.get(model_name, []):
+            group = instance.gpu_ids
+            if all(gpu_available_memory[g] >= memory_per_rank for g in group):
+                candidates.append((min(gpu_available_memory[g] for g in group), group))
+        if not candidates:
+            return None
+        _, group = max(candidates, key=lambda c: c[0])
+        for g in group:
+            gpu_available_memory[g] -= memory_per_rank
+        return group[0]
+
     def _prepare_gpu_clusters(
         self, 
         gpu_available_memory: Dict[int, float]
@@ -853,7 +880,9 @@ class SimpleGlobalPolicy(GlobalPolicy):
             else:
                 logger.info(f"Skipping migration {model_name} from {source_gpu_id} to {target_gpu_id} because target GPU {target_gpu_id} has {len(instances)} active instances")
 
-        migrations = valid_migrations
+        # TP models are not migrated (their instances are bound to GPU groups); they are only evicted and
+        # re-activated on a group.
+        migrations = [m for m in valid_migrations if self.model_tp.get(m[0], 1) == 1]
         for model_name, source_gpu_id, target_gpu_id in migrations:
             model_memory_required = self.model_weights_info[model_name]["model_size"]
             gpu_available_memory[target_gpu_id] -= model_memory_required
@@ -876,11 +905,17 @@ class SimpleGlobalPolicy(GlobalPolicy):
         
         activation_plan = {}
         for model_name in sorted_inactive_models:
-            model_memory_required = self.model_weights_info[model_name]["model_size"]
-            target_gpu = self._place_inactive_model(
-                model_name, 0, model_memory_required,  # instance_idx doesn't matter here
-                gpu_available_memory, sorted_clusters, model_queues, model_instance_state_dict
-            )
+            tp = self.model_tp.get(model_name, 1)
+            model_memory_required = self.model_weights_info[model_name]["model_size"] / tp
+            if tp > 1:
+                target_gpu = self._place_inactive_tp_model(
+                    model_name, model_memory_required, gpu_available_memory, model_instance_state_dict
+                )
+            else:
+                target_gpu = self._place_inactive_model(
+                    model_name, 0, model_memory_required,  # instance_idx doesn't matter here
+                    gpu_available_memory, sorted_clusters, model_queues, model_instance_state_dict
+                )
             
             if target_gpu is not None:
                 activation_plan[(model_name, target_gpu)] = target_gpu

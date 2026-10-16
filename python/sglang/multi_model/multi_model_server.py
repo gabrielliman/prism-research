@@ -474,8 +474,6 @@ def check_vllm_backend_args(server_args: MultiModelServerArgs):
         logger.warning(
             "--use-kvcached-v0 is ignored by the vLLM backend: elastic memory uses upstream kvcached."
         )
-    if server_args.enable_worker_pool and any(m.tp_size > 1 for m in server_args.model_configs):
-        raise ValueError("--engine-backend vllm supports the worker pool with tp_size=1 only.")
     if server_args.enable_model_service or server_args.enable_cpu_share_memory:
         logger.info(
             "vLLM backend: --enable-model-service / --enable-cpu-share-memory are served by the shared "
@@ -504,21 +502,23 @@ def ensure_model_info(model_paths: List[str]):
         json.dump(model_info, f)
 
 
-def prewarm_vllm_weight_cache(server_args: MultiModelServerArgs, model_paths: List[str]):
-    """Fill the vLLM backend's shared CPU weight cache before the worker-pool slots start (counterpart of
-    load_shared_cpu_models). Runs in a child process on GPU 0."""
+def prewarm_vllm_weight_cache(server_args: MultiModelServerArgs, models: List[Tuple[str, int]]):
+    """Fill the vLLM backend's shared CPU weight cache for (model path, tp_size) pairs before the
+    worker-pool slots start (counterpart of load_shared_cpu_models). Runs in a child process on GPUs
+    0..max tp - 1."""
     from sglang.multi_model.vllm_backend.engine_adapter import run_weight_cache_prewarm
 
     tic = time.perf_counter()
     reader, writer = mp.Pipe(duplex=False)
     sargs = ServerArgs.from_multi_model_server_args(server_args, worker_id=0)
-    proc = mp.Process(target=run_weight_cache_prewarm, args=(sargs, [0], model_paths, writer))
+    gpus = list(range(max(tp for _, tp in models)))
+    proc = mp.Process(target=run_weight_cache_prewarm, args=(sargs, gpus, models, writer))
     proc.start()
     result = reader.recv()
     proc.join()
     if result != "ok":
         raise RuntimeError(f"Weight cache prewarm failed:\n{result}")
-    logger.info(f"Weight cache ready for {len(model_paths)} models in {time.perf_counter() - tic:.1f}s")
+    logger.info(f"Weight cache ready for {len(models)} models in {time.perf_counter() - tic:.1f}s")
 
 
 def launch_request_handler(
@@ -942,6 +942,13 @@ def launch_worker_pool_engines(
     start_port = multi_model_server_args.port
     workers_per_gpu = multi_model_server_args.workers_per_gpu
     num_gpus = multi_model_server_args.num_gpus
+    # vLLM slots: each model's configured KV pool size (first placement), used as its KV limit when an
+    # activation does not give one, and each model's tp_size (instance attributes, pickled with the args).
+    pool_sizes = {
+        m.model_name: (m.init_placements[0].get("max_memory_pool_size") if m.init_placements else None)
+        for m in model_configs
+    }
+    model_tp = {m.model_name: m.tp_size for m in model_configs}
     for gpu_id in range(num_gpus):
         for worker_id in range(workers_per_gpu):
             engine_id = f"{gpu_id}_{worker_id}"
@@ -951,10 +958,8 @@ def launch_worker_pool_engines(
             )
             # vLLM slots: each model's configured KV pool size (first placement), used as its KV
             # limit when an activation does not give one (instance attribute, pickled with the args).
-            server_args.prism_pool_sizes = {
-                m.model_name: (m.init_placements[0].get("max_memory_pool_size") if m.init_placements else None)
-                for m in model_configs
-            }
+            server_args.prism_pool_sizes = pool_sizes
+            server_args.prism_model_tp = model_tp
             # Allocate ports for inter-process communications
             port_args = PortArgs.init_with_request_handler_ipc_name(
                 start_port, request_handler_ipc_name, schedulers_to_controller_ipc_name
@@ -981,6 +986,37 @@ def launch_worker_pool_engines(
                     ),
                 )
             )
+
+    # vLLM backend: TP slots for models with tp_size > 1 (the paper's engine pool with reusable
+    # distributed contexts). A TP slot spans a group of tp consecutive GPUs; it is registered with the
+    # GPU scheduler of the group's first GPU, with worker ids after that GPU's tp=1 slots.
+    tp_slots = defaultdict(list)  # first GPU -> [(worker_id, tp_size, gpu_ids)]
+    if multi_model_server_args.engine_backend == "vllm":
+        next_worker_id = defaultdict(lambda: workers_per_gpu)
+        for tp in sorted({m.tp_size for m in model_configs if m.tp_size > 1}):
+            for start in range(0, num_gpus - tp + 1, tp):
+                group = list(range(start, start + tp))
+                for _ in range(multi_model_server_args.tp_workers_per_group):
+                    worker_id = next_worker_id[start]
+                    next_worker_id[start] += 1
+                    server_args = ServerArgs.from_multi_model_server_args(
+                        multi_model_server_args=multi_model_server_args, worker_id=worker_id
+                    )
+                    server_args.tp_size = tp
+                    server_args.prism_pool_sizes = pool_sizes
+                    server_args.prism_model_tp = model_tp
+                    port_args = PortArgs.init_with_request_handler_ipc_name(
+                        start_port, request_handler_ipc_name, schedulers_to_controller_ipc_name
+                    )
+                    start_port = port_args.nccl_port
+                    engine_launch_args.append(
+                        (server_args, port_args, group, worker_id, path_to_shared_cpu_models,
+                         model_names_to_model_paths, f"{start}_{worker_id}", None, None)
+                    )
+                    tp_slots[start].append((worker_id, tp, group))
+    # Read by the GPU schedulers (WorkerPool, ResourceManager) and the global controller.
+    multi_model_server_args.prism_tp_slots = dict(tp_slots)
+    multi_model_server_args.prism_model_tp = model_tp
 
     # Launch engines in parallel with small delays
     all_results = []
@@ -1076,7 +1112,8 @@ def launch_multi_model_server(
 
         if multi_model_server_args.engine_backend == "vllm":
             prewarm_vllm_weight_cache(
-                multi_model_server_args, sorted(set(model_names_to_model_paths.values()))
+                multi_model_server_args,
+                sorted({(m.model_path, m.tp_size) for m in multi_model_server_args.model_configs}),
             )
 
         # launch model service

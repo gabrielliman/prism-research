@@ -270,6 +270,9 @@ class ServerArgs:
             "policy",
             "enable_model_service",
             "num_model_service_workers",
+            "tp_workers_per_group",
+            "prism_tp_slots",
+            "prism_model_tp",
         }
         # remove keys to remove in multi_model_server_args
         multi_model_server_args = vars(multi_model_server_args).copy()

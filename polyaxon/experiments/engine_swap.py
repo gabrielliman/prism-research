@@ -83,19 +83,27 @@ MODELS = os.environ.get(
     "PRISM_SWAP_MODELS", "meta-llama/Llama-3.2-3B-Instruct,meta-llama/Llama-3.1-8B-Instruct"
 ).split(",")
 ELASTIC = os.environ.get("ENABLE_KVCACHED", "false").lower() in ("true", "1")
+TP = int(os.environ.get("PRISM_SWAP_TP", "1"))  # > 1: tensor parallel engines on GPUs 0..TP-1
 PROMPT = "The history of the city of Rome begins"
 
 
 def gpu_used_gb():
-    free, total = torch.cuda.mem_get_info()
-    return (total - free) / (1 << 30)
+    """GPU memory in use, summed over the engine's GPUs (nvidia-smi: no CUDA context in this process,
+    which with TP > 1 is not one of the engine's workers)."""
+    import subprocess
+
+    out = subprocess.check_output(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits",
+                                   "-i", ",".join(str(i) for i in range(TP))]).decode().split()
+    return sum(int(x) for x in out) / 1024
 
 
 def build(model, load_format):
     args = EngineArgs(
         model=model, load_format=load_format, enforce_eager=True, enable_prefix_caching=False,
         model_loader_extra_config={"cache_key": model} if load_format == "prism_shm" else {},
-        max_model_len=-1, async_scheduling=False, disable_log_stats=True,
+        max_model_len=-1, async_scheduling=False, disable_log_stats=True, tensor_parallel_size=TP,
+        distributed_executor_backend=vllm_patches.persistent_executor_class() if TP > 1 else None,
+        worker_extension_cls="sglang.multi_model.vllm_backend.worker_extension.PrismWorkerExtension",
         gpu_memory_utilization=0.45 if ELASTIC else 0.9,
         kv_cache_memory_bytes=None if ELASTIC else 10 * (1 << 30),
     )
@@ -145,7 +153,10 @@ for m in MODELS:
     engine, t = build(m, "auto")
     refs[m], tg = generate(engine)
     tic = time.perf_counter()
-    weight_cache.save(model_of(engine), m)
+    if TP > 1:
+        engine.collective_rpc("prism_save_weight_cache", args=(m,))
+    else:
+        weight_cache.save(model_of(engine), m)
     res["cold"][m] = {"build_s": t, "first_generate_s": tg, "cache_save_s": time.perf_counter() - tic,
                       "used_gb": gpu_used_gb()}
     vllm_patches.teardown_engine(engine)

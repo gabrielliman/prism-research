@@ -141,6 +141,7 @@ class GlobalController:
                 gpu_mem=gpu_mem,
                 model_weights_info=self.model_weights_info_after_renamed,
                 workers_per_gpu=self.server_args.workers_per_gpu,
+                model_tp=getattr(self.server_args, "prism_model_tp", {}),
             )
         else:
             raise ValueError(f"Unknown policy: {self.server_args.policy}")
@@ -326,6 +327,21 @@ class GlobalController:
         )
         self.print_model_instance_state_dict()
 
+    def _instance_gpu_groups(self, model_name):
+        """Worker pool: the GPUs an instance of this model can occupy. A tp_size=1 model has one instance
+        per GPU; a TP model (vLLM backend) one per GPU group with TP slots of its size, anchored at the
+        group's first GPU (where its GPU scheduler and worker pool are)."""
+        tp = getattr(self.server_args, "prism_model_tp", {}).get(model_name, 1)
+        if tp == 1:
+            return [[g] for g in self.gpu_ids]
+        groups = {
+            tuple(group)
+            for slots in getattr(self.server_args, "prism_tp_slots", {}).values()
+            for _, slot_tp, group in slots
+            if slot_tp == tp
+        }
+        return [list(g) for g in sorted(groups)]
+
     def _init_model_instance_state_dict(
         self, engine_info_dict, enable_worker_pool, init_placements
     ):
@@ -356,12 +372,13 @@ class GlobalController:
                     model_weights_memory = self.model_weights_info_after_renamed[
                         model_name
                     ]["model_size"]
-                    for idx in self.gpu_ids:
+                    for group in self._instance_gpu_groups(model_name):
+                        idx = group[0]
                         instance_state = ModelInstanceState(
                             model_name=model_name,
                             model_path=self.model_names_to_model_paths[model_name],
                             instance_idx=idx,
-                            gpu_ids=[idx],
+                            gpu_ids=group,
                             memory_usage=MemoryUsage(
                                 total_used_memory=model_weights_memory,
                                 model_weights_memory=model_weights_memory,
@@ -380,12 +397,12 @@ class GlobalController:
                     model_weights_memory = self.model_weights_info_after_renamed[
                         model_name
                     ]["model_size"]
-                    for gpu_id in self.gpu_ids:
+                    for group in self._instance_gpu_groups(model_name):
                         instance_state = ModelInstanceState(
                             model_name=model_name,
                             model_path=self.model_names_to_model_paths[model_name],
-                            instance_idx=gpu_id,
-                            gpu_ids=[gpu_id],
+                            instance_idx=group[0],
+                            gpu_ids=group,
                             memory_usage=MemoryUsage(
                                 total_used_memory=0,
                                 model_weights_memory=model_weights_memory,

@@ -141,6 +141,17 @@ class PrismWorkerExtension:
             return 0
         return sum(s.nbytes() for s in self._prism_kv_storages())
 
+    def prism_save_weight_cache(self, cache_key: str) -> bool:
+        """Save this rank's processed weights to the shared CPU cache (weight_cache.py)."""
+        from vllm.distributed import get_tensor_model_parallel_rank, get_tensor_model_parallel_world_size
+
+        from sglang.multi_model.vllm_backend import weight_cache
+
+        return weight_cache.save(
+            self._prism_model(), cache_key,
+            get_tensor_model_parallel_rank(), get_tensor_model_parallel_world_size(),
+        )
+
     def prism_set_kv_limit(self, limit_bytes: int, revision: int) -> dict:
         """Set this instance's kvcached physical KV limit (kvcached's process-local control API)."""
         from kvcached.control import set_instance_memory_limit

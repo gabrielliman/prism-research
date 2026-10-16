@@ -45,6 +45,12 @@ def exists(model_path: str, tp_rank: int = 0, tp_size: int = 1) -> bool:
     return os.path.exists(os.path.join(cache_dir(model_path, tp_rank, tp_size), "meta.json"))
 
 
+def meta_nbytes(model_path: str, tp_rank: int = 0, tp_size: int = 1) -> int:
+    """Bytes of one rank's cached weights, read from meta.json (no mapping, no CUDA)."""
+    with open(os.path.join(cache_dir(model_path, tp_rank, tp_size), "meta.json")) as f:
+        return int(json.load(f)["nbytes"])
+
+
 def _device_tensors(model: torch.nn.Module):
     named = list(model.named_parameters()) + list(model.named_buffers())
     return [(n, t) for n, t in named if t.device.type == "cuda"]

@@ -91,7 +91,8 @@ wait_settled()
 after = gpu_used_gb()
 weights = out.get("memory_usage", {}).get("model_weights_memory", 0)
 check("deactivate success", out.get("success") is True, f"{t_deact:.2f}s {out}")
-check("deactivate frees weights + KV", before - after > weights + 1.5, f"{before:.1f} -> {after:.1f} GB, weights {weights:.1f} GB")
+# GPU 0 is TP rank 0: with tensor parallelism it holds 1/tp of the KV of the 64 requests (~1 GB at TP=2).
+check("deactivate frees weights + KV", before - after > weights + 0.5, f"{before:.1f} -> {after:.1f} GB, weights {weights:.1f} GB")
 check("KV reported released", out.get("memory_usage", {}).get("memory_pool_memory", 1) < 0.1)
 check("other model still serves", generate("model_1")["text"] == ref["model_1"])
 

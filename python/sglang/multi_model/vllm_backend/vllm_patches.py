@@ -26,6 +26,11 @@ checked against it at import:
      still runs a full collection, which is what releases the previous engine.
    * PRISM_VLLM_SKIP_WARMUP=1: skips the kernel warmup (FlashInfer autotune, dummy runs) of every engine
      after the first in the process; the kernels are already loaded.
+4. `persistent_executor_class()` (tensor parallelism): with TP > 1 vLLM runs each rank in a worker process
+   that MultiprocExecutor spawns per engine (CUDA + NCCL initialization every time). The returned executor
+   class keeps the worker processes, their CUDA contexts and process group between engines (the paper's
+   "pre-warmed engine pool with reusable distributed contexts"): a new engine re-creates only each rank's
+   Worker (model, KV cache) inside the existing processes, and teardown releases only those.
 """
 
 import contextlib
@@ -195,6 +200,104 @@ def fast_build():
         gc.collect = collect
 
 
+# --------------------------------------------------------------------- tensor parallelism
+
+def _prism_release_worker(wrapper) -> int:
+    """Runs in a TP worker process: free this rank's model and KV cache, keep the process and its
+    process group. Returns the bytes still allocated by torch."""
+    worker = wrapper.worker
+    if worker is not None:
+        wrapper._prism_rank_info = dict(
+            local_rank=worker.local_rank, rank=worker.rank,
+            distributed_init_method=worker.distributed_init_method,
+            is_driver_worker=worker.is_driver_worker,
+        )
+        runner = getattr(worker, "model_runner", None)
+        if runner is not None:
+            with fast_build():  # ModelRunner.shutdown() runs its own full gc.collect()
+                runner.shutdown()
+            worker.model_runner = None
+        wrapper.worker = None
+    if os.environ.get("ENABLE_KVCACHED", "false").lower() in ("true", "1"):
+        from kvcached.integration.vllm.interfaces import shutdown_kvcached
+
+        shutdown_kvcached()
+    gc.collect()
+    torch.cuda.empty_cache()
+    return torch.cuda.memory_allocated()
+
+
+def _prism_reinit_worker(wrapper, vllm_config) -> None:
+    """Runs in a TP worker process: create this rank's Worker for a new model in the existing process
+    (WorkerProc.__init__ without spawning; init_device finds the process group initialized)."""
+    from vllm.platforms import current_platform
+
+    info = wrapper._prism_rank_info
+    all_kwargs = [{} for _ in range(vllm_config.parallel_config.world_size)]
+    all_kwargs[wrapper.rpc_rank] = dict(vllm_config=vllm_config, shared_worker_lock=None, **info)
+    with fast_build():
+        wrapper.init_worker(all_kwargs)
+        wrapper.init_device()
+        wrapper.load_model()
+    current_platform.update_block_size_for_backend(vllm_config)
+
+
+_live_executor = [None]
+
+
+def persistent_executor_class():
+    """MultiprocExecutor whose worker processes outlive the engine (see 4. in the module docstring)."""
+    from vllm.v1.executor.multiproc_executor import MultiprocExecutor
+
+    cls = globals().get("_PersistentExecutor")
+    if cls is not None:
+        return cls
+
+    class PrismPersistentMultiprocExecutor(MultiprocExecutor):
+        def __new__(cls, vllm_config, *args, **kwargs):
+            live = _live_executor[0]
+            if (live is not None and not live.is_failed
+                    and live.world_size == vllm_config.parallel_config.world_size):
+                return live
+            return super().__new__(cls)
+
+        def __init__(self, vllm_config, monitor_workers: bool = True):
+            if getattr(self, "_prism_released", False):
+                # Reuse the workers for the next engine: adopt its config, re-create each rank's Worker.
+                tic = time.perf_counter()
+                self.vllm_config = vllm_config
+                self.model_config = vllm_config.model_config
+                self.cache_config = vllm_config.cache_config
+                self.lora_config = vllm_config.lora_config
+                self.load_config = vllm_config.load_config
+                self.parallel_config = vllm_config.parallel_config
+                self.scheduler_config = vllm_config.scheduler_config
+                self.device_config = vllm_config.device_config
+                self.speculative_config = vllm_config.speculative_config
+                self.observability_config = vllm_config.observability_config
+                self.failure_callback = None
+                self.collective_rpc(_prism_reinit_worker, args=(vllm_config,))
+                self._prism_released = False
+                logger.info(f"Prism: reused {self.world_size} TP workers in {time.perf_counter() - tic:.3f}s")
+                return
+            super().__init__(vllm_config, monitor_workers)
+            self._prism_released = False
+            _live_executor[0] = self
+
+        def prism_release(self):
+            """Free every rank's model and KV cache; the workers stay for the next engine."""
+            self.collective_rpc(_prism_release_worker)
+            self._prism_released = True
+
+        def shutdown(self):
+            if self is _live_executor[0] and self._prism_released:
+                return  # kept for the next engine; final shutdown at process exit
+            super().shutdown()
+
+    globals()["_PersistentExecutor"] = PrismPersistentMultiprocExecutor
+    return PrismPersistentMultiprocExecutor
+
+
 def teardown_engine(engine) -> None:
     """Release an in-process LLMEngine's GPU memory while keeping the process group for the next one."""
     tic = time.perf_counter()
@@ -213,9 +316,13 @@ def teardown_engine(engine) -> None:
     except Exception as e:
         logger.warning(f"structured output teardown: {e}")
     mark("structured_output")
-    # ModelRunner.shutdown() runs a full gc.collect() (~0.5 s); one collection below is enough.
-    with fast_build():
-        core.model_executor.shutdown()
+    release = getattr(core.model_executor, "prism_release", None)
+    if release is not None:
+        release()  # persistent TP workers: free their model and KV cache, keep the processes
+    else:
+        # ModelRunner.shutdown() runs a full gc.collect() (~0.5 s); one collection below is enough.
+        with fast_build():
+            core.model_executor.shutdown()
     mark("executor")
     core.scheduler.shutdown()
     mark("scheduler")
