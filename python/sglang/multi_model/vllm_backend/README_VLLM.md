@@ -95,9 +95,9 @@ cannot share one Python environment.
 | `elastic` (README ex. 2, kvcached) | benchmark completes, 0 aborted |
 | `prism1` (README ex. 3 flags minus worker pool/model service, 2× Llama-3.2-3B) | 318/318 requests; GPU scheduler admission and controller idle deactivation working |
 | `switch_static` / `switch_elastic` (`polyaxon/test_switching.py`, 2× Llama-3.1-8B) | all checks pass: activation 0.29 s, deactivation frees weights + KV (elastic: down to one page per layer), greedy output identical after reactivation, streaming, RETURN and RECOMPUTE preemption, resize and sized activation |
-| `prism2` with worker pool (2 GPUs, 6 models) | 741/741 requests; TTFT 64 ms, TPOT 11.3 ms (SGLang worker pool: 155 ms, 17.6 ms) |
+| `prism2` with worker pool (2 GPUs, 6 models) | 741/741 requests in 3 runs; mean TTFT 60-105 ms, TPOT 11-14 ms (SGLang worker pool: 68-155 ms, 10-18 ms) |
 | `wp_test` (`polyaxon/test_worker_pool.py`, 2 GPUs) | all checks pass, incl. migration GPU 0 -> GPU 1 (< 1 s to first response) |
-| `overload` with worker pool | 754/754 at every speed; SLO 98.3% / 97.9% / 95.4% / 82.4% (SGLang worker pool: 88.7 / 78.1 / 91.1 / 74.5%) |
+| `overload` with worker pool | 754/754 at every speed in 3 runs; mean SLO 94.8 / 92.6 / 89.7 / 69.8% (SGLang worker pool: 88.1 / 80.1 / 80.2 / 53.8%), with run-to-run ranges that overlap except at 1x |
 | `tp_switch_static` / `tp_switch_elastic` (2 GPUs, 8B + 3B with `tp_size=2`) | all checks pass; activation 0.07-0.18 s |
 | `wp_tp_test` (`polyaxon/test_worker_pool_tp.py`, 8B `tp_size=2` in the pool + two TP=1 models) | all checks pass; activation to first response 1.3-1.6 s, both GPUs freed in 0.26 s, no memory left after 3 cycles |
 | `overload` (8 models on 1 GPU, 4 initially off, real trace at 1×/2×/4×/10×; without worker pool) | 754/754 requests at every speed, 0 aborted; the controller activates/evicts models (5/4 at 1×); SLO attainment (TTFT and TPOT, 5× baseline P95) 98.3% / 98.3% / 96.0% / 91.9% |
