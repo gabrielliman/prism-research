@@ -267,7 +267,8 @@ PY2
       stop_server
       wait_ports_free 30005 1
       if [ "${PRISM_BACKEND:-sglang}" = vllm ]; then
-        ENABLE_KVCACHED=false VLLM_ALLREDUCE_USE_SYMM_MEM=0 setsid vllm serve $hf --port 30005 \
+        ENABLE_KVCACHED=false VLLM_ALLREDUCE_USE_SYMM_MEM=0 VLLM_ALLREDUCE_USE_FLASHINFER=0 \
+          VLLM_FLASHINFER_ALLREDUCE_BACKEND=trtllm setsid vllm serve $hf --port 30005 \
           --served-model-name $model --enforce-eager --no-enable-prefix-caching --tensor-parallel-size $tp \
           --kv-cache-memory-bytes $((20 * 1024 * 1024 * 1024)) --gpu-memory-utilization 0.5 \
           --max-num-batched-tokens 8192 > "$RESULTS/$step/engine_serve.log" 2>&1 &

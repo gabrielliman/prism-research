@@ -811,10 +811,9 @@ def _setup_env(server_args: ServerArgs, gpu_ids: List[int]):
     os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
     os.environ.setdefault("VLLM_NO_USAGE_STATS", "1")
     if len(gpu_ids) > 1:
-        # Several TP engines share these GPUs: the symmetric-memory all-reduce's multicast setup
-        # intermittently hung the second engine's start-up (CUDA "unknown error" in
-        # init_multicast_for_block); vLLM then uses its custom all-reduce / NCCL.
-        os.environ.setdefault("VLLM_ALLREDUCE_USE_SYMM_MEM", "0")
+        from sglang.multi_model.vllm_backend.vllm_patches import TP_ALLREDUCE_ENV
+
+        os.environ.update(TP_ALLREDUCE_ENV)
     if server_args.enable_worker_pool:
         # A slot builds an engine per activation: use the construction shortcuts of vllm_patches.
         for flag in ("PRISM_VLLM_SKIP_PROFILE", "PRISM_VLLM_CACHE_RENDERER", "PRISM_VLLM_SKIP_WARMUP"):

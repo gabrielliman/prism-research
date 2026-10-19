@@ -65,6 +65,17 @@ def apply():
     _applied = True
 
 
+# TP > 1: all-reduce without NVLink multicast. vLLM 0.30 dispatches the TP all-reduce to FlashInfer
+# (backend mnnvl) and torch symmetric memory first; both set up multicast, which intermittently failed on
+# rank 1 ("init_multicast_for_block": unknown error / device not ready) and hung the engine's start-up,
+# with one or two TP engines on the GPUs. vLLM then uses its custom all-reduce (CUDA IPC) and NCCL.
+TP_ALLREDUCE_ENV = {
+    "VLLM_ALLREDUCE_USE_SYMM_MEM": "0",
+    "VLLM_ALLREDUCE_USE_FLASHINFER": "0",
+    "VLLM_FLASHINFER_ALLREDUCE_BACKEND": "trtllm",
+}
+
+
 def _on(name: str) -> bool:
     return os.environ.get(name) == "1"
 
@@ -227,10 +238,20 @@ def _prism_release_worker(wrapper) -> int:
     return torch.cuda.memory_allocated()
 
 
-def _prism_reinit_worker(wrapper, vllm_config) -> None:
+def prism_flags() -> dict:
+    """The parent's PRISM_VLLM_* switches, which persistent TP workers (spawned earlier) must follow."""
+    return {k: v for k, v in os.environ.items() if k.startswith("PRISM_VLLM_")}
+
+
+def _prism_reinit_worker(wrapper, vllm_config, flags=None) -> None:
     """Runs in a TP worker process: create this rank's Worker for a new model in the existing process
     (WorkerProc.__init__ without spawning; init_device finds the process group initialized)."""
     from vllm.platforms import current_platform
+
+    if flags is not None:
+        for k in [k for k in os.environ if k.startswith("PRISM_VLLM_")]:
+            os.environ.pop(k)
+        os.environ.update(flags)
 
     info = wrapper._prism_rank_info
     all_kwargs = [{} for _ in range(vllm_config.parallel_config.world_size)]

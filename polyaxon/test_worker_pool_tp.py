@@ -98,5 +98,11 @@ n = res.get("out", {}).get("meta_info", {}).get("completion_tokens")
 check("RECOMPUTE request completes all tokens", n == 400, f"completion_tokens={n}")
 check("tp_size=1 models still serve", generate("model_1")["text"] == ref["model_1"])
 
+# 5. No leak across the cycles: after a final deactivation both GPUs are back to the start (within 1 GB).
+post("deactivate", model_name="model_3", gpu_id=0, instance_idx=0, preempt=False)
+wait(lambda: used(0) - b0 < 1 and used(1) - b1 < 1)
+check("no GPU memory left after 3 activation cycles", used(0) - b0 < 1 and used(1) - b1 < 1,
+      f"GPU0 {b0:.1f}->{used(0):.1f} GB, GPU1 {b1:.1f}->{used(1):.1f} GB")
+
 print(f"TP activation to first response: first {t_act:.2f}s, again {t_react:.2f}s; failures: {failures}")
 sys.exit(len(failures))

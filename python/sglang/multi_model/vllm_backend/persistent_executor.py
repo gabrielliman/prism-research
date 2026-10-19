@@ -11,6 +11,7 @@ from sglang.multi_model.vllm_backend.vllm_patches import (
     _live_executor,
     _prism_reinit_worker,
     _prism_release_worker,
+    prism_flags,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ class PrismPersistentMultiprocExecutor(MultiprocExecutor):
             self.speculative_config = vllm_config.speculative_config
             self.observability_config = vllm_config.observability_config
             self.failure_callback = None
-            self.collective_rpc(_prism_reinit_worker, args=(vllm_config,))
+            self.collective_rpc(_prism_reinit_worker, args=(vllm_config, prism_flags()))
             self._prism_released = False
             logger.info(f"Prism: reused {self.world_size} TP workers in {time.perf_counter() - tic:.3f}s")
             return

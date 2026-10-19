@@ -17,6 +17,10 @@ import sys
 import time
 
 os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")
+if int(os.environ.get("PRISM_SWAP_TP", "1")) > 1:
+    from sglang.multi_model.vllm_backend.vllm_patches import TP_ALLREDUCE_ENV  # noqa: E402
+
+    os.environ.update(TP_ALLREDUCE_ENV)  # as the backend's TP engines (engine_adapter._setup_env)
 
 import torch  # noqa: E402
 from vllm import EngineArgs, LLMEngine, SamplingParams  # noqa: E402

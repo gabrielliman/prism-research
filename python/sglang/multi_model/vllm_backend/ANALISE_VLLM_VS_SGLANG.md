@@ -14,16 +14,21 @@ a comprova, e cada diferença tem uma medição do seu impacto.
   do README em 2 GPUs (`prism2`) **travava 38% das requisições** (284/741). O worker pool vLLM recria o
   engine do modelo pedido dentro de um processo persistente por slot. Para isso foram necessárias
   alterações no vLLM, guardadas no repo como patches de runtime (`vllm_patches.py`). Com ele, o `prism2`
-  completa **741/741** (TTFT 64 × 155 ms e TPOT 11,3 × 17,6 ms do SGLang com worker pool), a migração de
-  modelo entre GPUs funciona e o `overload` completa 754/754 em todos os níveis. Restam diferenças:
-  montar e desmontar um engine custa mais que a troca de pesos do modo sem pool, e sob carga 10× o SLO
-  do worker pool vLLM (82,4%) fica abaixo do vLLM sem pool (91,8%), embora acima do SGLang (74,5%).
+  completa **741/741**, com latência equivalente à do SGLang com worker pool (3 execuções de cada:
+  TTFT médio 64–105 × 68–155 ms, TPOT 11–14 × 10–18 ms). A migração de modelo entre GPUs funciona e o
+  `overload` completa 754/754 em todos os níveis. O SLO do `overload` varia muito entre execuções
+  idênticas (vLLM a 10×: 44,7–82,4%; SGLang a 4×: 56–93%); na média o vLLM fica à frente em todos os
+  níveis, mas as faixas se sobrepõem, exceto a 1× (seção 1.1).
+* **Tensor parallelism (seção 1.8):** TP > 1 funciona sem worker pool (ativar/desativar, RECOMPUTE,
+  RETURN, resize, nos modos estático e elástico). O SGLang original não ativa modelos com TP > 1. Com 2
+  modelos TP=2 nas mesmas GPUs, o vLLM satura antes (6,5 × 13,8 req/s a 20 req/s).
 * **Desempenho depende do regime e está confundido com a idade dos kernels.** Sob carga (2 modelos,
-  8B + 3B, 20 req/s), o vLLM tem TPOT 38% menor (15,6 × 25,0 ms). Em carga baixa com modelos pequenos
-  (`prism1`), o SGLang é melhor (TPOT 8,7 × 13,5 ms; TTFT 34,5 × 61,3 ms). A comparação mistura
-  "arquitetura do backend" com "vLLM 0.30 (2026) × SGLang 0.3.4 (2024)" e não isola um do outro.
-* **O adaptador tem custo próprio**, medido contra `vllm serve` puro: +11% de ITL, −9 a −15% de vazão e
-  +66% de TTFT com 32 requisições concorrentes.
+  8B + 3B, 20 req/s), o vLLM tem TPOT 36% menor (16,5 × 25,7 ms, 3 execuções). Em 5 req/s e no
+  `prism1` (2× 3B, baixa carga) os dois empatam dentro da variação. A comparação mistura "arquitetura do
+  backend" com "vLLM 0.30 (2026) × SGLang 0.3.4 (2024)" e não isola um do outro.
+* **O adaptador tem custo próprio, menor que o do Prism original.** Contra `vllm serve` puro: ITL
+  +2–10% e vazão −1 a −13% (pior com 32 requisições concorrentes). O Prism sobre SGLang, medido da
+  mesma forma contra o SGLang puro, perde mais: ITL +15% e vazão −11 a −21% (seção 1.3).
 * **Modo eager obrigatório:** o backend abre mão dos CUDA graphs, que no vLLM reduziriam o TPOT em 28%
   sob carga (15,6 → 11,3 ms).
 
@@ -41,9 +46,12 @@ a comprova, e cada diferença tem uma medição do seu impacto.
 * Mesmo código de plano de controle nos dois casos (esta branch). Os jobs do SGLang também servem como
   teste de regressão das mudanças no código compartilhado.
 * As duas implementações rodam com `--disable-cuda-graph` (como no README), exceto no teste de CUDA graphs.
-* **Ressalva:** cada medição foi executada uma vez. Não há repetições, então a variância é
-  desconhecida. Há sinais de ruído: no `overload` do SGLang, o nível 2× teve SLO pior que o 4×. As diferenças
-  de poucos por cento devem ser tratadas como empates.
+* **Repetições:** `cmp_overhead`, `cmp_sweep` e `prism1` foram executados 3 vezes por backend; `prism2` e
+  `overload`, 3 vezes por backend (contando a primeira execução). As tabelas mostram média e
+  [mín–máx]. As demais medições (paridade, ativação, CUDA graphs, TP) são de uma execução. A primeira
+  versão deste documento tirava conclusões de execuções únicas; três delas não se sustentaram com as
+  repetições e foram corrigidas: a vantagem do vLLM no `prism2`, a vantagem do SGLang no `prism1` e o
+  +66% de TTFT do adaptador sob concorrência.
 * Testes: `polyaxon/compare/` (`parity.py`, `activation.py`, `overhead.py`, `report.py`),
   `polyaxon/test_switching.py` e os passos de `polyaxon/run_examples.sh` (`cmp_parity`, `cmp_sweep`,
   `cmp_graph`, `cmp_overhead`, `switch_static`, `switch_elastic`, `static`, `elastic`, `prism1`,
@@ -111,18 +119,22 @@ O teste funcional (`polyaxon/test_worker_pool.py`, 2 GPUs) passa em todas as ver
 * **Sob carga extrema,** montar engines compete com a inferência das outras instâncias na mesma GPU:
   houve ativações de até 5,5 s no `overload` 10×.
 
-`overload` (8 modelos numa GPU, 4 desligados no início), SLO (TTFT e TPOT):
+`overload` (8 modelos numa GPU, 4 desligados no início), SLO (TTFT e TPOT), média [mín–máx] de 3
+execuções com worker pool nos dois backends:
 
-| velocidade | vLLM worker pool | SGLang worker pool | vLLM sem pool |
+| velocidade | vLLM worker pool | SGLang worker pool | vLLM sem pool (1 execução) |
 |---|---|---|---|
-| 1× | 98,3% | 88,7% | 95,4% |
-| 2× | 97,9% | 78,1% | 89,0% |
-| 4× | 95,4% | 91,1% | 97,3% |
-| 10× | 82,4% | 74,5% | 91,8% |
+| 1× | 94,8% [92,8–98,3] | 88,1% [87,0–88,7] | 95,4% |
+| 2× | 92,6% [86,1–97,9] | 80,1% [65,6–96,7] | 89,0% |
+| 4× | 89,7% [81,4–95,4] | 80,2% [56,0–93,4] | 97,3% |
+| 10× | 69,8% [44,7–82,4] | 53,8% [35,5–74,5] | 91,8% |
 
 Em todos os casos foram 754/754 concluídas, sem abortadas, e o controller fez as mesmas ativações e
-remoções. No modo sem pool, ativar só recopia os pesos num engine que continua montado. No worker pool,
-cada troca monta e desmonta um engine, e sob carga 10× isso pesa.
+remoções (5/4 até 4×; 4/2 ou 4/3 a 10×). **A variância entre execuções idênticas é maior que a
+diferença entre os backends**, exceto a 1×, onde a faixa do vLLM fica inteira acima da do SGLang. Uma
+execução isolada do `overload` não serve para comparar backends. No modo sem pool, ativar só recopia os
+pesos num engine que continua montado; no worker pool, cada troca monta e desmonta um engine, e sob
+carga 10× isso pesa (a execução sem pool não foi repetida).
 
 **Um ajuste necessário no caminho:** os modelos ativados na partida recebiam KV sem limite, porque no
 worker pool não havia a config por modelo, e sob carga deixavam os modelos ativados depois sem espaço.
@@ -147,22 +159,32 @@ preserva endereços, mas a combinação com o kvcached não foi testada.
 
 ### 1.3 Overhead do próprio adaptador
 
-**Teste:** `cmp_overhead`, Llama-3.2-3B no Prism-vLLM × `vllm serve` puro com as mesmas configurações
-(eager, sem prefix cache, 20 GB de KV); 256 tokens de saída; mediana por requisição.
+**Teste:** `cmp_overhead`, Llama-3.2-3B atrás do Prism × o engine puro com as mesmas configurações
+(eager, sem prefix cache, 20 GB de KV): `vllm serve` para o backend vLLM e o SGLang 0.3.4.post2
+original (sem as modificações do Prism) para o backend SGLang. 256 tokens de saída, mediana por
+requisição, média [mín–máx] de 3 execuções.
 
-| concorrência | ITL Prism / puro | tok/s Prism / puro | TTFT Prism / puro |
-|---|---|---|---|
-| 1 | 12,5 / 11,2 ms (+12%) | 80 / 87 (−9%) | 19 / 32 ms |
-| 8 | 12,6 / 11,3 ms (+12%) | 599 / 703 (−15%) | 40 / 41 ms |
-| 32 | 13,1 / 11,8 ms (+11%) | 2321 / 2642 (−12%) | **110 / 67 ms (+66%)** |
+| concorrência | | ITL Prism / puro | tok/s Prism / puro | TTFT Prism / puro |
+|---|---|---|---|---|
+| 1 | vLLM | 11,2 / 10,8 ms (+4%) | 89 / 92 (−4%) | 16 / 26 ms |
+| 1 | SGLang | 7,8 / 6,8 ms (+15%) | 127 / 147 (−14%) | 14 / 11 ms |
+| 8 | vLLM | 11,5 / 11,1 ms (+4%) | 687 / 711 (−3%) | 37 / 41 ms |
+| 8 | SGLang | 8,2 / 7,2 ms (+14%) | 967 / 1089 (−11%) | 36 / 30 ms |
+| 32 | vLLM | 12,7 / 11,6 ms (+10%) | 2394 [2323–2450] / 2696 (−11%) | 88 [78–95] / 93 [85–105] ms |
+| 32 | SGLang | 8,4 / 7,2 ms (+17%) | 3336 [3206–3585] / 4206 (−21%) | 102 / 90 ms |
 
-**Causas prováveis (não perfiladas):**
-* o loop Python do adaptador inspeciona o scheduler do vLLM a cada step;
-* a saída passa por ZMQ e pelo request handler;
-* as requisições entram pelo Redis com a fórmula de vazão do Prism (`free_tokens / avg_input_len`), que
-  admite em lotes e atrasa o TTFT sob concorrência.
-
-O TTFT menor com concorrência 1 vem do caminho OpenAI do `vllm serve`, mais pesado que o `/generate`.
+**Leitura crítica:**
+* O adaptador vLLM custa menos que as modificações do próprio Prism no SGLang. Portanto o custo
+  restante do backend vLLM não é uma regressão em relação ao original.
+* O "+66% de TTFT com 32 concorrentes" da primeira versão deste documento era ruído de uma execução: nas
+  repetições, o TTFT do Prism-vLLM fica dentro da faixa do `vllm serve`.
+* O SGLang 0.3.4 puro decodifica o 3B mais rápido que o vLLM 0.30 puro em eager (ITL 7,2 × 11,6 ms).
+  Sob a carga mista do `cmp_sweep` (8B + 3B) a relação se inverte (3.1).
+* Causas prováveis do custo do adaptador (não perfiladas): o loop Python inspeciona o scheduler do vLLM
+  a cada step, a saída passa por ZMQ e pelo request handler, e as requisições entram pelo Redis em lotes
+  (`free_tokens / avg_input_len`).
+* O TTFT menor com concorrência 1 no vLLM vem do caminho OpenAI do `vllm serve`, mais pesado que o
+  `/generate`.
 
 ### 1.4 Memória e inicialização
 
@@ -274,43 +296,54 @@ divergiu nesta execução. É uma propriedade compartilhada e não uma regressã
 
 ### 2.5 Plano de controle em 1 GPU
 
-**Teste:** `overload`, com 8 modelos numa GPU (4 começam desligados), trace real em 1×/2×/4×/10×. O SGLang usa a
-configuração completa do README (worker pool, model service); o vLLM usa engines por modelo.
+**Teste:** `overload`, com 8 modelos numa GPU (4 começam desligados), trace real em 1×/2×/4×/10×, com a
+configuração completa do README (worker pool, model service) nos dois backends, 3 execuções cada (tabela
+na seção 1.1). Os 12 níveis de cada backend (3 execuções × 4 velocidades) concluíram 754/754 sem
+abortadas, e o controller tomou as mesmas decisões nos dois (5 ativações / 4 remoções até 4×). Isso
+indica que o GPU scheduler e a política funcionam com o adaptador. O SLO médio melhor do vLLM não deve
+ser atribuído ao adaptador (ver 3.1), e as faixas se sobrepõem.
 
-| velocidade | concluídas (SG / vLLM) | ativações/remoções (SG / vLLM) | SLO SG | SLO vLLM |
+Também equivalentes, com worker pool nos dois e 3 execuções:
+
+| | concluídas | TTFT médio | TPOT médio | P99 TTFT |
 |---|---|---|---|---|
-| 1× | 754 / 754 | 5/4 / 5/4 | 88,7% | 95,4% |
-| 2× | 754 / 754 | 5/4 / 5/4 | 78,1% | 89,0% |
-| 4× | 754 / 754 | 5/4 / 5/4 | 91,1% | 97,3% |
-| 10× | 754 / 754 | 4/3 / 4/2 | 74,5% | 91,8% |
+| `prism1` SGLang (2× 3B, 1 GPU) | 318/318 | 104 [82–130] ms | 14,8 [13,6–16,8] ms | 1,9 [1,2–3,0] s |
+| `prism1` vLLM | 318/318 | 125 [94–151] ms | 13,3 [13,1–13,5] ms | 2,8 [2,2–3,8] s |
+| `prism2` SGLang (6 modelos, 2 GPUs) | 741/741 | 99 [68–155] ms | 13,3 [9,9–17,6] ms | 0,9 [0,7–1,2] s* |
+| `prism2` vLLM | 741/741 | 76 [60–105] ms | 12,2 [11,3–13,8] ms | 1,3 [0,5–2,0] s* |
 
-O controller toma praticamente as mesmas decisões nos dois backends, o que indica que o GPU scheduler e a política
-funcionam com o adaptador. O SLO melhor do vLLM não deve ser atribuído ao adaptador (ver 3.1).
+\* P99 das duas repetições; a primeira execução não o registrou nesta tabela.
 
-Também equivalentes: `prism1` (318/318 nos dois) e os exemplos `static` e `elastic` do README (145
-requisições por modelo, 0 abortadas, nos dois).
+Os exemplos `static` e `elastic` do README (145 requisições por modelo, 0 abortadas) também passam nos
+dois (1 execução).
 
 ## 3. O que é diferente, e o impacto medido
 
 ### 3.1 Desempenho
 
-**Teste:** `cmp_sweep` (8B + 3B sempre ativos, trace sintético de 60 s, eager nos dois).
+**Teste:** `cmp_sweep` (8B + 3B sempre ativos, trace sintético de 60 s, eager nos dois), média
+[mín–máx] de 3 execuções.
 
 | taxa | backend | req/s | TTFT médio | TPOT médio | E2E médio |
 |---|---|---|---|---|---|
-| 5 | SGLang / vLLM | 4,24 / 4,27 | 30,2 / 23,9 ms | 14,2 / 12,2 ms | 5,48 / 4,70 s |
-| 10 | SGLang / vLLM | 9,21 / 9,20 | 31,9 / 25,2 ms | 16,6 / 13,0 ms | 6,40 / 5,02 s |
-| 20 | SGLang / vLLM | 17,93 / 18,24 | 39,2 / 30,2 ms | 25,0 / 15,6 ms | 9,62 / 6,03 s |
+| 5 | SGLang | 4,24 | 29,6 [29,3–29,8] ms | 14,0 [14,0–14,1] ms | 5,42 s |
+| 5 | vLLM | 4,21 | 29,8 [27,7–32,4] ms | 14,2 [13,9–14,4] ms | 5,46 s |
+| 10 | SGLang | 9,23 | 67,4 [43,3–96,5] ms | 17,6 [17,2–18,1] ms | 6,80 s |
+| 10 | vLLM | 9,18 | 26,5 [25,8–27,6] ms | 13,8 [13,5–14,0] ms | 5,32 s |
+| 20 | SGLang | 17,86 | 51,2 [43,8–62,3] ms | 25,7 [24,8–26,6] ms | 9,89 s |
+| 20 | vLLM | 18,23 | 33,2 [30,3–37,5] ms | 16,5 [15,8–17,4] ms | 6,37 s |
 
-Exemplos do README: `static` (2× 8B, 10 req/s) com TPOT 24,9 × 16,9 ms; `elastic` com 25,7 × 18,7 ms;
-`prism1` (2× 3B, trace real de baixa carga) com TPOT **8,7 × 13,5 ms** e TTFT **34,5 × 61,3 ms**, ambos a favor do SGLang.
+Exemplos do README (1 execução): `static` (2× 8B, 10 req/s) com TPOT 24,9 × 16,9 ms; `elastic` com
+25,7 × 18,7 ms. O `prism1` empata (seção 2.5); a primeira versão deste documento comparava o SGLang com
+worker pool a um vLLM sem pool numa execução só e concluía o contrário.
 
 **Interpretação crítica:**
 * A vazão é a mesma em todos os casos: a carga não satura nenhum dos dois.
-* Sob carga, o vLLM 0.30 decodifica bem mais rápido, o que é coerente com kernels mais novos
-  (FlashAttention 3 no H200 × FlashInfer 0.1.6).
-* Em batch pequeno com modelo de 3B, o custo por token do modo eager do vLLM, mais o overhead do
-  adaptador (1.3), supera esse ganho e o SGLang vence.
+* Em 5 req/s os dois empatam. A partir de 10 req/s o vLLM 0.30 decodifica bem mais rápido, com faixas
+  que não se sobrepõem, o que é coerente com kernels mais novos (FlashAttention 3 no H200 × FlashInfer
+  0.1.6).
+* Com um só modelo de 3B e batch pequeno (1.3), o SGLang 0.3.4 puro é mais rápido por token que o vLLM
+  0.30 puro em eager; o ganho do vLLM aparece com batches maiores e o modelo de 8B.
 * **Nada disso mede o design do backend**, e sim duas gerações de engine. Para uma conclusão sobre o
   design seria preciso comparar com um SGLang recente portado da mesma forma, o que não foi feito.
 
@@ -353,8 +386,8 @@ internos do vLLM não são contabilizados. A admissão fica mais otimista. O imp
    afeta os dois backends no modo sem pool.
 2. **A cada upgrade do vLLM**, rodar `swap_static`/`swap_elastic`, `wp_test` e `switch_*` antes de usar:
    os patches de `vllm_patches.py` dependem de internals do vLLM 0.30.
-3. Antes de publicar números comparativos, **repetir as medições** (≥ 3 execuções), separar o efeito do
-   engine com um SGLang recente e perfilar o adaptador (1.3), principalmente o TTFT sob concorrência.
+3. Antes de publicar números comparativos, **repetir as medições** (≥ 3 execuções; o `overload` precisa de
+   mais, dada a variância), separar o efeito do engine com um SGLang recente e perfilar o adaptador (1.3).
 4. Avaliar o sleep mode do vLLM para recuperar os CUDA graphs (−28% TPOT), testando a convivência com o
    kvcached.
 5. Testar TP > 1 antes de qualquer uso com modelos grandes (o worker pool vLLM recusa TP > 1).
