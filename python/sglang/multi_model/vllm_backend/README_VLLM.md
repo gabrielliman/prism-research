@@ -62,7 +62,9 @@ cannot share one Python environment.
 | `get_memory_usage` / `get_memory_pool_size` / flush cache / abort / profile | Mapped to vLLM equivalents | Adapted |
 | `update_weights` | — | **Not adapted** (returns failure) |
 | CUDA graphs | Always `enforce_eager` (re-pointed weights would invalidate graphs) | Restricted |
-| Worker pool (`WorkerPoolModelRunner`, `--workers-per-gpu`) | `VllmWorkerSlot`: builds/tears down an engine per activation (0.2-0.6 s), keeps the CUDA context and process group; warms up at start | Adapted (TP=1 only) |
+| Worker pool (`WorkerPoolModelRunner`, `--workers-per-gpu`) | `VllmWorkerSlot`: builds/tears down an engine per activation (0.2-0.6 s), keeps the CUDA context and process group; warms up at start | Adapted |
+| `handle_activate_request` for `tp_size > 1` (SGLang: "not supported yet") | All ranks through `collective_rpc` | **Added** |
+| Worker pool with `tp_size > 1` (SGLang: TP=1 only) | TP slots on GPU groups (`--tp-workers-per-group`, paper A.2.2), driven by the GPU scheduler of the group's first GPU; `persistent_executor.py` keeps the rank processes and NCCL group across engines; per-rank shards in the weight cache | **Added** (no automatic migration of TP models) |
 | GPU migration of a model (worker pool) | Any slot on any GPU can serve the model | Adapted |
 | Model service / CPU shared-memory weights (`model_sevice.py`, `--enable-cpu-share-memory`) | Shared CPU weight cache in /dev/shm, filled at start-up, `prism_shm` load format | Adapted (the flags are accepted) |
 | RECOMPUTE in the worker pool | The request goes back through Redis with its progress; whichever slot serves the model continues it | Adapted |
@@ -96,7 +98,13 @@ cannot share one Python environment.
 | `prism2` with worker pool (2 GPUs, 6 models) | 741/741 requests; TTFT 64 ms, TPOT 11.3 ms (SGLang worker pool: 155 ms, 17.6 ms) |
 | `wp_test` (`polyaxon/test_worker_pool.py`, 2 GPUs) | all checks pass, incl. migration GPU 0 -> GPU 1 (< 1 s to first response) |
 | `overload` with worker pool | 754/754 at every speed; SLO 98.3% / 97.9% / 95.4% / 82.4% (SGLang worker pool: 88.7 / 78.1 / 91.1 / 74.5%) |
+| `tp_switch_static` / `tp_switch_elastic` (2 GPUs, 8B + 3B with `tp_size=2`) | all checks pass; activation 0.07-0.18 s |
+| `wp_tp_test` (`polyaxon/test_worker_pool_tp.py`, 8B `tp_size=2` in the pool + two TP=1 models) | all checks pass; activation to first response 1.3-1.6 s, both GPUs freed in 0.26 s, no memory left after 3 cycles |
 | `overload` (8 models on 1 GPU, 4 initially off, real trace at 1×/2×/4×/10×; without worker pool) | 754/754 requests at every speed, 0 aborted; the controller activates/evicts models (5/4 at 1×); SLO attainment (TTFT and TPOT, 5× baseline P95) 98.3% / 98.3% / 96.0% / 91.9% |
+
+TP engines start with `vllm_patches.TP_ALLREDUCE_ENV` (no FlashInfer/symmetric-memory all-reduce): their
+NVLink multicast set-up intermittently hung the start-up. TP performance is below the SGLang backend's
+(see the analysis, section 1.8).
 
 RECOMPUTE keeps the text generated before the preemption exactly; the rest of the greedy text can differ
 from an uninterrupted run (e.g. from char 550 or 997 of 1806 in the test) because recomputing the KV in

@@ -19,9 +19,13 @@ a comprova, e cada diferença tem uma medição do seu impacto.
   `overload` completa 754/754 em todos os níveis. O SLO do `overload` varia muito entre execuções
   idênticas (vLLM a 10×: 44,7–82,4%; SGLang a 4×: 56–93%); na média o vLLM fica à frente em todos os
   níveis, mas as faixas se sobrepõem, exceto a 1× (seção 1.1).
-* **Tensor parallelism (seção 1.8):** TP > 1 funciona sem worker pool (ativar/desativar, RECOMPUTE,
-  RETURN, resize, nos modos estático e elástico). O SGLang original não ativa modelos com TP > 1. Com 2
-  modelos TP=2 nas mesmas GPUs, o vLLM satura antes (6,5 × 13,8 req/s a 20 req/s).
+* **Tensor parallelism (seção 1.8): o backend vLLM faz o que o original não faz.** O SGLang original
+  recusa ativar modelos com TP > 1 e o worker pool dele só aceita TP = 1. No vLLM, TP = 2 passa em todos
+  os testes de troca de modelo (com e sem worker pool), e o worker pool segue o desenho do artigo
+  (slots TP sobre grupos de GPUs, processos TP reaproveitados): ativação até a primeira resposta em
+  1,3–1,6 s, sem vazamento de memória. **O desempenho em TP é pior:** o vLLM 0.30 puro já é 30–45% mais
+  lento por token que o SGLang 0.3.4 puro em TP = 2 eager, e com 2 modelos TP = 2 nas mesmas GPUs o
+  Prism-vLLM satura em ~7,5 req/s contra 13,8 do Prism-SGLang.
 * **Desempenho depende do regime e está confundido com a idade dos kernels.** Sob carga (2 modelos,
   8B + 3B, 20 req/s), o vLLM tem TPOT 36% menor (16,5 × 25,7 ms, 3 execuções). Em 5 req/s e no
   `prism1` (2× 3B, baixa carga) os dois empatam dentro da variação. A comparação mistura "arquitetura do
@@ -214,12 +218,13 @@ A subida mais lenta tem três causas:
   vLLM, não emitidos no momento da decisão. A informação que o controller recebe é aproximada.
 * **`update_weights`, LoRA, overlap schedule, data parallelism, multi-nó e async loading** não são
   suportados (rejeitados na partida). Model service e `--enable-cpu-share-memory` são aceitos e
-  atendidos pelo cache de pesos do worker pool. O worker pool vLLM aceita apenas TP = 1.
+  atendidos pelo cache de pesos do worker pool.
 
 ### 1.6 Não testado
 
-* **Tensor parallelism (TP > 1):** o código existe (o adaptador usa `collective_rpc` em todos os ranks),
-  mas nunca foi executado. Os testes multi-GPU acima são de modelos TP=1 em GPUs diferentes.
+* **Modelos grandes de verdade com TP > 1** (70B em TP = 4/8, como no artigo), TP > 2 e TP em mais de
+  um grupo de GPUs ao mesmo tempo. Os testes de TP usam Llama-3.1-8B e 3B em TP = 2 (seção 1.8).
+* TP no `overload` e no `prism2` (o trace do README só tem modelos TP = 1).
 * Modelos MLA, híbridos, quantizados e multimodais.
 * Saída estruturada além de regex simples. `json_schema` não foi testado.
 
@@ -241,6 +246,79 @@ Durante a validação também apareceram dois defeitos de integração, ambos j�
 * eu introduzi uma regressão no caminho SGLang com worker pool: as classes de modelo do SGLang deixaram de
   ser registradas no processo principal. Os jobs de comparação a detectaram. Isso mostra que o código
   compartilhado precisa de testes nos dois backends.
+
+### 1.8 Tensor parallelism (TP > 1)
+
+**Ponto de partida.** No Prism original, TP > 1 só existe com o modelo sempre ativo: o
+`handle_activate_request` do SGLang lança "Activating a model with tp > 1 is not supported yet.", o
+worker pool aceita apenas TP = 1 e a política global supõe uma GPU por modelo ativo. O job `399e778b`
+confirmou: o SGLang serve dois modelos TP = 2, mas o teste de troca derruba o servidor na ativação.
+
+**O que foi implementado no backend vLLM** (seguindo o artigo, §7 e apêndice A.2.2):
+* Sem worker pool: um engine vLLM TP por modelo (`MultiprocExecutor`, um processo por rank), com
+  ativar/desativar via `collective_rpc` em todos os ranks.
+* Com worker pool: além dos slots TP = 1 por GPU, slots TP sobre grupos de GPUs (`--tp-workers-per-group`).
+  Cada slot TP é tratado pelo GPU scheduler da primeira GPU do grupo, e a política coloca o modelo num
+  grupo em que todas as GPUs comportam a parte do modelo daquele rank. Um executor persistente
+  (`persistent_executor.py`) mantém os processos dos ranks e o grupo NCCL entre engines (os "contextos
+  distribuídos reutilizáveis" do artigo); o cache de pesos em `/dev/shm` guarda um shard por rank.
+* A migração automática de modelos TP entre grupos não foi implementada (a política só migra modelos TP = 1).
+
+**Defeitos encontrados no caminho (todos corrigidos):**
+* **Travamento intermitente na subida de engines TP**, com um ou dois engines nas GPUs (`tp_sweep`,
+  `tp_overhead`). O vLLM 0.30 tenta primeiro all-reduces que usam multicast NVLink (FlashInfer `mnnvl` e
+  memória simétrica do torch), e o multicast falha às vezes no rank 1 ("init_multicast_for_block"). Os
+  engines TP agora sobem sem esses caminhos (`TP_ALLREDUCE_ENV` em `vllm_patches.py`): o vLLM usa o custom
+  all-reduce (CUDA IPC) e o NCCL. Desligar esses caminhos não reduziu o desempenho (7,5 × 6,5 req/s antes).
+* Os patches de runtime não existiam nos processos dos ranks (criados com `spawn`); agora são aplicados
+  quando o rank importa a worker extension.
+* **Vazamento de memória ao reaproveitar ranks:** se o warmup de kernels do vLLM roda num rank
+  reaproveitado, os pesos do modelo anterior ficam na GPU (+3 GB por rank para o 3B e +7,5 GB para o 8B,
+  a cada troca). Com o warmup pulado, como o worker pool faz, a memória fica constante. As flags
+  `PRISM_VLLM_*` agora são repassadas aos ranks a cada reconstrução. A causa dentro do vLLM não foi
+  identificada.
+
+**Testes de equivalência** (2× H200):
+
+| teste | resultado |
+|---|---|
+| `tp_switch_static` / `tp_switch_elastic` (`test_switching.py`, 8B + 3B em TP = 2, sem pool) | todas as verificações passam: saída idêntica após reativar, RETURN, RECOMPUTE (400 tokens), resize, ativação dimensionada; ativar 0,07–0,18 s; desativar 0,05 s (a primeira, 2,5–3,8 s, cria a cópia dos pesos na CPU) |
+| `wp_tp_test` (`test_worker_pool_tp.py`: 8B em TP = 2 no pool + dois 3B em TP = 1) | todas passam: ativação pelo pool até a primeira resposta em 1,26 s (reativação 1,60 s); as duas GPUs recebem a sua parte; desativar libera as duas em 0,26 s; saída idêntica após reativar; RECOMPUTE completa; modelos TP = 1 não são afetados; após 3 ciclos a memória volta exatamente ao início |
+| `swap_elastic` com `PRISM_SWAP_TP=2` (troca 3B ↔ 8B no mesmo par de ranks) | montar engine: 0,6–0,8 s com os patches (2,5–4,7 s sem); desmontar: 0,57–0,79 s; saída idêntica em todos os 18 ciclos |
+
+O artigo cita 1,5 s para ativar um 70B em TP = 4/8; aqui o modelo é bem menor, então os números não são
+comparáveis diretamente.
+
+**Desempenho** (`tp_overhead`: um 8B em TP = 2 atrás do Prism × o engine puro, 2 execuções por backend;
+mediana por requisição, médias das execuções):
+
+| concorrência | ITL Prism / puro, vLLM | ITL Prism / puro, SGLang | vazão Prism × puro, vLLM | vazão Prism × puro, SGLang |
+|---|---|---|---|---|
+| 1 | 16,9 / 14,9 ms | 11,4 / 10,3 ms | 59 / 67 tok/s (−12%) | 85 / 97 (−12%) |
+| 8 | 17,6 / 15,4 ms | 12,3 / 11,0 ms | 453 / 516 (−12%) | 647 / 718 (−10%) |
+| 32 | 17,9 / 15,3 ms | 12,9 / 11,8 ms | 1719 / 2051 (−16%) | 2401 / 2635 (−9%) |
+
+`tp_sweep`: 8B + 3B, ambos em TP = 2 nas GPUs 0–1, trace sintético; vLLM 3 execuções, SGLang 2:
+
+| taxa | req/s vLLM / SGLang | TTFT médio vLLM / SGLang | TPOT médio vLLM / SGLang |
+|---|---|---|---|
+| 5 | 2,38 [2,19–2,65] / 2,69 | 0,24 s / 0,16 s | 102 / 111 ms |
+| 10 | 5,08 [4,92–5,20] / 6,34 | **23,4 s** / 0,13 s | 88 / 91 ms |
+| 20 | 7,48 [6,48–8,03] / 13,79 | **50,5 s** / 1,3 s | 68 / 84 ms |
+
+**Leitura crítica:**
+* O custo do adaptador em TP = 2 (−12 a −16% de vazão) é parecido com o das modificações do Prism no
+  SGLang (−9 a −12%). **A diferença vem principalmente do vLLM:** o `vllm serve` puro em TP = 2 eager
+  tem ITL de 15 ms contra 10–11 ms do SGLang puro. Em eager, cada camada lança kernels e sincroniza o all-reduce a partir do Python; os CUDA
+  graphs, que o backend não pode usar (1.2), seriam justamente o remédio.
+* Com dois engines TP nas mesmas GPUs, o TPOT dos dois backends vai a 90–110 ms já em 5 req/s (contra
+  15–18 ms com um engine sozinho): os all-reduces de um engine esperam enquanto o outro ocupa as GPUs. Isso
+  vale para os dois backends e pesa para qualquer colocação de modelos TP no mesmo grupo.
+* O vLLM satura antes: a 10 e 20 req/s as requisições se acumulam na fila (TTFT de dezenas de segundos)
+  enquanto o TPOT até cai. A lógica de admissão do adaptador é a mesma do TP = 1, onde o vLLM não satura,
+  então a explicação mais provável é a menor capacidade do vLLM eager em TP = 2, ampliada pela
+  disputa entre os dois engines. **Não foi isolado:** o teste com dois `vllm serve` puros dividindo as
+  GPUs, que separaria o efeito do vLLM do efeito do adaptador sob colocação, não foi feito.
 
 ## 2. O que está equivalente, e os testes que comprovam
 
@@ -390,7 +468,9 @@ internos do vLLM não são contabilizados. A admissão fica mais otimista. O imp
    mais, dada a variância), separar o efeito do engine com um SGLang recente e perfilar o adaptador (1.3).
 4. Avaliar o sleep mode do vLLM para recuperar os CUDA graphs (−28% TPOT), testando a convivência com o
    kvcached.
-5. Testar TP > 1 antes de qualquer uso com modelos grandes (o worker pool vLLM recusa TP > 1).
+5. Antes de usar TP com modelos grandes, repetir `tp_switch_*`, `wp_tp_test` e `swap_*` com
+   `PRISM_SWAP_TP` no tamanho real (TP = 4/8) e medir a colocação de engines TP no mesmo grupo de GPUs, que
+   custa caro nos dois backends (1.8).
 
 ## Reprodução
 
@@ -405,6 +485,10 @@ PRISM_GPUS=2 PRISM_JOB_ENV="PRISM_BACKEND=vllm PRISM_STEPS=prism2 PRISM_TIMEOUT=
 # worker pool vLLM: troca de engine num processo (1 GPU) e teste funcional com migração (2 GPUs)
 PRISM_JOB_ENV="PRISM_BACKEND=vllm PRISM_STEPS='swap_static swap_elastic'" PRISM_IMAGE=... polyaxon/submit.sh
 PRISM_GPUS=2 PRISM_JOB_ENV="PRISM_BACKEND=vllm PRISM_WP_GPUS=2 PRISM_STEPS=wp_test" PRISM_IMAGE=... polyaxon/submit.sh
+# TP = 2 (2 GPUs): troca de modelos sem pool, worker pool com modelo TP, troca de engine TP, desempenho
+PRISM_GPUS=2 PRISM_JOB_ENV="PRISM_BACKEND=vllm PRISM_STEPS=tp_switch_static,tp_switch_elastic,wp_tp_test" PRISM_IMAGE=... polyaxon/submit.sh
+PRISM_GPUS=2 PRISM_JOB_ENV="PRISM_BACKEND=vllm PRISM_SWAP_TP=2 PRISM_STEPS=swap_elastic" PRISM_IMAGE=... polyaxon/submit.sh
+PRISM_GPUS=2 PRISM_JOB_ENV="PRISM_BACKEND=sglang PRISM_STEPS=tp_overhead,tp_sweep" polyaxon/submit.sh   # e o mesmo com vllm
 # Tabelas a partir dos outputs baixados (polyaxon ops artifacts -d outputs)
 python3 polyaxon/compare/report.py <outputs SGLang> <outputs vLLM>
 python3 polyaxon/analyze_overload.py <outputs>
@@ -416,4 +500,10 @@ Execuções usadas neste documento (Polyaxon `kunumi/hpc4ai`):
 * vLLM sem pool: `27b57700` (bateria), `f73352ca` (overhead), `2bf77793` (`overload`), `d3a8ff52`
   (`prism2`, interrompido após 64 min travado);
 * vLLM worker pool: `21fa2230` (troca de engine), `bf99955f` (`prism2`), `c5a5f59b` (`overload`),
-  `f6d0ea37` (`wp_test` + teardown).
+  `f6d0ea37` (`wp_test` + teardown);
+* repetições (`cmp_overhead` + `cmp_sweep` + `prism1`; `prism2`; `overload`): vLLM `e3048b9c`, `9bd56f7f`,
+  `24caea12`, `715a75be`, `c8d4c95f`, `bfec63c4`, `5469b118`; SGLang `beb61ac5`, `b77b5e20`, `469291e0`,
+  `22991cd9`, `6e5f3494`, `739a924e`, `7bcb6dc0`;
+* TP: SGLang `399e778b` (`tp_sweep` + troca, que falha), `476fd7a6` e `e3c082d6` (`tp_overhead` +
+  `tp_sweep`); vLLM `b2604e77` e `f6b62262` (`tp_switch_*`), `7523e3a6`, `b9c788d9` e `f68a3fcc`
+  (`tp_sweep`; os dois últimos também `tp_overhead`), `e4db17a6` (`wp_tp_test` e `swap_*` em TP = 2).
