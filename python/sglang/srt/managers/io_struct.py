@@ -426,6 +426,8 @@ class DeactivateReqInput:
     preempt: bool = False  # whether to preempt the ongoing requests
     preempt_mode: str = PreemptMode.RETURN.name
     gpu_id: Optional[int] = None
+    # drain: serve the already accepted requests for up to this many seconds before the above apply
+    drain_timeout: Optional[float] = None
 
     rid: Optional[str] = None
 

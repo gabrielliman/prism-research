@@ -1,0 +1,101 @@
+{
+ "args": {
+  "base_url": "http://127.0.0.1:30002",
+  "models": [
+   "model_1",
+   "model_2",
+   "model_3",
+   "model_4",
+   "model_5",
+   "model_6"
+  ],
+  "rate": 3.333,
+  "duration": 120.0,
+  "drain": 300.0,
+  "input_range": [
+   256,
+   768
+  ],
+  "output_range": [
+   128,
+   384
+  ],
+  "cv": 1.0,
+  "groups": 1,
+  "phase": 150,
+  "slo_ttft": 1.0,
+  "slo_tpot": 0.1,
+  "seed": 42,
+  "out": "/plx-context/artifacts/e356c0170fb742818eb66cf9b1b6a8ed/outputs/ovl_compute/rate3.333"
+ },
+ "elapsed_s": 135.56669208034873,
+ "sent": 2432,
+ "ok": 2432,
+ "failed": 0,
+ "unserved": 0,
+ "offered_rps": 20.266666666666666,
+ "served_rps": 17.93950979167201,
+ "output_tok_s": 4590.5449963413985,
+ "ttft_mean": 0.18888035906772865,
+ "ttft_p50": 0.1358811855316162,
+ "ttft_p99": 1.436129033565522,
+ "tpot_mean": 0.0567858743885166,
+ "tpot_p99": 0.0732035829282366,
+ "slo_attainment": 0.9769736842105263,
+ "per_model": {
+  "model_1": {
+   "sent": 388,
+   "ok": 388,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.721,
+   "ttft_p50": 0.13626313209533691,
+   "slo": 0.9716494845360825
+  },
+  "model_2": {
+   "sent": 384,
+   "ok": 384,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.745,
+   "ttft_p50": 0.13827121257781982,
+   "slo": 0.9713541666666666
+  },
+  "model_3": {
+   "sent": 411,
+   "ok": 411,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.272,
+   "ttft_p50": 0.1344764232635498,
+   "slo": 0.9805352798053528
+  },
+  "model_4": {
+   "sent": 404,
+   "ok": 404,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.037,
+   "ttft_p50": 0.1321547031402588,
+   "slo": 0.9801980198019802
+  },
+  "model_5": {
+   "sent": 401,
+   "ok": 401,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.493,
+   "ttft_p50": 0.13500714302062988,
+   "slo": 0.972568578553616
+  },
+  "model_6": {
+   "sent": 444,
+   "ok": 444,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.692,
+   "ttft_p50": 0.138849139213562,
+   "slo": 0.9842342342342343
+  }
+ }
+}

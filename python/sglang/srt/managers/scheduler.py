@@ -556,7 +556,9 @@ class Scheduler:
             self.last_batch = None
 
     @torch.inference_mode()
-    def _run_to_completion_normal(self):
+    def _run_to_completion_normal(self, deadline: Optional[float] = None):
+        """Run the running batch and the waiting queue to completion. With a deadline (perf_counter time,
+        Prism's drain before a swap), stop starting batches once it passes and leave the rest to the caller."""
         batch = self.get_next_batch_to_run()
         if batch is not None:
             logger.info(
@@ -578,6 +580,12 @@ class Scheduler:
                         result = self.run_batch(batch)
                         self.process_batch_result(batch, result)
             self.last_batch = batch
+            if deadline is not None and time.perf_counter() >= deadline:
+                logger.info(
+                    f"Drain deadline reached, waiting queue size: {len(self.waiting_queue)}, "
+                    f"running batch size: {0 if self.running_batch is None else len(self.running_batch.reqs)}"
+                )
+                return
             batch = self.get_next_batch_to_run()
 
         self.last_batch = None
@@ -1718,6 +1726,15 @@ class Scheduler:
         logger.info(
             f"In handle deactivate request, waiting queue size: {len(self.waiting_queue)}. Running batch size: {0 if self.running_batch is None else len(self.running_batch.reqs)}, last batch size: {0 if self.last_batch is None else len(self.last_batch.reqs)}"
         )
+        if recv_req.drain_timeout is not None:
+            # Drain (Prism eviction strategies): keep serving the requests this engine already accepted for up
+            # to drain_timeout seconds; what is left is then handled as below (evict / preempt).
+            if self.enable_overlap:
+                logger.warning("Drain before deactivation is not implemented with the overlap scheduler")
+            else:
+                self._run_to_completion_normal(deadline=time.perf_counter() + recv_req.drain_timeout)
+                logger.info(f"Drained for {time.perf_counter() - start_time:.2f} s")
+
         if recv_req.evict_waiting_requests or (
             recv_req.preempt and recv_req.preempt_mode == PreemptMode.RECOMPUTE
         ):
@@ -1743,6 +1760,10 @@ class Scheduler:
                     self._retract_running_batch_overlap(result_queue)
                 else:
                     self._retract_running_batch_normal()
+                # The retracted requests are now in this engine's waiting queue; with the worker pool this
+                # worker may next serve another model, so send them back to the model's frontend queue
+                # (they restart from their prompt: RECOMPUTE).
+                self._evict_all_waiting_requests()
             else:
                 raise NotImplementedError(
                     f"Preempt mode {preempt_mode} is not supported"

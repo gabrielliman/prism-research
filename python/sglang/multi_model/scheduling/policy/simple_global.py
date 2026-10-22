@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from itertools import chain
 from typing import Dict, List, Set, Tuple, Optional, DefaultDict
@@ -182,7 +183,48 @@ class SimpleGlobalPolicy(GlobalPolicy):
 
         self.MEMORY_POOL_BUDGET = 6
 
-        self.MODEL_IDLE_THRESHOLD = 50  # seconds
+        # seconds without requests before an active model is evicted (PRISM_IDLE_THRESHOLD, default 50)
+        self.MODEL_IDLE_THRESHOLD = float(os.environ.get("PRISM_IDLE_THRESHOLD", 50))
+        # Eviction strategy (PRISM_EVICTION):
+        #   idle      Prism's original: an active model is only evicted after MODEL_IDLE_THRESHOLD idle seconds
+        #   pressure  also, when an inactive model with requests does not fit, evict the least recently used
+        #             model idle for at least PRISM_PRESSURE_MIN_IDLE s (no waiting/running requests)
+        #   adaptive  per-model idle threshold: PRISM_ADAPTIVE_K x the p90 of the model's own inter-arrival gaps
+        #             (in [PRISM_ADAPTIVE_MIN, MODEL_IDLE_THRESHOLD]); under pressure, evict the idle model most
+        #             overdue relative to its threshold
+        #   fair      pressure, plus: when a model with requests has waited PRISM_FAIR_QUANTUM s and no model is
+        #             idle, rotate out the model active for longest (at least PRISM_FAIR_QUANTUM s), even if busy
+        #   throughput  swap by tokens/s per GB: when a model with requests does not fit, evict the active models
+        #             (active for at least PRISM_SWAP_MIN_RESIDENCY s) serving the fewest tokens/s per GB they
+        #             occupy, if the waiting model's token demand, aged by its wait (PRISM_SWAP_AGING_S), beats
+        #             their tokens/s by PRISM_SWAP_MARGIN. Victims are preempted (PRISM_SWAP_PREEMPT=1: running
+        #             requests recomputed later) and/or drained first (PRISM_SWAP_DRAIN=1: serve their accepted
+        #             requests for up to PRISM_SWAP_DRAIN_TIMEOUT s).
+        self.EVICTION = os.environ.get("PRISM_EVICTION", "idle")
+        assert self.EVICTION in ["idle", "pressure", "adaptive", "fair", "throughput"]
+        self.SWAP_MARGIN = float(os.environ.get("PRISM_SWAP_MARGIN", 0.2))
+        self.SWAP_MIN_RESIDENCY = float(os.environ.get("PRISM_SWAP_MIN_RESIDENCY", 20))
+        self.SWAP_AGING_S = float(os.environ.get("PRISM_SWAP_AGING_S", 30))
+        self.SWAP_PREEMPT = os.environ.get("PRISM_SWAP_PREEMPT", "0") == "1"
+        self.SWAP_DRAIN = os.environ.get("PRISM_SWAP_DRAIN", "0") == "1"
+        self.SWAP_DRAIN_TIMEOUT = float(os.environ.get("PRISM_SWAP_DRAIN_TIMEOUT", 15))
+        self.SWAP_RESERVATION = 15.0  # s the swapped-in model keeps priority for the freed memory
+        self.DEMAND_WINDOW = 30.0  # s over which a waiting model's queued tokens count as its demand
+        self.served_history: DefaultDict[str, deque] = defaultdict(deque)  # (time, served_tokens) per model
+        self.served_tput: Dict[str, float] = {}  # tokens/s each active model served over DEMAND_WINDOW
+        self.swap_reservation_until: Dict[str, float] = {}
+        self.PRESSURE_MIN_IDLE = float(os.environ.get("PRISM_PRESSURE_MIN_IDLE", 2))
+        self.PRESSURE_COOLDOWN = float(os.environ.get("PRISM_PRESSURE_COOLDOWN", 10))  # s between evictions for one model
+        self.ADAPTIVE_K = float(os.environ.get("PRISM_ADAPTIVE_K", 3))
+        self.ADAPTIVE_MIN = float(os.environ.get("PRISM_ADAPTIVE_MIN", 5))
+        self.FAIR_QUANTUM = float(os.environ.get("PRISM_FAIR_QUANTUM", 30))
+        # GB required on top of the weights to activate a model, so that its first KV pages fit
+        self.ACTIVATION_HEADROOM = float(os.environ.get("PRISM_ACTIVATION_HEADROOM_GB", 0))
+        self.arrival_gaps: DefaultDict[str, deque] = defaultdict(lambda: deque(maxlen=20))
+        self.model_idle_time: Dict[str, float] = {}
+        self.model_has_requests: Dict[str, bool] = {}
+        self.active_since: Dict[str, float] = {}
+        self.pressure_cooldown_until: Dict[str, float] = {}
         self.VIOLATION_PROPORTION_THRESHOLD = 0.1 # 10%
         self.MEMORY_PER_REQUEST_RATIO_THRESHOLD = 15
 
@@ -275,20 +317,26 @@ class SimpleGlobalPolicy(GlobalPolicy):
         current_time = time.time()
         
         for model_name, queue in model_queues.items():
-            if queue.get_last_arrival_time() > self.first_request_time:
-                self.model_last_active_time[model_name] = queue.get_last_arrival_time()
-            
+            last_arrival = queue.get_last_arrival_time()
+            if last_arrival > self.first_request_time:
+                prev = self.model_last_active_time.get(model_name)
+                if prev is not None and self.first_request_time < prev < last_arrival:
+                    self.arrival_gaps[model_name].append(last_arrival - prev)
+                self.model_last_active_time[model_name] = last_arrival
+
             last_request_time = self.model_last_active_time.get(model_name)
             if last_request_time is not None:
                 idle_time = current_time - last_request_time
                 has_requests = queue.get_num_waiting_reqs() > 0 or queue.get_num_running_reqs() > 0
-                
+                self.model_idle_time[model_name] = idle_time
+                self.model_has_requests[model_name] = has_requests
+
                 if model_name in [instance.model_name for instances in gpu_to_active_instances.values() for instance in instances]:
                     logger.info(f"Model {model_name} has been idle for {idle_time:.2f} seconds, its own last request or global first request time is {last_request_time}")
                     logger.info(f"Model {model_name} has waiting/running requests: {has_requests}")
                 
                 # Only consider models as idle if they have been idle for long enough AND have no active requests
-                if idle_time > self.MODEL_IDLE_THRESHOLD and not has_requests:
+                if idle_time > self._idle_threshold(model_name) and not has_requests:
                     idle_models.add(model_name)
         
         for gpu_id, active_instances in gpu_to_active_instances.items():
@@ -302,6 +350,155 @@ class SimpleGlobalPolicy(GlobalPolicy):
                     evictable_instances[gpu_id].append(model_instance)
         
         return evictable_instances
+
+    def _idle_threshold(self, model_name: str) -> float:
+        """Idle seconds before eviction: fixed, or (adaptive) from the model's recent inter-arrival gaps."""
+        gaps = self.arrival_gaps.get(model_name)
+        if self.EVICTION != "adaptive" or not gaps or len(gaps) < 5:
+            return self.MODEL_IDLE_THRESHOLD
+        p90 = sorted(gaps)[int(0.9 * (len(gaps) - 1))]
+        return min(self.MODEL_IDLE_THRESHOLD, max(self.ADAPTIVE_MIN, self.ADAPTIVE_K * p90))
+
+    @staticmethod
+    def _oldest_wait(queue: ModelQueueTracker, now: float) -> float:
+        arrivals = [r.arrival_time for r in queue.waiting_reqs if r.arrival_time is not None]
+        return now - min(arrivals) if arrivals else 0.0
+
+    def _pressure_evictions(
+        self,
+        unplaced_models: List[str],
+        model_queues: Dict[str, ModelQueueTracker],
+        gpu_to_active_instances: Dict[int, List[ModelInstanceState]],
+        taken: Set[Tuple[str, int]],
+    ) -> List[Tuple[ModelInstanceState, int, str]]:
+        """Victims that make room for inactive models with requests that did not fit (PRISM_EVICTION != idle).
+        At most one victim per waiting model per PRESSURE_COOLDOWN; the waiting model is activated in a later
+        cycle, once the victim's memory is free. Returns (instance, gpu_id, reason)."""
+        now = time.time()
+        candidates = [
+            (gpu_id, inst)
+            for gpu_id, insts in gpu_to_active_instances.items()
+            for inst in insts
+            if (inst.model_name, inst.instance_idx) not in taken and self.model_tp.get(inst.model_name, 1) == 1
+        ]
+        victims = []
+        for model_name in unplaced_models:
+            if self.pressure_cooldown_until.get(model_name, 0) > now:
+                continue
+            idle = [
+                c for c in candidates
+                if not self.model_has_requests.get(c[1].model_name, True)
+                and self.model_idle_time.get(c[1].model_name, 0) >= self.PRESSURE_MIN_IDLE
+            ]
+            pick, reason = None, None
+            if idle:
+                if self.EVICTION == "adaptive":  # most overdue relative to its own usual gap
+                    score = lambda c: self.model_idle_time[c[1].model_name] / self._idle_threshold(c[1].model_name)
+                else:  # least recently used
+                    score = lambda c: self.model_idle_time[c[1].model_name]
+                pick, reason = max(idle, key=score), f"pressure eviction for {model_name}"
+            elif self.EVICTION == "fair" and self._oldest_wait(model_queues[model_name], now) >= self.FAIR_QUANTUM:
+                busy = [c for c in candidates if now - self.active_since.get(c[1].model_name, now) >= self.FAIR_QUANTUM]
+                if busy:
+                    pick = max(busy, key=lambda c: now - self.active_since[c[1].model_name])
+                    reason = f"fair rotation for {model_name}"
+            if pick is not None:
+                candidates.remove(pick)
+                victims.append((pick[1], pick[0], reason))
+                self.pressure_cooldown_until[model_name] = now + self.PRESSURE_COOLDOWN
+        return victims
+
+    def _model_memory(self, model_name: str, tokens: float) -> float:
+        """GB a model occupies: its weights plus the KV cache of `tokens` tokens."""
+        info = self.model_weights_info[model_name]
+        return info["model_size"] + info["cell_size"] * tokens / (1 << 30)
+
+    def _aged_demand(self, queue: ModelQueueTracker, now: float) -> float:
+        """Token demand (tokens/s) of a waiting model: its queued tokens served over DEMAND_WINDOW, aged by its
+        oldest request's wait (so a starved model eventually wins)."""
+        backlog = sum((r.prompt_len or 0) + (r.output_len or 0) for r in queue.waiting_reqs)
+        return backlog / self.DEMAND_WINDOW * (1 + self._oldest_wait(queue, now) / self.SWAP_AGING_S)
+
+    def _update_tput(self, model_queues: Dict[str, ModelQueueTracker], active_models: Set[str]):
+        """Tokens/s each active model served over the last DEMAND_WINDOW (from the token counts its engine
+        reports every second; the per-second rate alone is too noisy at one sample per cycle)."""
+        now = time.time()
+        for model_name in list(self.served_tput):
+            if model_name not in active_models:
+                del self.served_tput[model_name]
+                self.served_history.pop(model_name, None)
+        for model_name in active_models:
+            hist = self.served_history[model_name]
+            hist.append((now, model_queues[model_name].served_tokens))
+            while len(hist) > 2 and now - hist[1][0] >= self.DEMAND_WINDOW:  # keep one sample at/before it
+                hist.popleft()
+            t0, n0 = hist[0]
+            # until a window has passed since activation, divide by the window (no extrapolation)
+            self.served_tput[model_name] = (hist[-1][1] - n0) / max(now - t0, self.DEMAND_WINDOW / 2)
+
+    def _throughput_swaps(
+        self,
+        unplaced_models: List[str],
+        model_queues: Dict[str, ModelQueueTracker],
+        gpu_to_active_instances: Dict[int, List[ModelInstanceState]],
+        taken: Set[Tuple[str, int]],
+        gpu_available_memory: Dict[int, float],
+    ) -> List[Tuple[ModelInstanceState, int, str]]:
+        """Swaps by tokens/s per GB (PRISM_EVICTION=throughput). For each inactive model with requests that did
+        not fit (highest aged demand first), pick on one GPU the active models with the lowest tokens/s per GB
+        until enough memory would be free, and evict them if the waiting model's aged demand beats their
+        tokens/s by SWAP_MARGIN. Sorting by density keeps small models that serve little but occupy little.
+        Returns (instance, gpu_id, reason)."""
+        now = time.time()
+        candidates: Dict[int, list] = defaultdict(list)  # gpu_id -> [(density, tput, mem, instance)]
+        for gpu_id, insts in gpu_to_active_instances.items():
+            for inst in insts:
+                name = inst.model_name
+                if (name, inst.instance_idx) in taken or self.model_tp.get(name, 1) != 1:
+                    continue
+                if now - self.active_since.get(name, now) < self.SWAP_MIN_RESIDENCY:
+                    continue
+                queue = model_queues[name]
+                tokens = sum((r.prompt_len or 0) + (r.output_len or 0) for r in queue.running_reqs)
+                mem = self._model_memory(name, tokens)
+                # what keeping it is worth: tokens/s it served plus its own queued work over the window
+                backlog = sum((r.prompt_len or 0) + (r.output_len or 0) for r in queue.waiting_reqs)
+                tput = self.served_tput.get(name, 0.0) + backlog / self.DEMAND_WINDOW
+                candidates[gpu_id].append((tput / mem, tput, mem, inst))
+        for cands in candidates.values():
+            cands.sort(key=lambda c: c[0])
+
+        victims = []
+        demand = {m: self._aged_demand(model_queues[m], now) for m in unplaced_models}
+        for model_name in sorted(unplaced_models, key=lambda m: -demand[m]):
+            if self.pressure_cooldown_until.get(model_name, 0) > now:
+                continue
+            need = self.model_weights_info[model_name]["model_size"] + self.ACTIVATION_HEADROOM
+            best = None
+            for gpu_id, cands in candidates.items():
+                missing, freed, lost, picked = need - gpu_available_memory.get(gpu_id, 0.0), 0.0, 0.0, []
+                for c in cands:
+                    if freed >= missing:
+                        break
+                    picked.append(c)
+                    freed += c[2]
+                    lost += c[1]
+                if freed >= missing and demand[model_name] > (1 + self.SWAP_MARGIN) * lost:
+                    if best is None or lost < best[1]:
+                        best = (gpu_id, lost, picked)
+            if best is None:
+                continue
+            gpu_id, lost, picked = best
+            for c in picked:
+                candidates[gpu_id].remove(c)
+                victims.append((c[3], gpu_id, f"throughput swap for {model_name}"))
+                logger.info(
+                    f"Throughput swap: {c[3].model_name} ({c[1]:.0f} tok/s, {c[2]:.1f} GB) out for {model_name} "
+                    f"(aged demand {demand[model_name]:.0f} tok/s)"
+                )
+            self.pressure_cooldown_until[model_name] = now + self.SWAP_RESERVATION
+            self.swap_reservation_until[model_name] = now + self.SWAP_RESERVATION
+        return victims
 
     def _calculate_model_violation_stats(
         self,
@@ -818,6 +1015,14 @@ class SimpleGlobalPolicy(GlobalPolicy):
         model_violation_stats = self._calculate_model_violation_stats(model_queues)
         gpu_to_model_mapping = self._get_gpu_to_model_mapping(model_instance_state_dict)
         gpu_to_active_instances = self._get_gpu_to_active_instances(model_instance_state_dict)
+        active_models = {inst.model_name for insts in gpu_to_active_instances.values() for inst in insts}
+        for model_name in list(self.active_since):
+            if model_name not in active_models:
+                del self.active_since[model_name]
+        for model_name in active_models:
+            self.active_since.setdefault(model_name, time.time())
+        if self.EVICTION == "throughput":
+            self._update_tput(model_queues, active_models)
         end_precompute = time.time()
         logger.info(f"Time for preprocessing data structures: {end_precompute - start_precompute:.4f}s")
 
@@ -900,13 +1105,17 @@ class SimpleGlobalPolicy(GlobalPolicy):
             key=lambda model_name: model_violation_stats[model_name][1],
             reverse=True
         )
-        
+        # A model that victims were evicted for (throughput swap) gets the freed memory first.
+        now = time.time()
+        sorted_inactive_models.sort(key=lambda m: 0 if self.swap_reservation_until.get(m, 0) > now else 1)
+
         sorted_clusters = self._prepare_gpu_clusters(gpu_available_memory)
         
         activation_plan = {}
+        unplaced_models = []
         for model_name in sorted_inactive_models:
             tp = self.model_tp.get(model_name, 1)
-            model_memory_required = self.model_weights_info[model_name]["model_size"] / tp
+            model_memory_required = self.model_weights_info[model_name]["model_size"] / tp + self.ACTIVATION_HEADROOM
             if tp > 1:
                 target_gpu = self._place_inactive_tp_model(
                     model_name, model_memory_required, gpu_available_memory, model_instance_state_dict
@@ -921,6 +1130,37 @@ class SimpleGlobalPolicy(GlobalPolicy):
                 activation_plan[(model_name, target_gpu)] = target_gpu
             else:
                 logger.warning(f"No suitable GPU found for inactive model {model_name}")
+                unplaced_models.append(model_name)
+
+        # 3b. Alternative eviction strategies (PRISM_EVICTION): free room for the models that did not fit
+        preempt, drain_timeout = False, None
+        if self.EVICTION == "throughput":
+            evictions = self._throughput_swaps(
+                unplaced_models, model_queues, gpu_to_active_instances, idle_instance_keys, gpu_available_memory
+            )
+            preempt = self.SWAP_PREEMPT
+            drain_timeout = self.SWAP_DRAIN_TIMEOUT if self.SWAP_DRAIN else None
+        elif self.EVICTION != "idle":
+            evictions = self._pressure_evictions(
+                unplaced_models, model_queues, gpu_to_active_instances, idle_instance_keys
+            )
+        else:
+            evictions = []
+        for victim, gpu_id, reason in evictions:
+            instance_key = (victim.model_name, victim.instance_idx)
+            idle_instance_keys.add(instance_key)
+            model_instance_to_action_dict.setdefault(instance_key, []).append(
+                DeactivateAction(
+                    model_name=victim.model_name,
+                    instance_idx=victim.instance_idx,
+                    preempt=preempt,
+                    preempt_mode="RECOMPUTE",
+                    evict_waiting_requests=True,
+                    gpu_id=gpu_id,
+                    drain_timeout=drain_timeout,
+                )
+            )
+            logger.info(f"ACTION: deactivate {victim.model_name}:{victim.instance_idx} on GPU {gpu_id}. Reason: {reason}")
 
         end_inactive = time.time()
 

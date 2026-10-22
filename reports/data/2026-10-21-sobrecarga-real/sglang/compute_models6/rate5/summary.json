@@ -1,0 +1,101 @@
+{
+ "args": {
+  "base_url": "http://127.0.0.1:30002",
+  "models": [
+   "model_1",
+   "model_2",
+   "model_3",
+   "model_4",
+   "model_5",
+   "model_6"
+  ],
+  "rate": 5.0,
+  "duration": 120.0,
+  "drain": 300.0,
+  "input_range": [
+   256,
+   768
+  ],
+  "output_range": [
+   128,
+   384
+  ],
+  "cv": 1.0,
+  "groups": 1,
+  "phase": 150,
+  "slo_ttft": 1.0,
+  "slo_tpot": 0.1,
+  "seed": 42,
+  "out": "/plx-context/artifacts/ccecb91645e54bb5903196b15707c0f0/outputs/ovl_compute/rate5"
+ },
+ "elapsed_s": 287.7798967510462,
+ "sent": 3648,
+ "ok": 3648,
+ "failed": 0,
+ "unserved": 0,
+ "offered_rps": 30.4,
+ "served_rps": 12.676354537564613,
+ "output_tok_s": 3228.491671896544,
+ "ttft_mean": 76.62893733565221,
+ "ttft_p50": 76.10954868793488,
+ "ttft_p99": 157.93151664495463,
+ "tpot_mean": 0.0875560076445692,
+ "tpot_p99": 0.11572406701169045,
+ "slo_attainment": 0.0356359649122807,
+ "per_model": {
+  "model_1": {
+   "sent": 589,
+   "ok": 589,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.481,
+   "ttft_p50": 73.94874262809753,
+   "slo": 0.028862478777589132
+  },
+  "model_2": {
+   "sent": 601,
+   "ok": 601,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.496,
+   "ttft_p50": 74.68148159980774,
+   "slo": 0.03826955074875208
+  },
+  "model_3": {
+   "sent": 588,
+   "ok": 588,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.14,
+   "ttft_p50": 78.82257723808289,
+   "slo": 0.0391156462585034
+  },
+  "model_4": {
+   "sent": 682,
+   "ok": 682,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.031,
+   "ttft_p50": 82.80860698223114,
+   "slo": 0.011730205278592375
+  },
+  "model_5": {
+   "sent": 616,
+   "ok": 616,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.057,
+   "ttft_p50": 79.37070083618164,
+   "slo": 0.02922077922077922
+  },
+  "model_6": {
+   "sent": 572,
+   "ok": 572,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.006,
+   "ttft_p50": 66.5017911195755,
+   "slo": 0.07167832167832168
+  }
+ }
+}

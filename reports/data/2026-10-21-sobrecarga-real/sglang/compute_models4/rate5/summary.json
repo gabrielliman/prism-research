@@ -1,0 +1,81 @@
+{
+ "args": {
+  "base_url": "http://127.0.0.1:30002",
+  "models": [
+   "model_1",
+   "model_2",
+   "model_3",
+   "model_4"
+  ],
+  "rate": 5.0,
+  "duration": 120.0,
+  "drain": 300.0,
+  "input_range": [
+   256,
+   768
+  ],
+  "output_range": [
+   128,
+   384
+  ],
+  "cv": 1.0,
+  "groups": 1,
+  "phase": 150,
+  "slo_ttft": 1.0,
+  "slo_tpot": 0.1,
+  "seed": 42,
+  "out": "/plx-context/artifacts/42f0433200af4009a6820ecbcd51a76a/outputs/ovl_compute/rate5"
+ },
+ "elapsed_s": 147.27840667963028,
+ "sent": 2460,
+ "ok": 2460,
+ "failed": 0,
+ "unserved": 0,
+ "offered_rps": 20.5,
+ "served_rps": 16.70305956901852,
+ "output_tok_s": 4263.265838866802,
+ "ttft_mean": 8.447029850444173,
+ "ttft_p50": 8.851030349731445,
+ "ttft_p99": 20.292298347949977,
+ "tpot_mean": 0.13186978598156468,
+ "tpot_p99": 0.21414668095658865,
+ "slo_attainment": 0.004471544715447155,
+ "per_model": {
+  "model_1": {
+   "sent": 589,
+   "ok": 589,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.481,
+   "ttft_p50": 7.238904714584351,
+   "slo": 0.006791171477079796
+  },
+  "model_2": {
+   "sent": 601,
+   "ok": 601,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.496,
+   "ttft_p50": 9.860690116882324,
+   "slo": 0.011647254575707155
+  },
+  "model_3": {
+   "sent": 588,
+   "ok": 588,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.14,
+   "ttft_p50": 8.311047434806824,
+   "slo": 0.0
+  },
+  "model_4": {
+   "sent": 682,
+   "ok": 682,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.031,
+   "ttft_p50": 14.73821485042572,
+   "slo": 0.0
+  }
+ }
+}

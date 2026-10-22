@@ -243,6 +243,7 @@ class GlobalController:
                 self.model_queues[model_name].decode_token_tput = (
                     recv_req.decode_token_tput
                 )
+                self.model_queues[model_name].served_tokens += recv_req.token_count
             else:
                 raise ValueError(f"Unknown request type: {type(recv_req)}")
 
@@ -281,8 +282,9 @@ class GlobalController:
         """Main scheduling loop that generates and executes scheduling actions."""
         logger.info("Waiting for the first generate request to start model scheduling")
         self._start_run_policy.wait()
-        SCHEDULE_INTERVAL = 5
-        logger.info(f"Schedule interval: {SCHEDULE_INTERVAL} seconds")
+        SCHEDULE_INTERVAL = float(os.environ.get("PRISM_SCHEDULE_INTERVAL", 5))
+        logger.info(f"Schedule interval: {SCHEDULE_INTERVAL} seconds, "
+                    f"idle threshold: {self.policy.MODEL_IDLE_THRESHOLD} seconds")
 
         logger.info("Starting model scheduling")
         while not self._shutdown_event.is_set():
@@ -300,7 +302,7 @@ class GlobalController:
                 if (exec_finish - exec_start) < SCHEDULE_INTERVAL:
                     time.sleep(SCHEDULE_INTERVAL - (exec_finish - exec_start))
             else:
-                time.sleep(5)
+                time.sleep(SCHEDULE_INTERVAL)
 
     def execute_actions(self, actions: List[BaseAction]):
         """Execute a list of scheduling actions in parallel."""

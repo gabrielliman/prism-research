@@ -117,6 +117,7 @@ class ModelQueueTracker:
         self.latest_token_tput = 0.0  # PD total throughput
         self.prefill_token_tput = 0.0  # Prefill throughput
         self.decode_token_tput = 0.0  # Decode throughput
+        self.served_tokens = 0  # prefill + decode tokens processed since start (sum of the engine's reports)
 
     def _get_req_from_queue(self, queue: deque[Req], rid: str) -> Optional[Req]:
         """Helper method to find and remove a request from a queue."""

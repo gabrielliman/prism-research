@@ -6,6 +6,9 @@
 #   prism1  - README example 3 (full Prism flags) on 1 GPU: 1_gpu_2_model_our.json
 #   prism2  - README example 3 on 2 GPUs: 8_gpu_18_model_our.json limited to GPUs 0-1 (6 models)
 #   overload - example 3 on 1 GPU, 8 models over the memory budget, trace at PRISM_TIME_SCALES
+#   ovl_mem / ovl_phases / ovl_kv / ovl_compute / ovl_trace / ovl_mix - real overload scenarios (see the step below)
+# PRISM_IDLE_THRESHOLD=<s>: the global controller's idle-eviction threshold (default 50 s); the
+# controller cycle (PRISM_SCHEDULE_INTERVAL, default 5 s) then defaults to min(5, threshold).
 # The README e2e benchmark (no --model-paths) always targets all 18 models, so prism1/2 pass
 # --model-paths model_1..N (benchmark.py's subset path) to only send to the models served.
 # Redis (install.md step 1) is started once for all steps.
@@ -17,9 +20,29 @@ cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 RESULTS="${PRISM_RESULTS:-$ROOT/results}"; mkdir -p "$RESULTS"
 exec > >(tee -a "$RESULTS/run.log") 2>&1
+
+# PRISM_SUITE=<file>: run several configurations one after another in this job, so they never share
+# the node with each other. Each line: <name><TAB><VAR=value ...>; results go to $RESULTS/<name>/.
+if [ -n "${PRISM_SUITE:-}" ]; then
+  echo "suite $PRISM_SUITE start $(date -u +%FT%TZ)"
+  while IFS=$'\t' read -r name vars; do
+    [ -z "$name" ] || [[ $name = \#* ]] && continue
+    echo; echo "======== suite: $name ($vars) $(date -u +%T) ========"
+    eval "env PRISM_SUITE= PRISM_RESULTS='$RESULTS/$name' $vars bash '$ROOT/polyaxon/run_examples.sh'" < /dev/null
+    echo "======== suite: $name exit=$? $(date -u +%T) ========"
+  done < "$PRISM_SUITE"
+  echo "suite end $(date -u +%FT%TZ)"
+  exit 0
+fi
+
 STEPS="${PRISM_STEPS:-static elastic prism1}"; STEPS="${STEPS//,/ }"  # commas or spaces
+if [ -n "${PRISM_IDLE_THRESHOLD:-}" ]; then
+  export PRISM_IDLE_THRESHOLD
+  export PRISM_SCHEDULE_INTERVAL="${PRISM_SCHEDULE_INTERVAL:-$(python3 -c "print(min(5.0, $PRISM_IDLE_THRESHOLD))")}"
+fi
 STARTUP_TIMEOUT="${PRISM_STARTUP_TIMEOUT:-1200}"
 echo "start $(date -u +%FT%TZ) steps: $STEPS  backend: ${PRISM_BACKEND:-sglang}  results: $RESULTS"
+echo "idle threshold: ${PRISM_IDLE_THRESHOLD:-50 (default)} s, controller cycle: ${PRISM_SCHEDULE_INTERVAL:-5 (default)} s"
 
 pip install -q -e python --no-deps
 
@@ -74,33 +97,14 @@ for _ in $(seq 1 20); do redis-cli -p 6379 ping 2>/dev/null | grep -q PONG && br
 echo "redis: $(redis-cli -p 6379 ping 2>&1)"
 
 # profile_missing <config>: the GPU scheduler needs every model_path in
-# python/sglang/multi_model/utils/model_info.json (weights size + KV cell size). Profile the missing
-# ones with that directory's profile_model_info.py functions (its __main__ has a fixed model list and
-# rewrites the file) and add them to this job's uploaded copy only.
+# python/sglang/multi_model/utils/model_info.json (weights size + KV cell size). Missing ones are
+# estimated from the checkpoint (estimate_model_info.py: no GPU, within ~1% of the profiled values)
+# and added to this job's uploaded copy only. profile_model_info.py is not used: its __main__ has a
+# fixed model list and rewrites the file, and its vLLM 0.6.3 loader fails on Qwen2 checkpoints.
 profile_missing() {
-  if [ "${PRISM_BACKEND:-sglang}" = vllm ]; then
-    # profile_model_info.py needs SGLang 0.3.4's vLLM; estimate from the checkpoint instead.
-    python3 -m sglang.multi_model.utils.estimate_model_info --write \
-      $(python3 -c "import json;print(' '.join(sorted({m['model_path'] for m in json.load(open('$ROOT/$1'))})))")
-    return
-  fi
-  (cd python/sglang/multi_model/utils && python3 - "$ROOT/$1" <<'PY2'
-import json, sys
-import profile_model_info as p
-cfg = json.load(open(sys.argv[1]))
-info = json.load(open("model_info.json"))
-missing = sorted({m["model_path"] for m in cfg} - set(info))
-print("model_info.json missing:", missing or "none")
-if missing:
-    p.init_torch_distributed()
-    for path in missing:
-        p.clean_up()
-        size, dtype = p.load_model(path)
-        info[path] = {"model_size": size, "cell_size": p.get_cell_size(path, dtype)}
-        print("profiled", path, info[path])
-    json.dump(info, open("model_info.json", "w"))
-PY2
-  )
+  local cfg=$1; [[ $cfg = /* ]] || cfg="$ROOT/$cfg"
+  python3 -m sglang.multi_model.utils.estimate_model_info --write \
+    $(python3 -c "import json;print(' '.join(sorted({m['model_path'] for m in json.load(open('$cfg'))})))")
 }
 
 # Copy a README config, swapping gated base models for the cached Instruct variants.
@@ -371,6 +375,90 @@ PY2
           && run_bench "$lvl" --base-url http://127.0.0.1:30002 --num-models 8 --num-gpus 1 \
                --model-paths $models --exp-name "prism_overload_ts$ts" --e2e-benchmark \
                --real-trace ./real_trace.pkl --time-scale "$ts" --replication 1; } || rc=1
+        stop_server
+      done
+      [ $rc = 0 ]
+      ;;
+    ovl_mem|ovl_phases|ovl_kv|ovl_compute|ovl_trace|ovl_mix)
+      # Real overload scenarios on 1 GPU (README example 3 flags, workers-per-gpu = number of models).
+      # Load: polyaxon/overload_load.py (open loop, uniform popularity, deadline = duration + drain;
+      # requests still pending at the deadline are recorded as unserved). Each level: fresh server and
+      # nvidia-smi sampled every second (gpu.csv), so the overload can be checked against the GPU.
+      #   ovl_mem     N x PRISM_OVL_MODEL whose weights exceed the GPU, all models sending all the time
+      #   ovl_phases  same models in 2 groups taking turns every PRISM_OVL_PHASE s (time sharing)
+      #   ovl_kv      4 models that fit, long prompts/outputs: KV demand beyond the free memory
+      #   ovl_compute 2 models, sustained rate beyond what the GPU decodes
+      #   ovl_trace   8 x PRISM_OVL_MODEL (weights exceed the GPU) under Prism's e2e benchmark trace
+      #               (real_trace.pkl, as benchmark.py --e2e-benchmark); levels are time scales (ts<s>)
+      #   ovl_mix     two model sizes: 8 x PRISM_OVL_MODEL at the level's rate + 2 x PRISM_OVL_MODEL2 (smaller)
+      #               at PRISM_OVL_RATE2 (fewer tokens/s than an 8B, more per GB), 5 + 2 on, ~132 GB of weights.
+      #               At most 10 models: 14 workers hang at start-up (kvcached cuMemSetAccess out of memory).
+      M="${PRISM_OVL_MODEL:-meta-llama/Llama-3.1-8B-Instruct}"
+      M2="${PRISM_OVL_MODEL2:-meta-llama/Llama-3.2-3B-Instruct}"; n2=0; on2=0
+      case $step in
+        ovl_mem)     n=${PRISM_OVL_N:-10}; on=${PRISM_OVL_ON:-6}; pool=${PRISM_OVL_POOL:-10}
+                     rates=${PRISM_OVL_RATES:-0.2 0.5}; dur=${PRISM_OVL_DURATION:-300}; drain=${PRISM_OVL_DRAIN:-300}
+                     load="--input-range 256 1024 --output-range 128 512" ;;
+        ovl_phases)  n=${PRISM_OVL_N:-10}; on=${PRISM_OVL_ON:-5}; pool=${PRISM_OVL_POOL:-10}
+                     rates=${PRISM_OVL_RATES:-0.5}; dur=${PRISM_OVL_DURATION:-600}; drain=${PRISM_OVL_DRAIN:-300}
+                     load="--input-range 256 1024 --output-range 128 512 --groups 2 --phase ${PRISM_OVL_PHASE:-150}" ;;
+        ovl_kv)      n=${PRISM_OVL_N:-4}; on=$n; pool=${PRISM_OVL_POOL:-40}
+                     rates=${PRISM_OVL_RATES:-0.25 0.5 1}; dur=${PRISM_OVL_DURATION:-180}; drain=${PRISM_OVL_DRAIN:-600}
+                     load="--input-range 2048 4096 --output-range 1024 2048" ;;
+        ovl_compute) n=${PRISM_OVL_N:-2}; on=$n; pool=${PRISM_OVL_POOL:-30}  # pool: KV cap per model (GB)
+                     rates=${PRISM_OVL_RATES:-5 12.5 25 50}; dur=${PRISM_OVL_DURATION:-120}; drain=${PRISM_OVL_DRAIN:-300}
+                     load="--input-range 256 768 --output-range 128 384" ;;
+        ovl_trace)   n=${PRISM_OVL_N:-8}; on=${PRISM_OVL_ON:-6}; pool=${PRISM_OVL_POOL:-10}
+                     rates=${PRISM_OVL_RATES:-1 0.5 0.25}; dur=; drain=${PRISM_OVL_DRAIN:-300}
+                     load="--real-trace benchmark/multi-model/real_trace.pkl" ;;
+        ovl_mix)     n=${PRISM_OVL_N:-8}; on=${PRISM_OVL_ON:-5}; n2=${PRISM_OVL_N2:-2}; on2=${PRISM_OVL_ON2:-2}
+                     pool=${PRISM_OVL_POOL:-10}
+                     rates=${PRISM_OVL_RATES:-0.2}; dur=${PRISM_OVL_DURATION:-300}; drain=${PRISM_OVL_DRAIN:-300}
+                     load="--input-range 256 1024 --output-range 128 512 --model-rates $(for i in $(seq $((n + 1)) $((n + n2))); do printf 'model_%s=%s ' "$i" "${PRISM_OVL_RATE2:-0.12}"; done)" ;;
+      esac
+      # PRISM_OVL_LOAD replaces the step's load arguments (lengths, --cv, --groups) to vary the workload.
+      load="${PRISM_OVL_LOAD:-$load}"
+      python3 - "$CFG_DIR/$step.json" "$M" "$n" "$on" "$pool" "$M2" "$n2" "$on2" <<'PY2'
+import json, sys
+out, path, n, on, pool = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), float(sys.argv[5])
+path2, n2, on2 = sys.argv[6], int(sys.argv[7]), int(sys.argv[8])  # ovl_mix: a second, smaller model
+models = [(path, i <= on) for i in range(1, n + 1)] + [(path2, i <= on2) for i in range(1, n2 + 1)]
+cfg = [{"model_name": f"model_{i}", "model_path": p, "tokenizer_path": p, "tp_size": 1,
+        "init_placements": [{"gpu_ids": [0], "on": o, "max_memory_pool_size": pool}]}
+       for i, (p, o) in enumerate(models, 1)]
+json.dump(cfg, open(out, "w"), indent=2)
+print(f"config {out}: {n} x {path} ({on} on)" + (f" + {n2} x {path2} ({on2} on)" if n2 else "") + f", pool {pool} GB")
+PY2
+      profile_missing "$CFG_DIR/$step.json" || { echo "[$step] PROFILING FAILED"; STATUS[$step]=1; continue; }
+      n=$((n + n2))
+      models=$(seq -f "model_%g" 1 "$n" | tr '\n' ' ')
+      rc=0
+      for rate in $rates; do
+        if [ "$step" = ovl_trace ]; then  # level = time scale; the window is the trace span x scale
+          lvl="$step/ts$rate"; dur=$(python3 -c "print(600 * $rate)"); level=(--time-scale "$rate")
+        else
+          lvl="$step/rate$rate"; level=(--rate "$rate" --duration "$dur")
+        fi
+        echo "---- $lvl $(date -u +%T)"
+        mkdir -p "$RESULTS/$lvl"
+        if start_server "$lvl" 30002 "$CFG_DIR/$step.json" \
+            --disable-cuda-graph --disable-radix-cache --enable-cpu-share-memory \
+            --enable-elastic-memory --use-kvcached-v0 --max-mem-usage "${PRISM_OVL_MAX_MEM:-67.28}" \
+            --enable-gpu-scheduler --enable-controller --policy simple-global \
+            --enable-model-service --enable-worker-pool --workers-per-gpu "$n" \
+            --num-model-service-workers 4 --num-gpus 1; then
+          nvidia-smi --query-gpu=timestamp,memory.used,memory.total,utilization.gpu --format=csv,nounits -lms 1000 \
+            > "$RESULTS/$lvl/gpu.csv" 2>/dev/null &
+          SMI_PID=$!
+          timeout -k 30 $((${dur%.*} + ${drain%.*} + 120)) python3 polyaxon/overload_load.py \
+            --base-url http://127.0.0.1:30002 --models $models "${level[@]}" --drain "$drain" \
+            $load --slo-ttft "${PRISM_OVL_SLO_TTFT:-1.0}" --slo-tpot "${PRISM_OVL_SLO_TPOT:-0.1}" \
+            --out "$RESULTS/$lvl" > "$RESULTS/$lvl/load.log" 2>&1 || rc=1
+          kill $SMI_PID 2>/dev/null
+          echo "[$lvl] load exit, $(grep -c . "$RESULTS/$lvl/gpu.csv") GPU samples"; tail -n "$((n + 2))" "$RESULTS/$lvl/load.log"
+        else
+          rc=1
+        fi
         stop_server
       done
       [ $rc = 0 ]
