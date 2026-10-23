@@ -100,6 +100,7 @@ from sglang.srt.utils import (
     suppress_other_loggers,
 )
 from sglang.utils import cleanup_zmq_ipc, get_exception_traceback
+from sglang.multi_model.memory_arbiter import ActivationOutOfMemory
 
 logger = logging.getLogger(__name__)
 
@@ -1629,11 +1630,31 @@ class Scheduler:
 
         start_time = time.perf_counter()
 
-        self.tp_worker.activate_model_runner(
-            memory_pool_size=recv_req.memory_pool_size,
-            gpu_id=gpu_id,
-            model_name=recv_req.model_name,
-        )
+        try:
+            self.tp_worker.activate_model_runner(
+                memory_pool_size=recv_req.memory_pool_size,
+                gpu_id=gpu_id,
+                model_name=recv_req.model_name,
+            )
+        except ActivationOutOfMemory as e:
+            # Prism: the model runner rolled the activation back; report it instead of dying, so the GPU
+            # scheduler frees this worker and the controller can retry later.
+            logger.error(f"Activation of {recv_req.model_name} failed: {e}")
+            if self.tp_rank == 0:
+                activate_req_output = ActivateReqOutput(
+                    rid=recv_req.rid,
+                    gpu_id=gpu_id,
+                    model_name=recv_req.model_name,
+                    instance_idx=recv_req.instance_idx,
+                    success=False,
+                    memory_usage=self.get_memory_usage(),
+                )
+                self.send_to_detokenizer.send_pyobj(activate_req_output)
+                self.redis_client.send_pyobj(
+                    key=f"{self.server_args.engine_to_gpu_scheduler_key_prefix}:{self.gpu_id}",
+                    obj=activate_req_output,
+                )
+            return
 
         if self.enable_worker_pool:
             self.model_name = recv_req.model_name

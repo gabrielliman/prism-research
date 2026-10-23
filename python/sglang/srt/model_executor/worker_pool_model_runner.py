@@ -46,6 +46,8 @@ from vllm.distributed.parallel_state import in_the_same_node_as
 from vllm.model_executor.model_loader import get_model
 from vllm.model_executor.models import ModelRegistry
 
+from sglang.multi_model import kvcached_patches
+from sglang.multi_model.memory_arbiter import ActivationOutOfMemory, get_arbiter_or_none, write_worker_pid
 from sglang.srt.configs.model_config import AttentionArch, ModelConfig
 from sglang.srt.constrained import disable_cache
 from sglang.srt.layers.attention.double_sparsity_backend import DoubleSparseAttnBackend
@@ -135,10 +137,17 @@ class WorkerPoolModelRunner(BaseModelRunner):
         self.is_generation = True
         self.sliding_window_size = None
         self.virtual_memory_size_gb = 25  # TODO: configurable
+        # PRISM_MEMORY_ARBITER=1 (off by default: it changes how memory is shared): activations and KV growth
+        # of all the engines on this GPU go through its memory arbiter.
+        self.arbiter = get_arbiter_or_none(self.gpu_id)
+        self.activation_wait_s = float(os.environ.get("PRISM_ACTIVATION_WAIT_S", 30))
+        write_worker_pid(self.gpu_id, self.worker_id)
 
         # init memory pool
         if self.enable_elastic_memory:
             from kvcached import ops as kvcached_ops
+
+            kvcached_patches.apply(self.gpu_id)
 
             kvcached_ops.init_kvcached(
                 virtual_mem_size_gb=self.virtual_memory_size_gb,
@@ -317,16 +326,63 @@ class WorkerPoolModelRunner(BaseModelRunner):
         tic = time.time()
         self._set_model_params(model_name)
 
-        if self.server_args.async_loading:
-            self.activate_async()
-        else:
-            self.load_gpu_model(use_model_service=self.use_model_service)
-            self.init_token_to_kv_pool()
-            self.init_attention_backend()
+        # Reserve the weights (and the first KV pages) on the GPU's arbiter before copying them, so that the
+        # other engines' KV growth cannot take that memory meanwhile; a load that still runs out of memory
+        # rolls back and raises ActivationOutOfMemory instead of killing the engine.
+        self._reserve_activation_memory()
+        try:
+            if self.server_args.async_loading:
+                self.activate_async(check_mem=self.arbiter is None)
+            else:
+                self.load_gpu_model(check_mem=self.arbiter is None, use_model_service=self.use_model_service)
+                self.init_token_to_kv_pool()
+                self.init_attention_backend()
+        except (torch.OutOfMemoryError, ActivationOutOfMemory) as e:
+            self._rollback_activation()
+            raise ActivationOutOfMemory(f"Activation of {model_name} ran out of GPU memory: {e}") from e
+        finally:
+            if self.arbiter is not None:
+                self.arbiter.release()
 
         self.is_active = True
         logger.info(
             f"Activate model {self.model_name} ({self.model_path}) time cost: {time.time() - tic:.4f}s."
+        )
+
+    def _weights_bytes(self) -> int:
+        return sum(t.numel() * t.element_size() for t in self.cpu_model_ref.state_dict().values())
+
+    def _reserve_activation_memory(self):
+        if self.arbiter is None:
+            return
+        # weights + kvcached's first mapped KV pages (min_reserved_pages) + slack for the KV pool's tables
+        nbytes = self._weights_bytes() + (1 << 30)
+        if not self.arbiter.reserve_wait(nbytes, timeout=self.activation_wait_s):
+            raise ActivationOutOfMemory(
+                f"{nbytes / (1 << 30):.1f} GB not free on GPU {self.gpu_id} after {self.activation_wait_s:.0f} s "
+                f"(free for this engine: {self.arbiter.free_bytes() / (1 << 30):.1f} GB)"
+            )
+        logger.info(
+            f"Reserved {nbytes / (1 << 30):.1f} GB on GPU {self.gpu_id} for {self.model_name} "
+            f"after waiting {self.arbiter.last_reserve_wait_s:.2f} s"
+        )
+
+    def _rollback_activation(self):
+        """Free what a failed activation allocated, so the engine can take another activation."""
+        if getattr(self, "token_to_kv_pool", None) is not None:
+            try:
+                self.token_to_kv_pool.release()
+            except Exception as e:
+                logger.error(f"Error releasing the KV pool of a failed activation: {e}")
+            self.token_to_kv_pool = None
+        self.delete_gpu_model()
+        self.attn_backend = None
+        gc.collect()
+        torch.cuda.empty_cache()
+        self.is_active = False
+        logger.info(
+            f"Rolled back the activation of {self.model_name}. "
+            f"Current available memory: {get_available_gpu_memory(self.device, self.gpu_id):.2f} GB"
         )
 
     def load_gpu_model(self, check_mem=True, use_model_service=False):

@@ -1,5 +1,7 @@
 # Janela de ociosidade e estratégias de troca de modelos no Prism, SGLang (2026-10-22)
 
+> **Correção (2026-10-22, após a análise de robustez).** Duas das falhas descritas aqui como modelos "pendurados" (a ativação que falha sem aviso e o KV que não cresce) eram, na verdade, **workers mortos**: quando o driver recusa uma página, o kvcached chama `abort()` e mata o processo, e o Prism continua mandando requisições para ele. A [seção das falhas](#fragilidades-do-prism-sob-pressão-de-memória) foi corrigida. A análise completa, com as correções e os testes, está em [Correções de robustez de memória no Prism](2026-10-22%20Correções%20de%20robustez%20de%20memória%20no%20Prism%20(SGLang).md).
+
 ## Resumo
 
 O Prism só tira um modelo da GPU depois de **50 s sem requisições** (`MODEL_IDLE_THRESHOLD`, fixo no código). No [relatório anterior](2026-10-21%20Sobrecarga%20real%20no%20Prism%20(SGLang%20e%20vLLM).md), essa regra causou ~50 s de espera em cada troca de grupo e deixou modelos sem atendimento quando todos tinham tráfego. Testamos três frentes, só no SGLang e numa H200 por job, sempre com a política original rodando no mesmo nó para comparação:
@@ -13,8 +15,10 @@ O que encontramos:
 - **Quando a carga se alterna, um limiar curto ajuda muito.** No `ovl_phases`, com limiar de 1 s, o TTFT p90 cai de 53 s para 0,6 s e o SLO sobe de 51% para 90%. A troca por throughput dá ganho parecido sem mexer no limiar: p90 de 33 s para 9 s e SLO de 73% para ~80%.
 - **Quando todos os modelos têm demanda, o limiar não resolve, e a troca por throughput sim.** No `ovl_mem` e no `ovl_mix`, a troca atende 100% das requisições, contra 89% e 2% da política original. O pior tempo até a primeira resposta de um modelo cai de "nunca" para 54–86 s.
 - **Mas a troca tem um custo:** o tempo de espera se espalha por todos os modelos. O TTFT mediano sobe de <1 s para 15–35 s, e o SLO não melhora. Nessa sobrecarga, a escolha é entre deixar alguns modelos sem atendimento e atender todos devagar.
-- **O maior limite é o SGLang 0.3.4 com kvcached sob pressão de memória.** Ele falha de 5 maneiras diferentes: ativação que falha sem aviso, KV que não cresce e deixa requisições penduradas, worker morto por um bug no caminho de falta de KV, queda por `torch.OutOfMemoryError` e travamento geral. 19 das 57 execuções terminaram com perdas (requisições não atendidas ou falhas), quase todas por uma dessas falhas, inclusive com a política original. Toda estratégia que troca mais de modelo se expõe mais a elas.
+- **O maior limite é o SGLang 0.3.4 com kvcached sob pressão de memória.** Ele falha de 5 maneiras diferentes: worker morto pelo kvcached ao ativar um modelo, worker morto pelo kvcached ao crescer o KV, worker morto por falta de KV no prefill (que leva os outros workers junto), queda por `torch.OutOfMemoryError` e travamento geral. 19 das 57 execuções terminaram com perdas (requisições não atendidas ou falhas), quase todas por uma dessas falhas, inclusive com a política original. Toda estratégia que troca mais de modelo se expõe mais a elas.
 - **A ordenação por tamanho funcionou só em parte.** No `ovl_mix`, os modelos de 3B são 20% dos modelos e foram 18–26% das vítimas: não ficaram protegidos. Com o sistema saturado, o envelhecimento da demanda faz qualquer troca valer a pena, e o tamanho só decide a ordem entre as vítimas permitidas.
+
+> **Atualização após 3 repetições (ver [seção 4](#4-repetições-3)):** o limiar de 1 s se confirmou como a melhor opção para a troca de grupos (melhor que a política original nas 3 repetições). A troca P1D1 acaba com a fome no `ovl_mem` e no `ovl_mix` (onde a original trava sempre), mas não melhora o SLO, e duas falhas do Prism apareceram: uma corrida entre desativar e reativar o mesmo modelo, e o travamento geral da política original.
 
 **Recomendação:** seguir com a **troca por throughput, com drenagem e preempção (P1D1)**. Ela foi a única configuração que atendeu tudo nos quatro cenários e teve o melhor SLO no `ovl_mix`, no `ovl_trace` e (empatada) no `ovl_phases`. Antes de qualquer ajuste fino, porém, é preciso **tornar o SGLang robusto às falhas de memória** (ver [Próximos passos](#próximos-passos)). Sem isso, as diferenças entre estratégias ficam escondidas pelo ruído das quedas.
 
@@ -63,10 +67,10 @@ O limiar e o ciclo do controlador agora vêm de variáveis de ambiente: `PRISM_I
 ![ovl_phases, limiar de 50 s](figs/2026-10-22-ociosidade/idle-phases__idle50__ovl_phases__rate0.5.png)
 
 Com 1 s, os modelos do grupo que sai são despejados poucos segundos depois que o grupo desliga, e os do grupo novo entram logo. Com 50 s, os modelos novos que não cabem esperam quase um minuto, e esse é o "degrau" de TTFT depois de cada troca. As perdas dos limiares de 5 s e 10 s **não vêm do limiar**:
-- com 5 s, três modelos ativos travaram quando o kvcached não conseguiu crescer o KV deles;
+- com 5 s, os workers de três modelos ativos morreram quando o kvcached não conseguiu crescer o KV deles (o kvcached chama `abort()`), e o Prism continuou mandando requisições para eles;
 - com 10 s, o servidor caiu por `torch.OutOfMemoryError` aos ~188 s.
 
-Ver [Fragilidades do SGLang](#fragilidades-do-sglang-sob-pressão-de-memória).
+Ver [Fragilidades do Prism](#fragilidades-do-prism-sob-pressão-de-memória).
 
 ### `ovl_mem` (todos com demanda)
 
@@ -109,7 +113,7 @@ Implementadas em `simple_global.py` e selecionadas por `PRISM_EVICTION`. Cada um
 | `ovl_mem` 0,2 | só folga de 3 GB | 599/599 | — | 0,25 / 272,7 / 343,6 | 50% | 363 |
 | `ovl_mem` 0,2 | rodízio anti-fome | 445/599 | 154 falhas | 8,21 / 58,2 / 144,5 | 20% | nunca |
 
-- **Despejo sob pressão.** O TTFT p90 caiu de 33 s para 12 s. Mas o `model_9` travou: a ativação levou 20 s, 17,8 s deles esperando o model service, porque duas ativações simultâneas disputavam os pesos. Quando o kvcached foi iniciar, havia só 6 GB livres, e a ativação falhou sem aviso.
+- **Despejo sob pressão.** O TTFT p90 caiu de 33 s para 12 s. Mas o `model_9` travou: a ativação levou 20 s, 17,8 s deles esperando o model service, porque duas ativações simultâneas disputavam os pesos. Quando o kvcached foi iniciar, havia só 6 GB livres: o driver recusou a página, o kvcached matou o worker, e o Prism nunca soube.
 - **Adaptativa.** Pior que a original no trace, que nessa velocidade quase não pressiona a memória. Despejar mais cedo só acrescenta partidas a frio. Além disso, com o ciclo de 5 s a estimativa dos intervalos fica grosseira (o controlador só vê a última chegada de cada modelo por ciclo).
 - **Só a folga de 3 GB.** Evitou a ativação que falha sem aviso: atendeu tudo, sem nenhuma falha do kvcached, contra 65 não atendidas na original. Mas, como no vLLM, troca perda por espera: p99 de 344 s. Na pressão do `ovl_phases`, 3 GB não bastaram.
 - **Rodízio anti-fome.** O rodízio funcionou entre os modelos 1 a 8 (ver a figura), mas houve 154 falhas, por dois motivos:
@@ -183,17 +187,91 @@ A coluna "Trocas" conta só as trocas por throughput. Os despejos por ociosidade
   
   A densidade só ordena as vítimas; ela não impede trocas ruins quando todos estão saturados.
 
-## Fragilidades do SGLang sob pressão de memória
+## 4. Repetições (3×)
 
-Encontradas nesta rodada. Elas aparecem com qualquer política, inclusive a original, mas quem troca mais se expõe mais.
+Repetimos 3 vezes as configurações mais promissoras: o limiar de 1 s no `ovl_phases` e a troca P1D1 no `ovl_phases`, no `ovl_mem` a 0,2 e no `ovl_mix`. Cada repetição roda num job separado, para cair em nós diferentes, e dentro de cada job a política original roda ao lado das candidatas. Depois do [relatório de robustez](2026-10-22%20Correções%20de%20robustez%20de%20memória%20no%20Prism%20(SGLang).md), a memória funciona como no Prism publicado (árbitro desligado), e ficam ligadas só as correções que agem quando o Prism quebraria: desfazer e avisar uma ativação sem memória, e detectar workers mortos.
 
-| # | Falha | Onde apareceu | Efeito |
-| --- | --- | --- | --- |
-| 1 | Ativação em que o kvcached não consegue o KV inicial (`cuMemCreate ... out of memory`) | original no `ovl_mem`, despejo sob pressão | modelo fica em `activating` para sempre, sem aviso ao controlador |
-| 2 | KV que não cresce num modelo já ativo | limiar 5 s no `ovl_phases`, original no `ovl_mix` | requisições penduradas; no `ovl_mix`, todos os modelos pararam |
-| 3 | Falta de KV no prefill → `tree_cache.pretty_print()` → `NotImplementedError` (radix cache desligado) | rodízio, P1D0 no `ovl_mix`, P0D1 no `ovl_phases` | o worker morre; o worker pool continua usando esse worker como livre |
-| 4 | `torch.OutOfMemoryError` num worker | `ovl_mem` 0,5 (3 limiares), P1D0 no `ovl_mem`, limiar 10 s no `ovl_phases` | o servidor inteiro cai |
-| 5 | 14 workers numa GPU | `ovl_mix` com 14 modelos | o servidor não sobe (kvcached `cuMemSetAccess` out of memory na inicialização) |
+Três jobs do `ovl_mix` e um do `ovl_mem` ficaram presos na primeira tentativa: começaram depois das 22:06 UTC e não reagiram nem a `kill -9`, o que sugere um problema do cluster. Reenviados, terminaram normalmente. Foram usadas só as execuções completas, comparadas sempre dentro do mesmo job.
+
+### `ovl_phases`
+
+| Configuração | Repetição | Atendidas | TTFT p90 / p99 (s) | SLO | Pior 1ª resposta (s) |
+| --- | --- | --- | --- | --- | --- |
+| original | 1 | 1564/1564 | 30,6 / 53,6 | 70% | 68 |
+| original | 2 | 1564/1564 | 32,3 / 56,8 | 68% | 67 |
+| original | 3 | 1564/1564 | 34,9 / 56,4 | 65% | 72 |
+| limiar de 1 s | 1 | 1564/1564 | 6,4 / 26,6 | 82% | 30 |
+| limiar de 1 s | 2 | 1564/1564 | 6,9 / 32,7 | 81% | 65 |
+| limiar de 1 s | 3 | 1427/1564 | 1,0 / 14,0 | 77% | 26 |
+| troca P1D1 | 1 | 1175/1564 | 7,7 / 22,1 | 62% | 28 |
+| troca P1D1 | 2 | 1510/1564 | 20,8 / 44,0 | 71% | 66 |
+| troca P1D1 | 3 | 1564/1564 | 11,3 / 39,2 | 71% | 27 |
+
+### `ovl_mem` a 0,2 req/s
+
+| Configuração | Repetição | Atendidas | TTFT p90 / p99 (s) | SLO | Pior 1ª resposta (s) |
+| --- | --- | --- | --- | --- | --- |
+| original | 1 | 16/599 | 8,3 / 19,0 | 1% | nunca |
+| original | 2 | 599/599 | 274,5 / 349,2 | 52% | 359 |
+| original | 3 | 599/599 | 273,0 / 342,7 | 56% | 362 |
+| troca P1D1 | 1 | 599/599 | 69,1 / 97,1 | 20% | 50 |
+| troca P1D1 | 2 | 599/599 | 64,7 / 115,3 | 17% | 63 |
+| troca P1D1 | 3 | 599/599 | 65,3 / 118,0 | 23% | 55 |
+
+### `ovl_mix`
+
+| Configuração | Repetição | Atendidas | TTFT p90 / p99 (s) | SLO | Pior 1ª resposta (s) |
+| --- | --- | --- | --- | --- | --- |
+| original | 1 | 16/549 | 13,6 / 16,1 | 2% | nunca |
+| original | 2 | 11/549 | 21,7 / 39,9 | 0% | nunca |
+| original | 3 | 13/549 | 1,6 / 7,0 | 2% | nunca |
+| troca P1D1 | 1 | 526/549 | 63,0 / 97,9 | 30% | 77 |
+| troca P1D1 | 2 | 512/549 | 35,3 / 62,1 | 44% | 64 |
+| troca P1D1 | 3 | 512/549 | 28,1 / 63,3 | 54% | 49 |
+
+### O que as repetições confirmam
+
+- **O limiar de 1 s é a melhor opção para a troca de grupos.** Nas 3 repetições do `ovl_phases`, ele foi melhor que a política original: TTFT p90 de 1–7 s contra 31–35 s, e 77–82% de SLO contra 65–70%. Numa delas, um modelo deixou de ser atendido por uma corrida no Prism (ver abaixo).
+- **A troca P1D1 acaba com a fome, mas não melhora o SLO.**
+  - No `ovl_mem`, atendeu tudo nas 3 repetições, e o pior tempo até a primeira resposta de um modelo caiu de ~360 s (ou "nunca") para 50–63 s. Mas o SLO ficou em 17–23%, contra 52–56% da original, porque a espera passa a ser dividida por todos os modelos.
+  - No `ovl_mix`, a política original **travou nas 3 repetições** (11 a 16 de 549 atendidas), e a troca atendeu 93–96%.
+  - No `ovl_phases`, ela melhora o p90, mas não o SLO, e perdeu requisições em 2 das 3 repetições.
+- **A variação entre repetições é grande.** O SLO da troca P1D1 no `ovl_mix` foi de 30% a 54%. Comparações com uma execução só não são confiáveis.
+
+### Falhas encontradas nas repetições
+
+1. **Corrida entre desativar e ativar o mesmo modelo (Prism).**
+   - O que acontece: o controlador manda reativar um modelo cuja desativação anterior ainda está em andamento em outro worker. A reativação termina, e depois chega a confirmação da desativação antiga. O GPU scheduler marca o modelo como desativado, enquanto o controlador continua achando que ele está ativo e nunca o reativa. O modelo deixa de ser atendido até o fim.
+   - Onde apareceu: no `ovl_phases` com limiar de 1 s (repetição 3: o `model_4` foi despejado e reativado em ~2 s, e 137 requisições ficaram sem resposta) e em 2 das 3 repetições da troca P1D1 no `ovl_mix`, porque a drenagem deixa a desativação em andamento por até 15 s (o `model_9` perdeu 37 requisições em cada uma).
+   - É um bug do controle de estado do Prism, exposto pelas políticas que despejam e reativam rápido. A correção provável é o GPU scheduler ignorar a confirmação de uma desativação que já foi superada por uma ativação mais nova do mesmo modelo.
+
+![corrida: model_9 reativado durante a drenagem](figs/2026-10-22-repeticoes/rep-mix-2b__swap_P1D1__ovl_mix__rate0.2.png)
+
+2. **Travamento geral com a política original no `ovl_mix`** (3 de 3 repetições) e no `ovl_mem` (1 de 3). A GPU enche (até 142,9 de 143,7 GB) e nenhum modelo progride. No `ovl_mem`, isso aconteceu logo depois de dois workers morrerem e um modelo ser reativado. A detecção de workers mortos funcionou, mas a reativação sem reserva de memória encheu a GPU. Sem o árbitro (desligado por padrão), nada impede isso.
+3. **A falha 3 continua** (`pretty_print` do SGLang): ela derrubou o servidor na repetição 1 da troca P1D1 no `ovl_phases` (389 perdas).
+4. **As correções que só evitam quedas funcionaram.** Numa repetição do limiar de 1 s, cinco ativações ficaram sem memória e foram desfeitas e avisadas, sem nenhuma requisição perdida.
+
+**Jobs:**
+
+| Cenário | Jobs |
+| --- | --- |
+| `ovl_phases` | `8098e726`, `e4927caa`, `618a6745` |
+| `ovl_mem` | `cc480dcf`, `6d7b6081`, `c23826d0` (reenvio de `941c9fac`) |
+| `ovl_mix` | `1281bda8`, `b2f43240`, `ede340b5` (reenvios de `a96c44a6`, `373c6488`, `8f35c520`) |
+
+Suítes: `polyaxon/configs/rep_{phases,mem,mix}_suite.tsv`. Dados em `reports/data/2026-10-22-repeticoes/`; figuras e `metricas.csv` em `reports/figs/2026-10-22-repeticoes/`.
+
+## Fragilidades do Prism sob pressão de memória
+
+Encontradas nesta rodada. Elas aparecem com qualquer política, inclusive a original, mas quem troca mais se expõe mais. A causa comum é que 6 a 14 processos SGLang dividem a memória de uma GPU, cada um decidindo sozinho a partir de uma foto da memória livre. A coluna "De quem é" diz onde está o código que falha. O detalhamento está no [relatório de robustez](2026-10-22%20Correções%20de%20robustez%20de%20memória%20no%20Prism%20(SGLang).md).
+
+| # | Falha | Onde apareceu | Efeito | De quem é |
+| --- | --- | --- | --- | --- |
+| 1 | Ao ativar um modelo, o driver recusa a página inicial de KV (`cuMemCreate`/`cuMemSetAccess ... out of memory`) e o kvcached chama `abort()`, matando o worker | original no `ovl_mem`, despejo sob pressão | o modelo fica em `activating` para sempre; o Prism não percebe a morte e continua mandando requisições | kvcached (`abort()`) + Prism (não detecta o worker morto) |
+| 2 | O mesmo `abort()` num modelo já ativo, quando o KV precisa de mais uma página | limiar 5 s no `ovl_phases`, original no `ovl_mix` | as requisições do worker morto ficam sem resposta; no `ovl_mix`, todos os workers pararam | kvcached + Prism |
+| 3 | Falta de KV no prefill → `tree_cache.pretty_print()` → `NotImplementedError` (radix cache desligado) | rodízio, P1D0 no `ovl_mix`, P0D1 no `ovl_phases` | o worker morre, e o tratamento de exceção do SGLang (`kill_parent_process`) mata também os outros workers da GPU | código do SGLang original, disparado pelo compartilhamento de memória do Prism |
+| 4 | `torch.OutOfMemoryError` ao copiar os pesos de uma ativação | `ovl_mem` 0,5 (3 limiares), P1D0 no `ovl_mem`, limiar 10 s no `ovl_phases` | o servidor inteiro cai | Prism (ativação decidida pela memória do instante; espera por memória que nunca funcionou no worker pool) + SGLang (exceção derruba o servidor) |
+| 5 | 14 workers numa GPU | `ovl_mix` com 14 modelos | o servidor não sobe (`cuMemSetAccess` out of memory na inicialização) | causa não identificada. Uma sonda subiu 24 processos com o kvcached um por um sem falha; a hipótese é que dependa da carga de memória simultânea na inicialização e não seja determinística |
 
 ## Próximos passos
 
@@ -203,7 +281,7 @@ Em ordem de prioridade, para decidir a direção:
    - corrigir o `pretty_print` (no `ChunkCache`, retirar requisições em vez de levantar exceção);
    - avisar o controlador quando uma ativação falha, para ele tentar de novo ou desistir;
    - fazer o worker pool detectar workers mortos;
-   - fazer o kvcached recusar crescer o KV de forma explícita, em vez de travar.
+   - fazer o kvcached recusar crescer o KV de forma explícita, em vez de matar o processo.
 2. **Reserva de memória que cubra o tempo real de ativação.** A ativação levou até 20 s por disputa no model service. Uma folga fixa de 3 GB não basta. Possíveis caminhos: reservar a memória do candidato no kvcached no momento da decisão, ou serializar as ativações.
 3. **Troca por throughput, versão 2:**
    - limitar o envelhecimento (teto na demanda) e exigir que a troca melhore a densidade total por GB, e não só que o candidato espere;

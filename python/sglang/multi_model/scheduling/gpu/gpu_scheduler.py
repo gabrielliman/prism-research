@@ -12,6 +12,7 @@ import multiprocessing as mp
 import zmq
 
 from sglang.multi_model.multi_model_server_args import MultiModelServerArgs
+from sglang.multi_model.scheduling.constants import controller_events_key
 from sglang.multi_model.scheduling.gpu.request_queue import RequestQueue
 from sglang.multi_model.scheduling.gpu.resource_manager import ResourceManager
 from sglang.multi_model.scheduling.gpu.worker_pool import WorkerPool
@@ -110,7 +111,7 @@ class GPUScheduler:
         while True:
             self._recv_from_engine()
             if all(
-                self._model_states[model_name] == "activated"
+                self._model_states[model_name] != "activating"
                 for model_name in init_model_names
             ):
                 break
@@ -187,12 +188,23 @@ class GPUScheduler:
 
     def _recv_requests_loop(self):
         """Background thread that receives requests and adds them to priority queue."""
+        last_liveness_check = 0.0
         while not self._shutdown_event.is_set():
             try:
                 reqs = self._recv_from_frontend_queue()
                 self.queue.add_requests(reqs)
                 self._recv_from_request_handler()
                 self._recv_from_engine()
+                if (
+                    self.worker_pool is not None
+                    and os.environ.get("PRISM_DETECT_DEAD_WORKERS", "1") == "1"
+                    and time.time() - last_liveness_check > 1.0
+                ):
+                    last_liveness_check = time.time()
+                    for worker_id, model_name in self.worker_pool.check_dead_workers():
+                        logger.error(f"Worker {worker_id} on GPU {self.gpu_id} died (serving {model_name})")
+                        if model_name is not None:
+                            self._on_model_lost(model_name, f"worker {worker_id} died", release_worker=False)
             except Exception as e:
                 if self._shutdown_event.is_set():
                     break
@@ -232,7 +244,9 @@ class GPUScheduler:
                 )
                 if success:
                     self._set_model_state(model_name, "activated")
-                # Can record additional activation completion status here, such as updating model state dictionaries
+                elif self._model_states.get(model_name) == "activating":
+                    # The engine rolled the activation back (no GPU memory) and stays alive.
+                    self._on_model_lost(model_name, "activation failed", release_worker=True)
 
             elif isinstance(message, DeactivateReqOutput):
                 model_name = message.model_name
@@ -273,22 +287,7 @@ class GPUScheduler:
                     )
                     if self.server_args.enable_worker_pool:
                         self.worker_pool.handle_deactivate_model(message)
-                    # Get all waiting requests in the queue for this model and send them back to controller
-                    waiting_reqs = self.queue.pop_model_requests(model_name)
-                    if waiting_reqs:
-                        self._send_waiting_reqs_to_frontend_queue(
-                            model_name, waiting_reqs
-                        )
-                    # Pop all backend queue to frontend queue
-                    backend_reqs = self.redis_client.pop_all(
-                        key=f"{self.server_args.backend_generate_request_key_prefix}:{model_name}"
-                    )
-                    if backend_reqs:
-                        for req in backend_reqs:
-                            self.redis_client.send_pyobj(
-                                key=f"{self.server_args.frontend_generate_request_key_prefix}:{model_name}",
-                                obj=req,
-                            )
+                    self._return_requests_to_frontend(model_name)
                     
                 elif isinstance(message, ActivateReqInput):
                     logger.info(
@@ -302,15 +301,47 @@ class GPUScheduler:
                     )
                     if self.server_args.enable_worker_pool:
                         result = self.worker_pool.handle_activate_model(message)
-                        if not result:
-                            logger.info(f"Failed to activate model {message.model_name}")
-                            self._set_model_state(message.model_name, "deactivated")
+                        if not result and message.model_name in self.worker_pool._model_to_worker:
+                            self._set_model_state(message.model_name, "activated")  # already served
+                        elif not result:
+                            # e.g. no idle worker: the controller still believes it activated the model
+                            self._on_model_lost(message.model_name, "no worker to activate it", release_worker=False)
             return messages
         except Exception as e:
             logger.error(
                 f"Error receiving messages from request handler: {get_exception_traceback()}"
             )
             return []
+
+    def _return_requests_to_frontend(self, model_name: str):
+        """Send the model's requests queued here and in its backend queue back to its frontend queue."""
+        # Get all waiting requests in the queue for this model and send them back to controller
+        waiting_reqs = self.queue.pop_model_requests(model_name)
+        if waiting_reqs:
+            self._send_waiting_reqs_to_frontend_queue(model_name, waiting_reqs)
+        # Pop all backend queue to frontend queue
+        backend_reqs = self.redis_client.pop_all(
+            key=f"{self.server_args.backend_generate_request_key_prefix}:{model_name}"
+        )
+        for req in backend_reqs or []:
+            self.redis_client.send_pyobj(
+                key=f"{self.server_args.frontend_generate_request_key_prefix}:{model_name}",
+                obj=req,
+            )
+
+    def _on_model_lost(self, model_name: str, reason: str, release_worker: bool):
+        """A model is no longer served here although the controller asked for it (failed activation or dead
+        worker): stop routing to it, return its requests and tell the global controller, which marks the
+        instance inactive and may activate it again later."""
+        logger.error(f"Model {model_name} lost on GPU {self.gpu_id}: {reason}")
+        if release_worker and self.worker_pool is not None and model_name in self.worker_pool._model_to_worker:
+            self.worker_pool.release_worker(model_name)
+        self._set_model_state(model_name, "deactivated")
+        self._return_requests_to_frontend(model_name)
+        self.redis_client.send_pyobj(
+            key=controller_events_key(self.server_args),
+            obj={"event": "model_lost", "model_name": model_name, "gpu_id": self.gpu_id, "reason": reason},
+        )
 
     def _set_model_state(self, model_name: str, new_state: str):
         """Set model state and update resource manager."""

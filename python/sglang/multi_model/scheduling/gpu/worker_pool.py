@@ -2,10 +2,11 @@ import logging
 import os
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Dict, Optional
+from typing import Deque, Dict, List, Optional, Set, Tuple
 
 import zmq
 
+from sglang.multi_model.memory_arbiter import worker_alive
 from sglang.srt.managers.io_struct import (
     ActivateReqInput,
     DeactivateReqInput,
@@ -58,6 +59,8 @@ class WorkerPool:
         self._model_tp = model_tp or {}
         self._model_to_worker: Dict[str, int] = {}
         self._free_workers: Deque[int] = deque()
+        self._seen_alive: Set[int] = set()  # workers whose process has been seen running
+        self._dead: Set[int] = set()  # workers whose process died: never assigned again
         self._worker_to_ipc_name: Dict[int, zmq.Socket] = {}
         self.zmq_context = zmq_context
         self._init_workers()
@@ -81,6 +84,27 @@ class WorkerPool:
             if self._worker_tp[worker_id] == tp_size:
                 return worker_id
         return None
+
+    def check_dead_workers(self) -> List[Tuple[int, Optional[str]]]:
+        """Workers whose process died since the last check, with the model each served (or None). They leave
+        the pool for good. A worker counts as dead only after it was seen alive, so a PID file left by an
+        earlier server is not mistaken for a death before the new worker overwrites it."""
+        dead = []
+        for worker_id in self._worker_tp:
+            if worker_id in self._dead:
+                continue
+            alive = worker_alive(self.gpu_id, worker_id)
+            if alive:
+                self._seen_alive.add(worker_id)
+            elif alive is False and worker_id in self._seen_alive:
+                self._dead.add(worker_id)
+                if worker_id in self._free_workers:
+                    self._free_workers.remove(worker_id)
+                model_name = next((m for m, w in self._model_to_worker.items() if w == worker_id), None)
+                if model_name is not None:
+                    del self._model_to_worker[model_name]
+                dead.append((worker_id, model_name))
+        return dead
 
     def assign_worker(self, worker_id: int, model_name: str):
         """

@@ -29,6 +29,8 @@ EV = {  # log events: color, marker, label
     "evict_fair": ("#eda100", "v", "rodízio anti-fome (modelo ocupado)"),
     "evict_swap": ("#008300", "v", "troca por throughput/GB"),
     "kv_oom": (ERRO, "x", "kvcached sem memória (ativação falhou)"),
+    "model_lost": ("#c98500", "X", "modelo perdido (ativação falhou ou worker morto)"),
+    "kv_refused": ("#6da7ec", "|", "KV recusado pelo árbitro (sem queda)"),
     "oom": (ERRO, "X", "worker sem memória (torch OOM)"),
 }
 DESPEJOS = ("evict", "evict_pressure", "evict_fair", "evict_swap")
@@ -80,6 +82,9 @@ def metricas(lv):
         "rodízios": int(k.get("evict_fair", 0)), "trocas throughput": int(k.get("evict_swap", 0)),
         "requisições preemptadas": int(pd.to_numeric(eventos(lv, "preempt").value).sum()),
         "ativações falhas (kvcached)": int(k.get("kv_oom", 0)),
+        "falhas de driver kvcached": int(k.get("kv_oom", 0)), "torch OOM": int(k.get("oom", 0)),
+        "KV recusado": int(k.get("kv_refused", 0)), "ativações revertidas": int(k.get("act_failed", 0)),
+        "modelos perdidos": int(k.get("model_lost", 0)), "workers mortos": int(k.get("worker_dead", 0)),
         "pior 1ª resposta (s)": max(espera_1a) if espera_1a else np.nan,
     }
 
@@ -129,7 +134,7 @@ def linha_do_tempo(lv, titulo, out=None, xlim=None, fases=None):
     total = gpu.total_gb.iloc[0]
     ax.axhline(total, color=TINTA2, ls="--", lw=1)
     ax.text(x0, total, f" total {total:.1f} GB", va="bottom", color=TINTA2, fontsize=8)
-    for kind in ("activate",) + DESPEJOS + ("kv_oom", "oom"):
+    for kind in ("activate",) + DESPEJOS + ("kv_oom", "oom", "model_lost"):
         for t in eventos(lv, kind).t:
             ax.axvline(t, color=EV[kind][0], lw=1, alpha=0.8)
     ax.set_ylabel("GB usados")
@@ -166,7 +171,7 @@ def linha_do_tempo(lv, titulo, out=None, xlim=None, fases=None):
         ax.plot(ok.fim, np.full(len(ok), y), "|", color=TINTA, ms=7, alpha=0.55, zorder=2)
         ax.plot(nao.arrival, np.full(len(nao), y + 0.22), "x", color=ERRO, ms=3.5, mew=0.9, zorder=2)
         ax.plot(falha.arrival, np.full(len(falha), y - 0.22), ".", color=ERRO, ms=3, zorder=2)
-        for kind in ("activate",) + DESPEJOS:
+        for kind in ("activate",) + DESPEJOS + ("model_lost",):
             e = ev[(ev.kind == kind) & (ev.model == m)]
             ax.plot(e.t, np.full(len(e), y), EV[kind][1], color=EV[kind][0], ms=8, mec="white", mew=1.2, zorder=3)
     ax.set_yticks(range(len(modelos)), modelos)
@@ -184,7 +189,7 @@ def linha_do_tempo(lv, titulo, out=None, xlim=None, fases=None):
     if fases:
         alca.append(Patch(color="#dcdad3", label="grupo do modelo recebendo carga"))
     alca += [Line2D([], [], marker=EV[k][1], ls="", color=EV[k][0], ms=7, label=EV[k][2])
-             for k in ("activate",) + DESPEJOS + ("kv_oom", "oom") if len(eventos(lv, k))]
+             for k in ("activate",) + DESPEJOS + ("kv_oom", "oom", "model_lost") if len(eventos(lv, k))]
     alca.append(Patch(color=JANELA, label="janela de carga"))
     fig.legend(handles=alca, loc="lower center", ncol=4, bbox_to_anchor=(0.5, -0.01))
     fig.suptitle(titulo, x=0.01, ha="left", fontweight="bold", fontsize=12)

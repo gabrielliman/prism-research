@@ -7,6 +7,10 @@
 #   prism2  - README example 3 on 2 GPUs: 8_gpu_18_model_our.json limited to GPUs 0-1 (6 models)
 #   overload - example 3 on 1 GPU, 8 models over the memory budget, trace at PRISM_TIME_SCALES
 #   ovl_mem / ovl_phases / ovl_kv / ovl_compute / ovl_trace / ovl_mix - real overload scenarios (see the step below)
+# PRISM_MEMORY_ARBITER=1 turns on the GPU memory arbiter, kvcached fixes and activation reservation
+# (multi_model/memory_arbiter.py, kvcached_patches.py); off by default, as they change how memory is shared.
+# PRISM_DETECT_DEAD_WORKERS=0 turns off dead-worker detection (on by default: it only acts on a dead worker).
+# PRISM_OVL_WORKERS overrides --workers-per-gpu in the ovl_* steps (default: the number of models).
 # PRISM_IDLE_THRESHOLD=<s>: the global controller's idle-eviction threshold (default 50 s); the
 # controller cycle (PRISM_SCHEDULE_INTERVAL, default 5 s) then defaults to min(5, threshold).
 # The README e2e benchmark (no --model-paths) always targets all 18 models, so prism1/2 pass
@@ -142,6 +146,38 @@ backend_args() {
     esac
     shift
   done
+}
+
+# PRISM_FAULT (ovl_* steps), injected during the load to test Prism's memory robustness:
+#   kill:<model>:<s>         kill -9, <s> seconds into the load, the worker process serving <model>
+#   ballast:<s>:<hold>       <s> seconds into the load, a foreign process takes all the free GPU memory
+#                            (down to 1 GB) for <hold> seconds, then frees it
+fault_inject() {
+  local lvl=$1 f; IFS=: read -r -a f <<< "$PRISM_FAULT"
+  case ${f[0]} in
+    kill)
+      sleep "${f[2]}"
+      local w pid
+      w=$(grep -o "Assign worker [0-9]* to ${f[1]}\." "$RESULTS/$lvl/server_file.log.gpu_scheduler.log" | tail -1 | awk '{print $3}')
+      pid=$(cat "/dev/shm/prism_gpu0_worker${w}_${USER:-prism}.pid" 2>/dev/null)
+      echo "[fault] $(date -u +%T) t=${f[2]}s kill -9 worker $w (${f[1]}), pid $pid"
+      [ -n "$pid" ] && kill -9 "$pid" ;;
+    ballast)
+      sleep "${f[1]}"
+      echo "[fault] $(date -u +%T) t=${f[1]}s ballast for ${f[2]}s"
+      python3 - "${f[2]}" <<'PY'
+import sys, time, torch
+held = []
+while True:
+    free, _ = torch.cuda.mem_get_info()
+    if free < 1.5 * (1 << 30):
+        break
+    held.append(torch.empty(int(min(free - (1 << 30), 4 << 30)), dtype=torch.uint8, device="cuda"))
+print(f"[fault] ballast holds {sum(t.numel() for t in held) / (1 << 30):.1f} GB", flush=True)
+time.sleep(float(sys.argv[1]))
+PY
+      echo "[fault] $(date -u +%T) ballast freed" ;;
+  esac
 }
 
 start_server() {
@@ -445,8 +481,9 @@ PY2
             --disable-cuda-graph --disable-radix-cache --enable-cpu-share-memory \
             --enable-elastic-memory --use-kvcached-v0 --max-mem-usage "${PRISM_OVL_MAX_MEM:-67.28}" \
             --enable-gpu-scheduler --enable-controller --policy simple-global \
-            --enable-model-service --enable-worker-pool --workers-per-gpu "$n" \
+            --enable-model-service --enable-worker-pool --workers-per-gpu "${PRISM_OVL_WORKERS:-$n}" \
             --num-model-service-workers 4 --num-gpus 1; then
+          FAULT_PID=; [ -n "${PRISM_FAULT:-}" ] && { fault_inject "$lvl" & FAULT_PID=$!; }
           nvidia-smi --query-gpu=timestamp,memory.used,memory.total,utilization.gpu --format=csv,nounits -lms 1000 \
             > "$RESULTS/$lvl/gpu.csv" 2>/dev/null &
           SMI_PID=$!
@@ -455,12 +492,26 @@ PY2
             $load --slo-ttft "${PRISM_OVL_SLO_TTFT:-1.0}" --slo-tpot "${PRISM_OVL_SLO_TPOT:-0.1}" \
             --out "$RESULTS/$lvl" > "$RESULTS/$lvl/load.log" 2>&1 || rc=1
           kill $SMI_PID 2>/dev/null
+          [ -n "$FAULT_PID" ] && { kill $FAULT_PID 2>/dev/null; pkill -P $FAULT_PID 2>/dev/null; }
           echo "[$lvl] load exit, $(grep -c . "$RESULTS/$lvl/gpu.csv") GPU samples"; tail -n "$((n + 2))" "$RESULTS/$lvl/load.log"
         else
           rc=1
         fi
         stop_server
       done
+      [ $rc = 0 ]
+      ;;
+    kvcached_probe)
+      # How many kvcached-initialized processes (worker pool engines) fit on one GPU, for 25 and 12 GB of
+      # virtual KV space each, and 25 GB without the up-front zero-page mapping (polyaxon/kvcached_probe.py).
+      mkdir -p "$RESULTS/$step"
+      rc=0
+      for v in ${PRISM_PROBE_VIRTUAL_GB:-25 12}; do
+        python3 polyaxon/kvcached_probe.py --virtual-gb "$v" --max "${PRISM_PROBE_MAX:-24}" \
+          --out "$RESULTS/$step/virtual$v.json" || rc=1
+      done
+      python3 polyaxon/kvcached_probe.py --virtual-gb 25 --max "${PRISM_PROBE_MAX:-24}" --no-reserve \
+        --out "$RESULTS/$step/virtual25_noreserve.json" || rc=1
       [ $rc = 0 ]
       ;;
     *) echo "unknown step $step"; false ;;

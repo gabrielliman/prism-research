@@ -11,10 +11,14 @@ For each level <outputs>/<step>/rate<r>/ (ts<s>/ for ovl_trace) writes <dest>/<N
                                evict_swap (PRISM_EVICTION strategies; value = the waiting model it made room for),
                                no_fit (No suitable GPU found),
                                free_mem (free GPU memory the controller saw, GB)
-                  gpu_sched    act_req / act_ok / deact_ok (activation requests and completions)
+                  gpu_sched    act_req / act_ok / deact_ok (activation requests and completions),
+                               model_lost (failed activation or dead worker; value = reason),
+                               worker_dead (value = worker id)
                   worker       retract (SGLang "Decode out of memory", value = retracted requests),
                                preempt (running requests retracted at deactivation, value = count),
                                drain (drain before deactivation, value = seconds),
+                               kv_refused (Prism's kvcached fix refused KV pages, value = tokens),
+                               act_failed (activation rolled back for lack of memory)
                                kv_oom (kvcached cuMemCreate out of memory), oom (torch.OutOfMemoryError)
 and copies configs/<step>.json to <dest>/<NAME or step>/config.json.
 
@@ -101,6 +105,10 @@ def events(level_dir, t0):
             rows.append((t, "gpu_sched", "act_ok", m.group(1), ""))
         elif m := re.search(r"Model (\S+) \(instance \d+\) deactivation succeeded", line):
             rows.append((t, "gpu_sched", "deact_ok", m.group(1), ""))
+        elif m := re.search(r"Model (\S+) lost on GPU \d+: (.*)", line):
+            rows.append((t, "gpu_sched", "model_lost", m.group(1), m.group(2).strip()))
+        elif m := re.search(r"Worker (\d+) on GPU \d+ died", line):
+            rows.append((t, "gpu_sched", "worker_dead", "", m.group(1)))
     # server.log has the kvcached C++ messages; server_file.log has the workers' Python logging.
     for name in ("server_file.log", "server.log"):
         for ts, line in log_lines(os.path.join(level_dir, name)):
@@ -112,7 +120,11 @@ def events(level_dir, t0):
                 rows.append((t, "worker", "preempt", model, m.group(1)))
             elif m := re.search(r"Drained for ([0-9.]+) s", line):
                 rows.append((t, "worker", "drain", model, m.group(1)))
-            elif name == "server.log" and "cuMemCreate" in line and "out of memory" in line:
+            elif m := re.search(r"KV allocation of (\d+) tokens refused", line):
+                rows.append((t, "worker", "kv_refused", model, m.group(1)))
+            elif m := re.search(r"Activation of (\S+) failed", line):
+                rows.append((t, "worker", "act_failed", m.group(1), ""))
+            elif name == "server.log" and "cuMem" in line and "out of memory" in line:
                 rows.append((t, "worker", "kv_oom", "", ""))
             elif "torch.OutOfMemoryError" in line:
                 rows.append((t, "worker", "oom", model, ""))

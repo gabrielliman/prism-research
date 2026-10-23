@@ -21,6 +21,7 @@ from sglang.multi_model.scheduling.action import BaseAction
 from sglang.multi_model.scheduling.constants import (
     AIOHTTP_TIMEOUT_SECONDS,
     UPDATE_QUEUE_INTERVAL,
+    controller_events_key,
 )
 from sglang.multi_model.scheduling.gpu.request_queue import RequestQueue
 from sglang.multi_model.scheduling.model_queue_tracker import ModelQueueTracker
@@ -35,6 +36,7 @@ from sglang.srt.managers.io_struct import (
     MemoryUsage,
     UpdateModelTput,
 )
+from sglang.srt.redis_utils import RedisClient
 from sglang.srt.utils import configure_logger, kill_parent_process, get_available_gpu_memory
 from sglang.utils import get_exception_traceback
 
@@ -56,6 +58,8 @@ class GlobalController:
         init_placements,
     ):
         self.server_args = server_args
+        # GPU schedulers report models they lost (failed activation, dead worker) on this Redis list
+        self.redis_client = RedisClient(server_args.redis_host, server_args.redis_port, server_args.redis_db)
         context = zmq.Context(2)
         self.recv_from_request_handler = context.socket(zmq.PULL)
         self.recv_from_request_handler.bind(
@@ -288,6 +292,7 @@ class GlobalController:
 
         logger.info("Starting model scheduling")
         while not self._shutdown_event.is_set():
+            self.handle_model_events()
             with self.model_queues_lock:
                 # Deep copy is not thread-safe, so we do it within the lock
                 model_queues_cpy = copy.deepcopy(self.model_queues)
@@ -303,6 +308,27 @@ class GlobalController:
                     time.sleep(SCHEDULE_INTERVAL - (exec_finish - exec_start))
             else:
                 time.sleep(SCHEDULE_INTERVAL)
+
+    def handle_model_events(self):
+        """Mark inactive the instances GPU schedulers lost (failed activation, dead worker), so the policy sees
+        them as inactive with requests and can activate them again."""
+        for event in self.redis_client.pop_all(key=controller_events_key(self.server_args)) or []:
+            if event.get("event") != "model_lost":
+                continue
+            for instance in self.model_instance_state_dict.get(event["model_name"], []):
+                if event["gpu_id"] in instance.gpu_ids and instance.state != ModelState.INACTIVE:
+                    instance.on_deactivate(
+                        MemoryUsage(
+                            total_used_memory=0.0,
+                            model_weights_memory=0.0,
+                            memory_pool_memory=0.0,
+                            req_to_token_pool_memory=0.0,
+                            token_to_kv_pool_memory=0.0,
+                        )
+                    )
+                    logger.warning(
+                        f"Model {event['model_name']} on GPU {event['gpu_id']} marked inactive: {event['reason']}"
+                    )
 
     def execute_actions(self, actions: List[BaseAction]):
         """Execute a list of scheduling actions in parallel."""

@@ -19,7 +19,7 @@ rsync -a --exclude __pycache__ --exclude '*.egg-info' "$REPO/python" "$STAGE"/
 mkdir -p "$STAGE/benchmark/multi-model" "$STAGE/polyaxon"
 rsync -a "$REPO/benchmark/multi-model/"{benchmark.py,trace.py,utils.py,model_configs,real_trace.pkl,model_lst.yml,model_lst_18.yml} \
   "$STAGE/benchmark/multi-model/"
-cp "$HERE/run_examples.sh" "$HERE/overload_load.py" "$HERE/test_switching.py" "$HERE/test_worker_pool.py" "$HERE/test_worker_pool_tp.py" "$STAGE/polyaxon/"
+cp "$HERE/run_examples.sh" "$HERE/overload_load.py" "$HERE/kvcached_probe.py" "$HERE/test_switching.py" "$HERE/test_worker_pool.py" "$HERE/test_worker_pool_tp.py" "$STAGE/polyaxon/"
 rsync -a "$HERE/compare" "$HERE/experiments" "$STAGE/polyaxon/"
 rsync -a "$HERE/configs" "$STAGE/polyaxon/"
 cp "$HERE/$JOB.yaml" "$STAGE/"
