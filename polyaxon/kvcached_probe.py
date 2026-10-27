@@ -6,6 +6,9 @@ one, each doing that init and then waiting, and records the device memory after 
 (kvcached aborts) or --max is reached.
 
 Usage: python3 polyaxon/kvcached_probe.py --virtual-gb 25 --max 20 [--no-reserve] --out probe.json
+
+--parallel N (node health check, run_examples.sh health_gate): start N processes at once, as a Prism server
+starts its workers, each initializing kvcached; exit 0 if all succeed within --timeout s, 1 otherwise.
 """
 import argparse
 import json
@@ -32,13 +35,45 @@ def _used_gb():
     return int(out.strip()) / 1024
 
 
+def parallel_check(n, virtual_gb, timeout):
+    ctx = mp.get_context("spawn")
+    stop = ctx.Event()
+    readies = [ctx.Queue() for _ in range(n)]
+    procs = [ctx.Process(target=_child, args=(virtual_gb, True, q, stop)) for q in readies]
+    t0 = time.time()
+    for proc in procs:
+        proc.start()
+    ok = 0
+    for proc, q in zip(procs, readies):
+        while proc.is_alive() and time.time() - t0 < timeout:
+            try:
+                q.get(timeout=1)
+                ok += 1
+                break
+            except Exception:
+                pass
+    used = _used_gb()
+    stop.set()
+    for proc in procs:
+        proc.join(timeout=30)
+        if proc.is_alive():
+            proc.kill()
+    print(f"health: {ok}/{n} processes initialized kvcached ({virtual_gb} GB virtual) in {time.time() - t0:.1f} s, "
+          f"GPU used {used:.1f} GB", flush=True)
+    return ok == n
+
+
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument("--parallel", type=int, default=0)
+    p.add_argument("--timeout", type=float, default=180)
     p.add_argument("--virtual-gb", type=int, default=25)
     p.add_argument("--max", type=int, default=20)
     p.add_argument("--no-reserve", action="store_true")
-    p.add_argument("--out", required=True)
+    p.add_argument("--out")
     a = p.parse_args()
+    if a.parallel:
+        raise SystemExit(0 if parallel_check(a.parallel, a.virtual_gb, a.timeout) else 1)
     ctx = mp.get_context("spawn")
     stop = ctx.Event()
     procs, rows = [], [{"processes": 0, "used_gb": _used_gb()}]

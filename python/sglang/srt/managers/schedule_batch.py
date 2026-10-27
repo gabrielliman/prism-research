@@ -68,6 +68,14 @@ global_server_args_dict = {
 logger = logging.getLogger(__name__)
 
 
+
+class PrefillKVFull(Exception):
+    """A prefill batch's KV slots are not available now (Prism: retry later instead of exiting)."""
+
+    def __init__(self, num_tokens: int, available: int):
+        super().__init__(f"prefill needs {num_tokens} KV tokens, {available} available")
+        self.num_tokens, self.available = num_tokens, available
+
 class BaseFinishReason:
     def __init__(self, is_error: bool = False):
         self.is_error = is_error
@@ -539,6 +547,9 @@ class ScheduleBatch:
         return req_pool_indices
 
     def alloc_token_slots(self, num_tokens: int):
+        """KV slots for num_tokens. A prefill (extend) batch that does not fit raises PrefillKVFull (Prism: the
+        scheduler keeps its requests waiting and retries; KV is shared with other engines on the GPU and may come
+        back), instead of exiting the process; a decode batch that does not fit still exits."""
         out_cache_loc = self.token_to_kv_pool.alloc(num_tokens)
 
         # retry 20 times if cannot allocate memory
@@ -557,6 +568,8 @@ class ScheduleBatch:
                 self.tree_cache.evict(num_tokens, self.token_to_kv_pool.free)
                 out_cache_loc = self.token_to_kv_pool.alloc(num_tokens)
 
+            if out_cache_loc is None and self.forward_mode.is_extend():
+                raise PrefillKVFull(num_tokens, self.token_to_kv_pool.available_size())
             if out_cache_loc is None:
                 phase_str = "Prefill" if self.forward_mode.is_extend() else "Decode"
                 logger.error(
@@ -652,7 +665,11 @@ class ScheduleBatch:
 
         # Allocate memory
         req_pool_indices = self.alloc_req_slots(bs)
-        out_cache_loc = self.alloc_token_slots(extend_num_tokens)
+        try:
+            out_cache_loc = self.alloc_token_slots(extend_num_tokens)
+        except PrefillKVFull:
+            self.req_to_token_pool.free(req_pool_indices)
+            raise
 
         pt = 0
         for i, req in enumerate(reqs):

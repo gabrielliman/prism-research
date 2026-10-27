@@ -49,6 +49,10 @@ class GPUScheduler:
         init_model_names: List[str],
     ):
         self._model_states = {}
+        # Deactivations of a model still in progress, and how many of them a newer activation of the same model
+        # has superseded: their late "deactivation succeeded" must not mark the re-activated model deactivated.
+        self._pending_deacts: Dict[str, int] = {}
+        self._stale_deacts: Dict[str, int] = {}
         self.redis_client = RedisClient(
             multi_model_server_args.redis_host,
             multi_model_server_args.redis_port,
@@ -244,6 +248,11 @@ class GPUScheduler:
                 )
                 if success:
                     self._set_model_state(model_name, "activated")
+                    # the controller stops counting this activation's memory as pending (activation accounting)
+                    self.redis_client.send_pyobj(
+                        key=controller_events_key(self.server_args),
+                        obj={"event": "model_activated", "model_name": model_name, "gpu_id": self.gpu_id},
+                    )
                 elif self._model_states.get(model_name) == "activating":
                     # The engine rolled the activation back (no GPU memory) and stays alive.
                     self._on_model_lost(model_name, "activation failed", release_worker=True)
@@ -256,9 +265,14 @@ class GPUScheduler:
                     f"Model {model_name} (instance {instance_idx}) deactivation "
                     f"{'succeeded' if success else 'failed'} on GPU {self.gpu_id}"
                 )
-                if success:
+                if self._pending_deacts.get(model_name, 0) > 0:
+                    self._pending_deacts[model_name] -= 1
+                if self._stale_deacts.get(model_name, 0) > 0:
+                    # superseded by a newer activation of this model (on another worker): keep its state
+                    self._stale_deacts[model_name] -= 1
+                    logger.info(f"Ignoring the late deactivation of {model_name}: it was re-activated since")
+                elif success:
                     self._set_model_state(model_name, "deactivated")
-                # Can record additional deactivation completion status here, such as cleaning up resources
             else:
                 logger.info(f"Received unsupported message type: {type(message)}")
 
@@ -279,6 +293,7 @@ class GPUScheduler:
                 # Process activate, deactivate and resize memory pool requests
                 if isinstance(message, DeactivateReqInput):
                     model_name = message.model_name
+                    self._pending_deacts[model_name] = self._pending_deacts.get(model_name, 0) + 1
                     logger.info(f"Received deactivate request for model {model_name}")
                     self._set_model_state(model_name, "deactivating")
                     logger.info(
@@ -293,6 +308,8 @@ class GPUScheduler:
                     logger.info(
                         f"Received activate request for model {message.model_name}"
                     )
+                    # deactivations of this model still in progress are superseded by this activation
+                    self._stale_deacts[message.model_name] = self._pending_deacts.get(message.model_name, 0)
                     # No special handling needed here, only take action when tokenizer sends activation result
                     self._set_model_state(message.model_name, "activating")
                     logger.info(

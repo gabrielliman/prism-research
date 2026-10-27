@@ -220,6 +220,16 @@ class SimpleGlobalPolicy(GlobalPolicy):
         self.FAIR_QUANTUM = float(os.environ.get("PRISM_FAIR_QUANTUM", 30))
         # GB required on top of the weights to activate a model, so that its first KV pages fit
         self.ACTIVATION_HEADROOM = float(os.environ.get("PRISM_ACTIVATION_HEADROOM_GB", 0))
+        # Activation accounting (PRISM_ACTIVATION_ACCOUNTING, default on; 0 = Prism as published). An activated
+        # model's weights reach the GPU 1-20 s after the decision (the model service loads one model at a time),
+        # so free memory measured meanwhile still counts them as free and later cycles promised the same memory
+        # to other models. Pending activations (decided, not yet reported done by the GPU scheduler) are
+        # subtracted from the measured free memory, and each activation also needs ACTIVATION_KV_GB for the KV
+        # pages kvcached maps at activation.
+        self.ACTIVATION_ACCOUNTING = os.environ.get("PRISM_ACTIVATION_ACCOUNTING", "1") == "1"
+        self.ACTIVATION_KV_GB = 1.0 if self.ACTIVATION_ACCOUNTING else 0.0
+        self.PENDING_ACTIVATION_TIMEOUT_S = 120.0
+        self.pending_activations: Dict[Tuple[str, int], Tuple[float, float]] = {}  # (model, gpu) -> (GB, since)
         self.arrival_gaps: DefaultDict[str, deque] = defaultdict(lambda: deque(maxlen=20))
         self.model_idle_time: Dict[str, float] = {}
         self.model_has_requests: Dict[str, bool] = {}
@@ -351,6 +361,26 @@ class SimpleGlobalPolicy(GlobalPolicy):
         
         return evictable_instances
 
+    def _add_pending_activation(self, model_name: str, gpu_id: int):
+        if self.ACTIVATION_ACCOUNTING:
+            gb = self.model_weights_info[model_name]["model_size"] / self.model_tp.get(model_name, 1)
+            self.pending_activations[(model_name, gpu_id)] = (gb + self.ACTIVATION_KV_GB, time.time())
+
+    def activation_done(self, model_name: str, gpu_id: int):
+        """The GPU scheduler reported the activation finished (or the model lost): its memory is now measured."""
+        self.pending_activations.pop((model_name, gpu_id), None)
+
+    def _pending_activation_gb(self) -> Dict[int, float]:
+        now = time.time()
+        for key, (_, since) in list(self.pending_activations.items()):
+            if now - since > self.PENDING_ACTIVATION_TIMEOUT_S:
+                logger.warning(f"Pending activation {key} not reported after {now - since:.0f} s; dropped")
+                del self.pending_activations[key]
+        out: Dict[int, float] = defaultdict(float)
+        for (_, gpu_id), (gb, _) in self.pending_activations.items():
+            out[gpu_id] += gb
+        return out
+
     def _idle_threshold(self, model_name: str) -> float:
         """Idle seconds before eviction: fixed, or (adaptive) from the model's recent inter-arrival gaps."""
         gaps = self.arrival_gaps.get(model_name)
@@ -473,7 +503,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
         for model_name in sorted(unplaced_models, key=lambda m: -demand[m]):
             if self.pressure_cooldown_until.get(model_name, 0) > now:
                 continue
-            need = self.model_weights_info[model_name]["model_size"] + self.ACTIVATION_HEADROOM
+            need = self.model_weights_info[model_name]["model_size"] + self.ACTIVATION_HEADROOM + self.ACTIVATION_KV_GB
             best = None
             for gpu_id, cands in candidates.items():
                 missing, freed, lost, picked = need - gpu_available_memory.get(gpu_id, 0.0), 0.0, 0.0, []
@@ -1060,9 +1090,13 @@ class SimpleGlobalPolicy(GlobalPolicy):
 
         start_mem_check = time.time()
         gpu_available_memory = {}
+        pending_gb = self._pending_activation_gb()
         for gpu_id in range(self.num_gpus):
-            gpu_available_memory[gpu_id] = get_available_gpu_memory("cuda", gpu_id)
+            gpu_available_memory[gpu_id] = get_available_gpu_memory("cuda", gpu_id) - pending_gb.get(gpu_id, 0.0)
             logger.info(f"GPU {gpu_id}, mem {gpu_available_memory[gpu_id]}")
+            if pending_gb.get(gpu_id):
+                logger.info(f"GPU {gpu_id}: {pending_gb[gpu_id]:.1f} GB promised to pending activations "
+                            f"{[m for (m, g) in self.pending_activations if g == gpu_id]}")
         end_mem_check = time.time()
         logger.info(f"Time for checking GPU memory: {end_mem_check - start_mem_check:.4f}s")
         
@@ -1115,7 +1149,9 @@ class SimpleGlobalPolicy(GlobalPolicy):
         unplaced_models = []
         for model_name in sorted_inactive_models:
             tp = self.model_tp.get(model_name, 1)
-            model_memory_required = self.model_weights_info[model_name]["model_size"] / tp + self.ACTIVATION_HEADROOM
+            model_memory_required = (
+                self.model_weights_info[model_name]["model_size"] / tp + self.ACTIVATION_HEADROOM + self.ACTIVATION_KV_GB
+            )
             if tp > 1:
                 target_gpu = self._place_inactive_tp_model(
                     model_name, model_memory_required, gpu_available_memory, model_instance_state_dict
@@ -1196,6 +1232,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                         gpu_id=target_gpu_id,
                     )
                 )
+                self._add_pending_activation(model_name, target_gpu_id)
                 logger.info(f"ACTION: deactivate {model_name} on GPU {source_gpu_id} and activate {model_name} on GPU {target_gpu_id}. Reason: migrate model")
 
         # 5. Activate inactive models
@@ -1209,6 +1246,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                     gpu_id=gpu_id,
                 )
             )
+            self._add_pending_activation(model_name, gpu_id)
             logger.info(f"ACTION: activate inactive model {model_name} on GPU {gpu_id}. Reason: inactive models but with requests")
         end_apply_actions = time.time()
         logger.info(f"Time for creating action list: {end_apply_actions - start_apply_actions:.4f}s")

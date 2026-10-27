@@ -73,6 +73,7 @@ from sglang.srt.managers.schedule_batch import (
     FINISH_LENGTH,
     BaseFinishReason,
     ImageInputs,
+    PrefillKVFull,
     Req,
     ScheduleBatch,
     global_server_args_dict,
@@ -962,6 +963,9 @@ class Scheduler:
         return False
 
     def get_new_batch_prefill(self) -> Optional[ScheduleBatch]:
+        # Prism: a prefill that found no KV (PrefillKVFull) is retried after a short back-off
+        if time.time() < getattr(self, "_prefill_kv_full_until", 0.0):
+            return None
         # Handle the cases where prefill is not allowed
         if (
             self.batch_is_full or len(self.waiting_queue) == 0
@@ -1001,6 +1005,7 @@ class Scheduler:
         )
 
         has_inflight = self.current_inflight_req is not None
+        inflight_before = self.current_inflight_req
         if has_inflight:
             self.current_inflight_req.init_next_round_input(
                 None if prefix_computed else self.tree_cache
@@ -1055,6 +1060,24 @@ class Scheduler:
         can_run_list = adder.can_run_list
         if len(can_run_list) == 0:
             return None
+
+        # Create the batch and allocate its KV before changing the scheduler's state (Prism): engines share the
+        # GPU, so KV counted as available may be gone; then keep the requests waiting and retry shortly.
+        new_batch = ScheduleBatch.init_new(
+            can_run_list,
+            self.req_to_token_pool,
+            self.token_to_kv_pool,
+            self.tree_cache,
+            self.model_config,
+        )
+        try:
+            new_batch.prepare_for_extend()
+        except PrefillKVFull as e:
+            logger.warning(f"Prefill postponed: {e}")
+            self.current_inflight_req = inflight_before
+            self._prefill_kv_full_until = time.time() + 0.05
+            return None
+
         self.waiting_queue = [
             x for x in self.waiting_queue if x not in set(can_run_list)
         ]
@@ -1110,16 +1133,6 @@ class Scheduler:
         for req in can_run_list:
             req.set_out_queue_time()
             assert req.out_queue_timestamp is not None
-
-        # Create a new batch
-        new_batch = ScheduleBatch.init_new(
-            can_run_list,
-            self.req_to_token_pool,
-            self.token_to_kv_pool,
-            self.tree_cache,
-            self.model_config,
-        )
-        new_batch.prepare_for_extend()
 
         # Mixed-style chunked prefill
         if self.is_mixed_chunk and self.running_batch is not None:
@@ -2182,4 +2195,9 @@ def run_scheduler_process(
     except Exception:
         msg = get_exception_traceback()
         logger.error(msg)
+        if server_args.enable_worker_pool and os.environ.get("PRISM_DETECT_DEAD_WORKERS", "1") == "1":
+            # Prism worker pool: only this engine exits; the GPU scheduler detects the dead worker and the global
+            # controller activates its model on another worker (the other models on the GPU keep running).
+            logger.error("Worker exits after an exception; the other workers keep running")
+            os._exit(1)
         kill_parent_process()

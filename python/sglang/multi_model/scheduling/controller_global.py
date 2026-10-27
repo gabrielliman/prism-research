@@ -313,6 +313,8 @@ class GlobalController:
         """Mark inactive the instances GPU schedulers lost (failed activation, dead worker), so the policy sees
         them as inactive with requests and can activate them again."""
         for event in self.redis_client.pop_all(key=controller_events_key(self.server_args)) or []:
+            if event.get("event") in ("model_activated", "model_lost") and hasattr(self.policy, "activation_done"):
+                self.policy.activation_done(event["model_name"], event["gpu_id"])
             if event.get("event") != "model_lost":
                 continue
             for instance in self.model_instance_state_dict.get(event["model_name"], []):

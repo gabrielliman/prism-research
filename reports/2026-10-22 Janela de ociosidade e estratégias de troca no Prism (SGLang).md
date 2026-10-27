@@ -63,14 +63,37 @@ O limiar e o ciclo do controlador agora vêm de variáveis de ambiente: `PRISM_I
 | limiar 25 s | 1564/1564 | — | 0,16 / 20,6 / 60,0 | 61% | 104 | 15 / 17 |
 | limiar 50 s (original) | 1564/1564 | — | 0,43 / 53,3 / 110,7 | 51% | 158 | 15 / 15 |
 
+Nas figuras abaixo, o fundo cinza de cada linha marca quando o grupo daquele modelo recebe carga (grupo A, `model_1`–`model_5`: 0–150 s e 300–450 s; grupo B, `model_6`–`model_10`: 150–300 s e 450–600 s). Os `x` vermelhos são requisições que chegaram e nunca foram respondidas até o fim do prazo ("não atendidas"); os pontos vermelhos são requisições que receberam erro de conexão ("falhas").
+
+**Limiar de 1 s: sem perdas.** Os modelos do grupo que sai são despejados poucos segundos depois que o grupo desliga, e os do grupo novo entram logo. As 1.564 requisições foram atendidas.
+
 ![ovl_phases, limiar de 1 s](figs/2026-10-22-ociosidade/idle-phases__idle1__ovl_phases__rate0.5.png)
+
+**Limiar de 5 s: 94 não atendidas, todas de 3 modelos.**
+- As 94 requisições são do `model_2` (33), do `model_4` (25) e do `model_5` (36), e todas chegaram entre 388 s e 449 s, na segunda fase do grupo A.
+- Esses três modelos responderam pela última vez entre 407 s e 429 s. Por volta de 444 s, o `server.log` registra três falhas do kvcached (`cuMemSetAccess ... out of memory`), e os três workers morreram (o kvcached chama `abort()`). As requisições que estavam na fila deles se perderam.
+- Naquela versão, o Prism não detectava workers mortos: os três modelos continuaram "ativos" até o fim (as faixas azuis vão até 900 s) e nunca foram despejados, e as requisições seguintes ficaram esperando por eles até o prazo.
+- A GPU tinha ~31 GB livres quando os workers morreram (105–109 GB usados). A falha do kvcached não foi falta de memória em bytes. Ela aconteceu às 07:29:37 (horário dos logs), no mesmo instante em que outros três jobs tiveram a mesma falha: ver [Uma falha externa, em quatro jobs ao mesmo tempo](#uma-falha-externa-em-quatro-jobs-ao-mesmo-tempo). O horário das falhas é aproximado, porque o `server.log` só registra segundos inteiros e a mensagem do kvcached não tem horário próprio.
+
+![ovl_phases, limiar de 5 s](figs/2026-10-22-ociosidade/idle-phases__idle5__ovl_phases__rate0.5.png)
+
+**Limiar de 10 s: 1.196 falhas, o servidor caiu aos ~188 s.**
+- Na troca para o grupo B (150 s), o controlador ativou o `model_8` e o `model_9`, que couberam. Com limiar de 10 s, o grupo A só começou a sair aos ~163 s, e o controlador ativou também o `model_6` (aos ~168 s) e o `model_7` (aos ~173 s), ambos quando via ~25 GB livres. O KV dos modelos ativos continuou crescendo, e a GPU chegou a 140 GB.
+- Aos ~183 s, o kvcached falhou (`cuMemSetAccess ... out of memory`). Aos ~188 s, um worker teve `torch.OutOfMemoryError` ao copiar os pesos de uma ativação, e o tratamento de exceção derrubou o servidor inteiro. A memória da GPU vai a zero por volta de 212 s.
+- Das 1.196 falhas: 102 eram requisições em andamento na queda (`Server disconnected`), 1.093 chegaram depois, com o servidor fora do ar (`Connect call failed`), e 1 teve a conexão reiniciada. As 368 atendidas são de antes da queda. As falhas atingem os 10 modelos, porque o servidor inteiro caiu.
+- As faixas hachuradas do `model_6` e do `model_7` até o fim são ativações que nunca terminaram, por causa da queda.
+
+![ovl_phases, limiar de 10 s](figs/2026-10-22-ociosidade/idle-phases__idle10__ovl_phases__rate0.5.png)
+
+**Limiar de 25 s: sem perdas.** Os modelos do grupo que sai demoram ~25 s para ser despejados, e os do grupo novo que não cabem esperam esse tempo. É o "degrau" de TTFT depois de cada troca, menor que com 50 s.
+
+![ovl_phases, limiar de 25 s](figs/2026-10-22-ociosidade/idle-phases__idle25__ovl_phases__rate0.5.png)
+
+**Limiar de 50 s (original): sem perdas.** Os modelos novos que não cabem esperam quase um minuto depois de cada troca.
+
 ![ovl_phases, limiar de 50 s](figs/2026-10-22-ociosidade/idle-phases__idle50__ovl_phases__rate0.5.png)
 
-Com 1 s, os modelos do grupo que sai são despejados poucos segundos depois que o grupo desliga, e os do grupo novo entram logo. Com 50 s, os modelos novos que não cabem esperam quase um minuto, e esse é o "degrau" de TTFT depois de cada troca. As perdas dos limiares de 5 s e 10 s **não vêm do limiar**:
-- com 5 s, os workers de três modelos ativos morreram quando o kvcached não conseguiu crescer o KV deles (o kvcached chama `abort()`), e o Prism continuou mandando requisições para eles;
-- com 10 s, o servidor caiu por `torch.OutOfMemoryError` aos ~188 s.
-
-Ver [Fragilidades do Prism](#fragilidades-do-prism-sob-pressão-de-memória).
+**As perdas dos limiares de 5 s e 10 s não vêm do limiar em si,** e sim das [fragilidades do Prism sob pressão de memória](#fragilidades-do-prism-sob-pressão-de-memória): workers mortos pelo kvcached e queda por `torch.OutOfMemoryError`. Um limiar mais curto aumenta o número de ativações e despejos, e com isso a exposição a essas falhas. Nas [repetições](#4-repetições-3), o limiar de 1 s também perdeu requisições numa das 3 vezes, por uma corrida no Prism.
 
 ### `ovl_mem` (todos com demanda)
 
@@ -82,15 +105,53 @@ Ver [Fragilidades do Prism](#fragilidades-do-prism-sob-pressão-de-memória).
 | limiar 25 s | 5/599 (queda) | — | 1453/1453 | 308 / 391 |
 | limiar 50 s (original) | 534/599 | 242 / 338 | 5/1453 (queda) | — |
 
-Com todos os modelos recebendo tráfego, quase nunca há um modelo ocioso para despejar, então o limiar muda pouco. O que domina são as quedas do servidor: 4 das 10 execuções caíram, sem relação com o limiar.
+Com todos os modelos recebendo tráfego, quase nunca há um modelo ocioso para despejar, então o limiar muda pouco. O que domina são as quedas do servidor: 4 das 10 execuções caíram, sem relação com o limiar. As 65 não atendidas do limiar de 5 s a 0,2 req/s vieram de uma falha do kvcached às 07:29:38, no mesmo instante em que outros três jobs falharam (ver [Uma falha externa](#uma-falha-externa-em-quatro-jobs-ao-mesmo-tempo)). Esses testes estão sendo repetidos.
 
 ### `ovl_trace` (trace real)
 
-Todas as 15 execuções atenderam 754 de 754, exceto limiar 1 s na escala 0,5, que deixou 102 sem resposta. O SLO variou entre 61% e 96% **sem tendência clara** com o limiar. Duas razões:
-- O trace sobrecarrega pouco: a GPU ficou em 105–126 GB.
-- Com limiar curto, os modelos raros são despejados e reativados muitas vezes (74 ativações com 1 s, contra 4 com 50 s, na escala 1), e cada reativação é uma partida a frio.
+8 cópias do Llama-3.1-8B, 6 ativas no início, com o trace real do benchmark e2e do Prism (754 requisições em 600 s na escala 1). As escalas 0,5 e 0,25 aceleram o trace em 2× e 4×. Diferente do `ovl_phases`, aqui a popularidade é muito desigual: o `model_1` e o `model_4` recebem quase todas as requisições, e alguns modelos aparecem só por alguns minutos.
 
-As tabelas completas estão em `figs/2026-10-22-ociosidade/metricas.csv`.
+| Escala (aceleração) | Limiar | Atendidas | TTFT p50 / p90 / p99 (s) | SLO | Pior 1ª resposta (s) | Ativações / despejos | GPU pico (GB) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 (1×) | 1 s | 754/754 | 0,06 / 2,2 / 18,3 | 79% | 29 | 74 / 80 | 106 |
+| 1 (1×) | 5 s | 754/754 | 0,06 / 2,3 / 7,8 | 86% | 20 | 45 / 48 | 106 |
+| 1 (1×) | 10 s | 754/754 | 0,07 / 1,5 / 10,2 | 80% | 12 | 27 / 31 | 106 |
+| 1 (1×) | 25 s | 754/754 | 0,06 / 0,3 / 5,8 | 96% | 10 | 13 / 14 | 122 |
+| 1 (1×) | 50 s | 754/754 | 0,08 / 0,8 / 4,1 | 84% | 22 | 4 / 5 | 122 |
+| 0,5 (2×) | 1 s | 652/754 | 0,08 / 2,7 / 23,1 | 61% | 24 | 22 / 27 | 106 |
+| 0,5 (2×) | 5 s | 754/754 | 0,08 / 1,0 / 11,0 | 80% | 12 | 13 / 18 | 106 |
+| 0,5 (2×) | 10 s | 754/754 | 0,07 / 0,5 / 5,2 | 93% | 10 | 11 / 16 | 106 |
+| 0,5 (2×) | 25 s | 754/754 | 0,09 / 0,8 / 9,0 | 80% | 17 | 4 / 9 | 122 |
+| 0,5 (2×) | 50 s | 754/754 | 0,09 / 3,1 / 21,9 | 71% | 18 | 4 / 5 | 124 |
+| 0,25 (4×) | 1 s | 754/754 | 0,08 / 1,9 / 9,2 | 85% | 7 | 8 / 14 | 106 |
+| 0,25 (4×) | 5 s | 754/754 | 0,09 / 1,3 / 9,0 | 83% | 17 | 6 / 12 | 119 |
+| 0,25 (4×) | 10 s | 754/754 | 0,08 / 0,4 / 4,1 | 94% | 12 | 5 / 10 | 122 |
+| 0,25 (4×) | 25 s | 754/754 | 0,09 / 1,5 / 7,8 | 79% | 12 | 4 / 6 | 124 |
+| 0,25 (4×) | 50 s | 754/754 | 0,08 / 0,4 / 5,1 | 96% | 9 | 4 / 5 | 126 |
+
+**O que a tabela mostra:**
+- **O SLO varia entre 61% e 96% sem tendência clara com o limiar.** O trace sobrecarrega pouco a memória: a GPU ficou em 105–126 GB, então quase sempre cabe quem precisa entrar. Sem pressão, o limiar decide só quantas vezes um modelo é despejado e reativado.
+- **Limiar curto, muitas partidas a frio.** Na escala 1, o limiar de 1 s fez 74 ativações e 80 despejos, contra 4 e 5 com 50 s. Os modelos de tráfego esparso (como o `model_5` e o `model_2`) saem entre uma requisição e outra e voltam logo depois, e cada volta é uma partida a frio de alguns segundos. É daí que vêm o TTFT p99 maior e o pior tempo até a primeira resposta mais alto com 1 s. Quanto mais acelerado o trace, menos intervalos longos entre requisições, e menos trocas: com 1 s, 74 ativações na escala 1, 22 na 0,5 e 8 na 0,25.
+- **A GPU pico é menor com limiares curtos** (106 GB contra 122–126 GB com 25–50 s), porque os modelos sem tráfego saem logo. Aqui isso não ajuda ninguém, porque havia memória sobrando.
+
+![ovl_trace, escala 1, limiar de 1 s](figs/2026-10-22-ociosidade/idle-trace__idle1__ovl_trace__ts1.png)
+![ovl_trace, escala 1, limiar de 50 s](figs/2026-10-22-ociosidade/idle-trace__idle50__ovl_trace__ts1.png)
+
+**Limiar de 1 s, escala 0,5: 102 não atendidas, todas do `model_4`.**
+- O `model_4` foi ativado aos 105 s e respondeu normalmente até 252 s. As 102 requisições que chegaram dele entre 197 s e 300 s nunca foram respondidas.
+- Por volta de 252 s, o `server.log` registra uma falha do kvcached (`cuMemSetAccess ... out of memory`), e o worker do `model_4` parou de registrar no log: morreu pelo `abort()` do kvcached. Naquela versão, o Prism não detectava workers mortos, e o modelo continuou "ativo" até o fim (a faixa azul vai até 600 s).
+- A GPU tinha **62 GB livres** nesse momento (77 GB usados). Não foi falta de memória em bytes.
+
+![ovl_trace, escala 0,5, limiar de 1 s](figs/2026-10-22-ociosidade/idle-trace__idle1__ovl_trace__ts0.5.png)
+
+### Uma falha externa, em quatro jobs ao mesmo tempo
+
+A falha do kvcached no `ovl_trace` (limiar de 1 s, escala 0,5) aconteceu às 07:29:36 (horário dos logs). No mesmo par de segundos, entre 07:29:36 e 07:29:38, **outros três jobs** tiveram a mesma falha (`cuMemSetAccess ... out of memory`):
+- `ovl_phases` com limiar de 5 s (os 3 workers mortos, 94 não atendidas);
+- `ovl_mem` com limiar de 5 s a 0,2 req/s (65 não atendidas);
+- despejo sob pressão no `ovl_phases` (o `model_9` que nunca terminou de ativar, 157 não atendidas).
+
+Eram jobs independentes, cada um numa GPU diferente (barramentos `04`, `23` e `C3`, entre outros), com políticas diferentes e, em pelo menos dois casos, com dezenas de GB livres. O Polyaxon não informa o nó de cada job, então não dá para saber se estavam no mesmo servidor. De qualquer forma, quatro falhas simultâneas apontam para um **evento externo ao Prism e à política** (do driver, do nó ou do cluster) no instante 07:29:37, que o kvcached transforma em `abort()`. As perdas desses quatro testes não devem ser atribuídas ao limiar nem à estratégia.
 
 ## 2. Estratégias simples
 
@@ -113,7 +174,7 @@ Implementadas em `simple_global.py` e selecionadas por `PRISM_EVICTION`. Cada um
 | `ovl_mem` 0,2 | só folga de 3 GB | 599/599 | — | 0,25 / 272,7 / 343,6 | 50% | 363 |
 | `ovl_mem` 0,2 | rodízio anti-fome | 445/599 | 154 falhas | 8,21 / 58,2 / 144,5 | 20% | nunca |
 
-- **Despejo sob pressão.** O TTFT p90 caiu de 33 s para 12 s. Mas o `model_9` travou: a ativação levou 20 s, 17,8 s deles esperando o model service, porque duas ativações simultâneas disputavam os pesos. Quando o kvcached foi iniciar, havia só 6 GB livres: o driver recusou a página, o kvcached matou o worker, e o Prism nunca soube.
+- **Despejo sob pressão.** O TTFT p90 caiu de 33 s para 12 s. Mas o `model_9` travou: a ativação levou 20 s, 17,8 s deles esperando o model service, porque duas ativações simultâneas disputavam os pesos. Quando o kvcached foi iniciar, havia só 6 GB livres: o driver recusou a página, o kvcached matou o worker, e o Prism nunca soube. Essa falha aconteceu às 07:29:36, junto com a de outros três jobs (ver [Uma falha externa](#uma-falha-externa-em-quatro-jobs-ao-mesmo-tempo)), então não dá para atribuí-la só à estratégia.
 - **Adaptativa.** Pior que a original no trace, que nessa velocidade quase não pressiona a memória. Despejar mais cedo só acrescenta partidas a frio. Além disso, com o ciclo de 5 s a estimativa dos intervalos fica grosseira (o controlador só vê a última chegada de cada modelo por ciclo).
 - **Só a folga de 3 GB.** Evitou a ativação que falha sem aviso: atendeu tudo, sem nenhuma falha do kvcached, contra 65 não atendidas na original. Mas, como no vLLM, troca perda por espera: p99 de 344 s. Na pressão do `ovl_phases`, 3 GB não bastaram.
 - **Rodízio anti-fome.** O rodízio funcionou entre os modelos 1 a 8 (ver a figura), mas houve 154 falhas, por dois motivos:

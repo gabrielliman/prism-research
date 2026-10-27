@@ -25,8 +25,10 @@ rsync -a "$HERE/configs" "$STAGE/polyaxon/"
 cp "$HERE/$JOB.yaml" "$STAGE/"
 
 sed -i "s|__IMAGE__|$IMAGE|; s|__ENV__|${PRISM_JOB_ENV:-}|; s|__SUFFIX__|${PRISM_JOB_SUFFIX:-}|; s|__GPUS__|${PRISM_GPUS:-1}|g" "$STAGE/$JOB.yaml"
-# Cluster timeout = the job's PRISM_TIMEOUT (default 5400 s) + 30 min for cleanup.
+# Cluster timeout = the job's PRISM_TIMEOUT (default 5400 s) + 30 min for cleanup + PRISM_QUEUE_WAIT (default
+# 12 h): the cluster counts the time a job waits for a GPU ("warning: Insufficient nvidia.com/gpu") against it.
+# The run itself is still limited to PRISM_TIMEOUT by the `timeout` inside the container.
 JOB_TIMEOUT=$(echo "${PRISM_JOB_ENV:-}" | grep -o "PRISM_TIMEOUT=[0-9]*" | cut -d= -f2 || true)
-sed -i "s|__PLX_TIMEOUT__|$(( ${JOB_TIMEOUT:-5400} + 1800 ))|" "$STAGE/$JOB.yaml"
+sed -i "s|__PLX_TIMEOUT__|$(( ${JOB_TIMEOUT:-5400} + 1800 + ${PRISM_QUEUE_WAIT:-43200} ))|" "$STAGE/$JOB.yaml"
 echo "image: $IMAGE | gpus: ${PRISM_GPUS:-1} | env: ${PRISM_JOB_ENV:-(none)} | uploading $(du -sh "$STAGE" | cut -f1)"
 cd "$STAGE" && "$POLYAXON" run -p kunumi/hpc4ai -f "$JOB".yaml -u

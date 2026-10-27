@@ -59,7 +59,17 @@ export HF_HOME=/tmp/hf_home
 mkdir -p "$HF_HOME/hub" && echo 1 > "$HF_HOME/hub/version.txt"
 for d in "$SHARED_HUB"/models--*; do ln -sfn "$d" "$HF_HOME/hub/$(basename "$d")"; done
 echo "HF_HOME=$HF_HOME -> $(ls "$HF_HOME/hub" | grep -c models--) models linked from $SHARED_HUB"
-{ nvidia-smi; pip freeze | grep -iE "^(sglang|vllm|torch|flashinfer|kvcached|transformers)"; } > "$RESULTS/environment.txt" 2>&1
+# host_diag: the node and its memory (kvcached start-up failures depend on load on the node, not on the GPU).
+host_diag() {
+  echo "host: $(hostname)  $(date -u +%FT%TZ)"
+  free -g | head -2
+  for f in /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.current /sys/fs/cgroup/memory/memory.limit_in_bytes \
+           /sys/fs/cgroup/memory/memory.usage_in_bytes; do [ -r "$f" ] && echo "$f: $(cat "$f")"; done
+  echo "vm.max_map_count: $(cat /proc/sys/vm/max_map_count 2>/dev/null)  ulimit -l: $(ulimit -l)  /dev/shm: $(df -h /dev/shm | tail -1)"
+  nvidia-smi --query-gpu=pci.bus_id,memory.used,memory.total --format=csv,noheader
+  nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader | wc -l | sed 's/^/GPU processes: /'
+}
+{ host_diag; nvidia-smi; pip freeze | grep -iE "^(sglang|vllm|torch|flashinfer|kvcached|transformers)"; } > "$RESULTS/environment.txt" 2>&1
 cat "$RESULTS/environment.txt"
 
 SERVER_PID=""; REDIS_PID=""
@@ -180,7 +190,44 @@ PY
   esac
 }
 
+# start_server: up to PRISM_START_ATTEMPTS (3) tries. A failed start (no request sent yet) is torn down and
+# retried; each failed attempt's logs are kept as server*.attemptN.log, with host_diag in startup_diag.log.
+# health_gate: before a server starts, check that the node can start Prism's workers: PRISM_HEALTH_PROCS (10)
+# processes initialize kvcached at once (polyaxon/kvcached_probe.py --parallel). Some periods the node fails
+# this with an empty GPU (cuMemSetAccess out of memory), and runs then also lose workers under load; wait
+# PRISM_HEALTH_RETRY_S (300 s) and check again, up to PRISM_HEALTH_WAIT_S (7200 s), then give up the level so no
+# data comes from an unhealthy node. PRISM_HEALTH_PROCS=0 turns it off.
+health_gate() {
+  local step=$1 t0=$SECONDS
+  [ "${PRISM_HEALTH_PROCS:-10}" -gt 0 ] || return 0
+  mkdir -p "$RESULTS/$step"
+  while true; do
+    if python3 polyaxon/kvcached_probe.py --parallel "${PRISM_HEALTH_PROCS:-10}" >> "$RESULTS/$step/health.log" 2>&1; then
+      echo "[$step] node healthy ($(tail -1 "$RESULTS/$step/health.log"))"; return 0
+    fi
+    { echo "== unhealthy $(date -u +%FT%TZ)"; host_diag; } >> "$RESULTS/$step/health.log" 2>&1
+    if [ $((SECONDS - t0)) -ge "${PRISM_HEALTH_WAIT_S:-7200}" ]; then
+      echo "[$step] NODE UNHEALTHY for $((SECONDS - t0)) s; skipping"; return 1
+    fi
+    echo "[$step] node unhealthy (kvcached start-up check failed); waiting ${PRISM_HEALTH_RETRY_S:-300} s"
+    sleep "${PRISM_HEALTH_RETRY_S:-300}"
+  done
+}
+
 start_server() {
+  local step=$1 k
+  health_gate "$step" || return 1
+  for k in $(seq 1 "${PRISM_START_ATTEMPTS:-3}"); do
+    start_server_once "$@" && return 0
+    { echo "== attempt $k failed"; host_diag; } >> "$RESULTS/$step/startup_diag.log" 2>&1
+    for f in "$RESULTS/$step"/server*.log; do [[ $f == *attempt* ]] || mv "$f" "${f%.log}.attempt$k.log"; done
+    echo "[$step] start attempt $k failed; retrying"
+    sleep 20
+  done
+  return 1
+}
+
+start_server_once() {
   local step=$1 port=$2 cfg=$3; shift 3
   mapfile -t args < <(backend_args "$@"); set -- "${args[@]}"
   local n_on; n_on=$(python3 -c "import json;print(sum(any(p['on'] for p in m['init_placements']) for m in json.load(open('$cfg'))))")
@@ -192,6 +239,10 @@ start_server() {
   SERVER_PID=$!
   for i in $(seq 1 $((STARTUP_TIMEOUT / 5))); do
     kill -0 $SERVER_PID 2>/dev/null || { echo "[$step] SERVER DIED"; tail -60 "$RESULTS/$step/server.log"; stop_server; return 1; }
+    # kvcached aborts a worker at start-up (cuMem* out of memory): the server never becomes ready, fail fast
+    if grep -q "cuMem.*out of memory" "$RESULTS/$step/server.log" 2>/dev/null; then
+      echo "[$step] kvcached failed at start-up"; grep -m2 "cuMem" "$RESULTS/$step/server.log"; stop_server; return 1
+    fi
     ready=$(cat "$RESULTS/$step"/server*.log 2>/dev/null | grep -c "is fired up and ready to roll")
     if [ "$ready" -ge "$n_on" ] && curl -sf -o /dev/null "http://127.0.0.1:$port/health"; then
       echo "[$step] server ready in ~$((i * 5))s ($ready/$n_on models)"; return 0
@@ -415,7 +466,7 @@ PY2
       done
       [ $rc = 0 ]
       ;;
-    ovl_mem|ovl_phases|ovl_kv|ovl_compute|ovl_trace|ovl_mix)
+    ovl_mem|ovl_phases|ovl_kv|ovl_compute|ovl_trace|ovl_trace_big|ovl_mix)
       # Real overload scenarios on 1 GPU (README example 3 flags, workers-per-gpu = number of models).
       # Load: polyaxon/overload_load.py (open loop, uniform popularity, deadline = duration + drain;
       # requests still pending at the deadline are recorded as unserved). Each level: fresh server and
@@ -426,6 +477,9 @@ PY2
       #   ovl_compute 2 models, sustained rate beyond what the GPU decodes
       #   ovl_trace   8 x PRISM_OVL_MODEL (weights exceed the GPU) under Prism's e2e benchmark trace
       #               (real_trace.pkl, as benchmark.py --e2e-benchmark); levels are time scales (ts<s>)
+      #   ovl_trace_big N x PRISM_OVL_MODEL (default 12, 6 on), each fed by one of the N most requested adapters
+      #               of the whole real_trace.pkl (1275 requests at time scale 1): real memory overload with the
+      #               trace's popularity and phases; levels are time scales (ts<s>)
       #   ovl_mix     two model sizes: 8 x PRISM_OVL_MODEL at the level's rate + 2 x PRISM_OVL_MODEL2 (smaller)
       #               at PRISM_OVL_RATE2 (fewer tokens/s than an 8B, more per GB), 5 + 2 on, ~132 GB of weights.
       #               At most 10 models: 14 workers hang at start-up (kvcached cuMemSetAccess out of memory).
@@ -447,6 +501,9 @@ PY2
         ovl_trace)   n=${PRISM_OVL_N:-8}; on=${PRISM_OVL_ON:-6}; pool=${PRISM_OVL_POOL:-10}
                      rates=${PRISM_OVL_RATES:-1 0.5 0.25}; dur=; drain=${PRISM_OVL_DRAIN:-300}
                      load="--real-trace benchmark/multi-model/real_trace.pkl" ;;
+        ovl_trace_big) n=${PRISM_OVL_N:-12}; on=${PRISM_OVL_ON:-6}; pool=${PRISM_OVL_POOL:-10}
+                     rates=${PRISM_OVL_RATES:-1 0.5}; dur=; drain=${PRISM_OVL_DRAIN:-300}
+                     load="--real-trace benchmark/multi-model/real_trace.pkl --trace-adapters $n" ;;
         ovl_mix)     n=${PRISM_OVL_N:-8}; on=${PRISM_OVL_ON:-5}; n2=${PRISM_OVL_N2:-2}; on2=${PRISM_OVL_ON2:-2}
                      pool=${PRISM_OVL_POOL:-10}
                      rates=${PRISM_OVL_RATES:-0.2}; dur=${PRISM_OVL_DURATION:-300}; drain=${PRISM_OVL_DRAIN:-300}
@@ -470,7 +527,7 @@ PY2
       models=$(seq -f "model_%g" 1 "$n" | tr '\n' ' ')
       rc=0
       for rate in $rates; do
-        if [ "$step" = ovl_trace ]; then  # level = time scale; the window is the trace span x scale
+        if [ "$step" = ovl_trace ] || [ "$step" = ovl_trace_big ]; then  # level = time scale; the window is the trace span x scale
           lvl="$step/ts$rate"; dur=$(python3 -c "print(600 * $rate)"); level=(--time-scale "$rate")
         else
           lvl="$step/rate$rate"; level=(--rate "$rate" --duration "$dur")

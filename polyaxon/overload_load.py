@@ -21,6 +21,9 @@ Workload knobs:
                                  requests, prompts and per-model SLOs sent to the server) at time scale S;
                                  --rate is ignored and the window is the trace span (600 s) x S.
                                  Attainment still uses --slo-ttft / --slo-tpot.
+  --trace-adapters N             with --real-trace: instead of the e2e benchmark's 8 adapters, the N most
+                                 requested adapters of the whole trace, one per model (most requested ->
+                                 --models[0]), with their prompts and lengths; SLO sent = --slo-ttft.
 
 Writes <out>/requests.json (one row per request) and <out>/summary.json.
 """
@@ -52,7 +55,27 @@ def build_trace_requests(a):
     return reqs
 
 
+def build_adapter_trace_requests(a):
+    """The a.trace_adapters most requested adapters of the real trace, one per model, in popularity order."""
+    from collections import Counter
+
+    trace = RealWorldTrace(a.real_trace).requests
+    rank = lambda r: int(r.adapter_dir.split("-")[-1])
+    top = [k for k, _ in Counter(rank(r) for r in trace).most_common(a.trace_adapters)]
+    model_of = dict(zip(top, a.models))
+    reqs = [Request(req_id="", prompt=r.prompt, prompt_len=r.prompt_len, output_len=r.output_len,
+                    arrival_time=r.req_time * a.time_scale, model=model_of[rank(r)],
+                    slo=a.slo_ttft, slo_ttft=a.slo_ttft, slo_tpot=a.slo_tpot)
+            for r in trace if rank(r) in model_of]
+    reqs.sort(key=lambda r: r.arrival_time)
+    for i, r in enumerate(reqs):
+        r.req_id = str(i)
+    return reqs
+
+
 def build_requests(a):
+    if a.real_trace and a.trace_adapters:
+        return build_adapter_trace_requests(a)
     if a.real_trace:
         return build_trace_requests(a)
     rng = np.random.default_rng(a.seed)
@@ -162,6 +185,7 @@ def main():
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--real-trace")
     p.add_argument("--time-scale", type=float, default=1.0)
+    p.add_argument("--trace-adapters", type=int, default=0)
     p.add_argument("--out", required=True)
     a = p.parse_args()
     if a.real_trace:

@@ -4,7 +4,9 @@
 
 O [relatório da janela de ociosidade](2026-10-22%20Janela%20de%20ociosidade%20e%20estratégias%20de%20troca%20no%20Prism%20(SGLang).md) mostrou que o Prism com SGLang falha de cinco maneiras quando a GPU fica sem memória: 19 das 57 execuções perderam requisições. Este relatório descreve, para cada falha, qual era o problema, o que o causava, o que mudou para corrigir e os testes que mostram o efeito da correção.
 
-**Regra seguida:** as mudanças estão só neste repositório e só em código do Prism. O repositório do kvcached (`prism/shm`) não foi alterado: as correções do lado dele são aplicadas pelo Prism quando o worker inicializa, substituindo métodos Python do kvcached. Nenhuma lógica do SGLang foi alterada. A única mudança num arquivo que também existe no SGLang é na função `handle_activate_request` do `scheduler.py`, que é inteiramente do Prism (o SGLang original não ativa nem desativa modelos). Para separar o que é do Prism do que é do SGLang, comparamos cada arquivo com o SGLang 0.3.4.post2 do PyPI.
+> **Este é o registro das mudanças que fazemos no Prism.** A rodada 1 (2026-10-22) está nas seções abaixo até [O que não foi corrigido](#o-que-não-foi-corrigido). A rodada 2 (2026-10-26/27) está em [Rodada 2: contabilidade das ativações, prefill sem KV e corrida de desativação](#rodada-2-contabilidade-das-ativações-prefill-sem-kv-e-corrida-de-desativação). O [Histórico de mudanças](#histórico-de-mudanças) lista todas, em ordem. [O que está valendo](#o-que-está-valendo) e [Arquivos alterados](#arquivos-alterados) refletem o estado atual.
+
+**Regra seguida na rodada 1:** as mudanças estão só neste repositório e só em código do Prism. O repositório do kvcached (`prism/shm`) não foi alterado: as correções do lado dele são aplicadas pelo Prism quando o worker inicializa, substituindo métodos Python do kvcached. Nenhuma lógica do SGLang foi alterada. A única mudança num arquivo que também existe no SGLang é na função `handle_activate_request` do `scheduler.py`, que é inteiramente do Prism (o SGLang original não ativa nem desativa modelos). Para separar o que é do Prism do que é do SGLang, comparamos cada arquivo com o SGLang 0.3.4.post2 do PyPI.
 
 > **Decisão sobre o que fica ligado (2026-10-22).** Como estes estudos comparam políticas com o Prism publicado, as correções que mudam o comportamento normal do Prism, mesmo quando nada falha, ficam **desligadas por padrão**: o árbitro de memória, os ajustes do kvcached e a reserva na ativação. Elas mudam quanto o SGLang admite, quando ele retira requisições e quanto uma ativação espera, e têm custo medido (ver [Custo da variante com o árbitro](#custo-da-variante-com-o-árbitro)). Ficam disponíveis como uma variante declarada, com `PRISM_MEMORY_ARBITER=1`.
 >
@@ -16,11 +18,13 @@ O [relatório da janela de ociosidade](2026-10-22%20Janela%20de%20ociosidade%20e
 | --- | --- | --- |
 | 1 | Ativação que falha sem aviso (kvcached `abort()`) | **Padrão:** o worker ainda pode morrer, mas a morte é detectada e o modelo é reativado em outro worker. **Variante com o árbitro:** a memória é reservada antes da ativação e o mapeamento de páginas é verificado, então a falha não ocorre. |
 | 2 | Worker que morre quando o KV não cresce (kvcached `abort()`) | **Padrão:** a morte é detectada e o modelo reativado. **Variante com o árbitro:** as páginas só são mapeadas depois de confirmar, sob um lock entre processos, que cabem. |
-| 3 | Worker que morre por falta de KV no prefill (`pretty_print`) e leva todos junto | **Não corrigida**: é código do SGLang. Ocorreu 1 vez em 9 execuções com as correções. A correção proposta está em [O que não foi corrigido](#o-que-não-foi-corrigido). |
+| 3 | Worker que morre por falta de KV no prefill (`pretty_print`) e leva todos junto | **Corrigida na rodada 2** (no SGLang, com autorização): o prefill sem KV espera e tenta de novo, e uma exceção num worker encerra só aquele worker. |
 | 4 | Servidor que cai com `torch.OutOfMemoryError` ao copiar os pesos | **Padrão:** um OOM na ativação é desfeito e avisado, em vez de derrubar o servidor. **Variante com o árbitro:** além disso, a memória dos pesos é reservada antes da cópia. |
 | 5 | Servidor que não sobe com 14 workers | **Não corrigida**: causa não identificada. 14 workers subiram com 12 GB de espaço virtual, mas uma sonda mostrou que o espaço virtual não é a causa. O ajuste foi removido, e a falha fica registrada como comportamento do Prism. |
 | — | Worker morto que continua recebendo requisições | **Corrigida**: o GPU scheduler detecta a morte e o controlador reativa o modelo em outro worker em ~4 s. |
 | — | Falta de worker livre que o controlador não fica sabendo (o "bug dos 4 workers") | **Corrigida**: vira o mesmo aviso de "modelo perdido". |
+| — | O controlador promete a mesma memória livre a várias ativações (causa da maioria das mortes) | **Corrigida na rodada 2**: contabilidade das ativações pendentes. |
+| — | Desativação atrasada marca como desativado um modelo já reativado (corrida) | **Corrigida na rodada 2**. |
 
 **Resultado do A/B** (mesmo job, todas as correções desligadas × todas ligadas, ou seja, a variante com o árbitro):
 
@@ -166,14 +170,14 @@ Medimos o custo com as correções ligadas e desligadas, alternadas no mesmo job
 
 ## O que não foi corrigido
 
-1. **Falha 3: falta de KV no prefill.**
+1. **Falha 3: falta de KV no prefill.** *(Corrigida na rodada 2; o texto abaixo é o diagnóstico original.)*
    - O que acontece: o escalonador do SGLang admite um prefill olhando `available_size()` e, milissegundos depois, aloca. No `ovl_mem` a 0,5 com as correções, ele admitiu 8.192 tokens e, na hora de alocar, havia 1.320, porque outros workers cresceram no intervalo.
    - Por que derruba tudo: `alloc_token_slots` chama `tree_cache.pretty_print()`, que no `ChunkCache` levanta `NotImplementedError`. O tratamento de exceção do SGLang (`run_scheduler_process` → `kill_parent_process`) mata o processo pai e **todos os workers irmãos**. Foi o que aconteceu: os workers 1, 3, 4, 5, 8 e 9 pararam no mesmo instante.
    - Por que não foi corrigida: as correções ficariam no código do SGLang:
      - (a) reativar a reserva do kvcached na admissão: `try_to_reserve`, que o Prism deixou comentado em `srt/managers/schedule_policy.py:297` e `schedule_batch.py:751`;
      - (b) trocar `kill_parent_process` por encerrar só o worker, já que agora o Prism detecta workers mortos e reativa o modelo.
    
-   Recomendamos (a) e (b) como próximo passo, com sua autorização para mexer nesses arquivos.
+   Recomendamos (a) e (b) como próximo passo, com sua autorização para mexer nesses arquivos. *Na rodada 2, fizemos (b) e, no lugar de (a), uma alternativa que não reserva memória: o prefill sem KV volta para a fila e tenta de novo.*
 2. **Requisições dentro de um worker que morre se perdem.** O GPU scheduler devolve as filas que ainda estão com ele, mas as que o worker já tinha recebido não voltam. O cliente espera até o prazo: foram 13 no teste do `kill`. Corrigir exige guardar as requisições em andamento por worker para reenviá-las.
 3. **A política original continua deixando modelos esperarem.** As correções trocam perdas e quedas por espera (TTFT p99 de 300–340 s no `ovl_mix` e no `ovl_mem`). Resolver isso é papel das estratégias de despejo do relatório anterior.
 4. **Falhas aleatórias e uma execução por configuração.**
@@ -205,6 +209,87 @@ Medimos o custo com as correções ligadas e desligadas, alternadas no mesmo job
 
 A "pior 1ª resposta" mede quanto um modelo esperou para ser atendido pela primeira vez. Nesses cenários, a espera vem da política original, não das correções.
 
+## Rodada 2: contabilidade das ativações, prefill sem KV e corrida de desativação
+
+*2026-10-26 e 2026-10-27.* Depois da rodada 1, os testes de ociosidade e de estratégias continuaram perdendo requisições. Fizemos um inventário de todas as mortes de worker em todas as execuções até então (42 eventos) e encontramos três causas, todas corrigidas aqui. Esta rodada inclui **mudanças em arquivos do SGLang**, autorizadas explicitamente: até a rodada 1, só tínhamos alterado a função `handle_activate_request`, que é do Prism.
+
+As três correções formam a **nova base comum de comparação**: todas as políticas, inclusive a original de 50 s, rodam com elas. A contabilidade das ativações vem ligada por padrão e pode ser desligada (`PRISM_ACTIVATION_ACCOUNTING=0`), para comparar com o Prism publicado. As outras duas só agem quando o Prism quebraria.
+
+### Inventário das mortes (antes da rodada 2)
+
+| Causa | Mortes | Quando |
+| --- | --- | --- |
+| `abort()` do kvcached (`cuMemCreate`/`cuMemSetAccess ... out of memory`) | 29 | 21 durante uma ativação; das outras 8, 5 no evento externo das 07:29 de 2026-10-22, quando 4 jobs falharam no mesmo instante |
+| `torch.OutOfMemoryError` ao copiar pesos | 7 | todas durante uma ativação |
+| `pretty_print` (falta de KV no prefill) | 6 | com a GPU em 131–134 GB |
+
+### R2.1 Contabilidade das ativações pendentes
+
+**Problema.** Quase todas as mortes (31 de 42) aconteciam durante uma ativação.
+
+**Causa.** O controlador marca um modelo como ativo assim que manda a ativação, mas os pesos só chegam à GPU de 1 a 20 s depois, porque o model service carrega um modelo de cada vez. No ciclo seguinte, o controlador mede a memória livre de novo e conta como livre a mesma memória que a ativação anterior vai ocupar. Nas 1.579 ativações de todos os testes:
+- **35%** foram decididas com outra ativação ainda carregando;
+- **22%** foram decididas com menos memória livre do que os próprios pesos mais os das ativações pendentes, ou seja, já não cabiam.
+
+Num caso do `ovl_mem`, havia 7 ativações pendentes quando o servidor caiu.
+
+**O que mudou.**
+- `scheduling/policy/simple_global.py`: o controlador guarda as ativações decididas e ainda não concluídas (`pending_activations`). A cada ciclo, desconta da memória livre medida os pesos delas mais 1 GB (`ACTIVATION_KV_GB`, as páginas de KV que o kvcached mapeia na ativação). Cada nova ativação também exige essa folga de 1 GB. Uma pendência com mais de 120 s é descartada. `PRISM_ACTIVATION_ACCOUNTING=0` desliga tudo.
+- `scheduling/gpu/gpu_scheduler.py`: quando uma ativação termina, o GPU scheduler publica `model_activated` na lista de eventos do controlador no Redis.
+- `scheduling/controller_global.py`: ao receber `model_activated` ou `model_lost`, o controlador tira a ativação das pendências (`policy.activation_done`).
+
+**Teste.** A lógica isolada foi testada: soma das pendências, liberação ao concluir, descarte após 120 s e modo desligado. Nos 9 jobs da rodada `fix2` (71 execuções, com no máximo 6 jobs ao mesmo tempo), não houve nenhuma morte pelo kvcached nem `torch` OOM durante uma ativação. O controlador descontou ativações pendentes até 222 vezes numa única execução.
+
+### R2.2 Prefill sem KV não derruba mais o servidor
+
+**Problema.** Com a contabilidade corrigida, a falha 3 virou a principal causa de perdas: 2.388 das 3.524 requisições perdidas (68%) nas 71 execuções da rodada `fix2`, em 5 execuções, cada uma com o servidor inteiro derrubado.
+
+**Causa.** O escalonador do SGLang admite um prefill olhando `available_size()` e aloca o KV logo depois. Com vários workers dividindo a GPU, o KV contado como livre pode já ter sido usado. A alocação falha, `alloc_token_slots` chama `tree_cache.pretty_print()`, que no `ChunkCache` levanta `NotImplementedError`, e o tratamento de exceção (`kill_parent_process`) mata o servidor e todos os workers.
+
+**O que mudou** (arquivos do SGLang):
+- `srt/managers/schedule_batch.py`: nova exceção `PrefillKVFull`. Quando um batch de **prefill** não consegue KV depois das 20 tentativas que já existiam, `alloc_token_slots` levanta `PrefillKVFull` em vez de encerrar o processo, e `prepare_for_extend` libera os slots de requisição já alocados. Um batch de **decode** sem KV continua encerrando o processo, como antes (não vimos esse caso).
+- `srt/managers/scheduler.py`, `get_new_batch_prefill`: o batch é montado e alocado **antes** de tirar as requisições da fila e de mudar o estado do chunked prefill. Com `PrefillKVFull`, a requisição que estava entre chunks é restaurada, as requisições continuam na fila, e um novo prefill só é tentado 50 ms depois.
+- `srt/managers/scheduler.py`, `run_scheduler_process`: com o worker pool e a detecção de workers mortos ligada, uma exceção num worker encerra **só aquele worker** (`os._exit(1)`), em vez de `kill_parent_process`. A detecção de workers mortos da rodada 1 percebe a morte, e o controlador reativa o modelo em outro worker.
+
+**O que não muda.** No caminho normal, em que o prefill consegue KV, a ordem das operações muda, mas o resultado é o mesmo: o mesmo batch, as mesmas requisições e o mesmo estado.
+
+**Teste.** Os arquivos compilam, mas não há teste unitário. A validação são os jobs da rodada `fix3` (resultados pendentes).
+
+### R2.3 Corrida entre desativar e reativar o mesmo modelo
+
+**Problema.** Um modelo deixava de ser atendido até o fim da execução: 183 requisições em 5 execuções da rodada `fix2`. Já tinha aparecido nas repetições de 2026-10-22, com 137 e 37 requisições.
+
+**Causa.** O controlador manda desativar um modelo (despejo por ociosidade ou troca por throughput) e, pouco depois, manda reativá-lo. A reativação vai para outro worker e termina, e só depois chega a confirmação da desativação antiga. O GPU scheduler marca o modelo como desativado e para de entregar requisições a ele, enquanto o controlador continua achando que ele está ativo e nunca o reativa. Acontece com limiares curtos e, sobretudo, com a drenagem da troca por throughput, que deixa a desativação em andamento por até 15 s.
+
+**O que mudou.** `scheduling/gpu/gpu_scheduler.py`: o GPU scheduler conta as desativações em andamento de cada modelo (`_pending_deacts`). Ao receber uma ativação, marca essas desativações como superadas (`_stale_deacts`). Uma confirmação de desativação superada é registrada no log ("Ignoring the late deactivation") e não muda o estado do modelo.
+
+**Teste.** A lógica foi conferida nas três ordens possíveis de chegada. A validação nos testes completos está na rodada `fix3` (resultados pendentes).
+
+### R2.4 Infraestrutura de testes
+
+Estas mudanças não alteram o Prism, mas mudam a forma como os testes rodam.
+
+| Mudança | Arquivo | Motivo |
+| --- | --- | --- |
+| **No máximo 6 jobs ao mesmo tempo**, por uma fila que envia o próximo quando um termina | script de fila (fora do repositório) | O cluster tem **um único nó**. Com 24 jobs juntos, a maioria dos servidores nem subiu (`cuMemSetAccess ... out of memory` na inicialização, com a GPU vazia) e as mortes pelo kvcached se concentraram nesse período. Com até 6 jobs, nenhuma inicialização falhou nos 9 jobs da rodada `fix2`. |
+| **Folga de 12 h para esperar GPU** no limite de tempo do cluster (`PRISM_QUEUE_WAIT`) | `polyaxon/submit.sh` | O status "warning" do Polyaxon significa que o job está esperando GPU, e esse tempo conta no limite. Jobs foram encerrados sem rodar. |
+| **Nova tentativa de inicialização**: até 3 (`PRISM_START_ATTEMPTS`), com falha rápida se o kvcached falhar ao subir | `polyaxon/run_examples.sh` (`start_server`, `start_server_once`) | Nenhuma requisição foi enviada antes de o servidor subir, então tentar de novo não afeta a comparação. Os logs das tentativas falhas ficam como `server*.attemptN.log`, com o diagnóstico em `startup_diag.log`. |
+| **Diagnóstico do nó** (hostname, memória, limite do contêiner, `max_map_count`, processos na GPU) | `polyaxon/run_examples.sh` (`host_diag`) | Registrado em `environment.txt` e em cada tentativa falha, para associar falhas a nós e à carga. |
+| **Verificação de saúde do nó antes de cada nível** (`health_gate`): 10 processos inicializam o kvcached ao mesmo tempo (`kvcached_probe.py --parallel`). Se algum falhar, o job espera 5 min e testa de novo, por até 2 h; depois disso, o nível é pulado | `polyaxon/run_examples.sh`, `polyaxon/kvcached_probe.py` | Na rodada `fix3` (2026-10-27, ~12h–17h UTC), o nó passou por um período em que o kvcached falhava na inicialização com a GPU vazia (222 vezes) e as alocações falhavam com até 31 GB livres. Só 101 dos 162 níveis rodaram, e 10,9% das requisições se perderam. Os dados desse período ficam de fora: o nível só roda com o nó saudável. Variáveis: `PRISM_HEALTH_PROCS` (10; 0 desliga), `PRISM_HEALTH_RETRY_S` (300), `PRISM_HEALTH_WAIT_S` (7200); o resultado vai para `health.log`. |
+
+### Resultados
+
+- **Rodada `fix2`** (só com a R2.1): 71 execuções, 4,3% de requisições perdidas. Por causa:
+  - falha 3: 68%;
+  - travamento da política original no `ovl_mix`: 533 requisições (comportamento da política, não uma falha);
+  - mortes pelo kvcached num job que rodou com o nó sobrecarregado: 413;
+  - corrida de desativação: 183.
+- **Rodada `fix3`** (R2.1 + R2.2 + R2.3), 2026-10-27: o nó ficou degradado durante a rodada (ver R2.4), e os dados foram descartados, exceto 1 job limpo. Mesmo assim, ela mostrou as correções em ação:
+  - nenhum `pretty_print`, com 4 prefills adiados em vez de derrubar o servidor;
+  - 149 confirmações de desativação atrasadas ignoradas;
+  - 64 workers encerrados sozinhos sem derrubar o servidor.
+- **Rodada `fix4`** (as mesmas correções + verificação de saúde do nó): em andamento, com os 21 jobs que não estavam limpos. Esta seção vai receber os resultados.
+
 ## O que está valendo
 
 | Mudança | Padrão | Como mudar | Muda o comportamento normal? |
@@ -214,6 +299,10 @@ A "pior 1ª resposta" mede quanto um modelo esperou para ser atendido pela prime
 | Aviso de "modelo perdido" ao controlador (ativação desfeita, worker morto, falta de worker livre) | **ligado** | sempre ligado | não: só age quando o modelo já foi perdido |
 | Detecção de workers mortos | **ligado** | `PRISM_DETECT_DEAD_WORKERS=0` | não: só age quando um worker morre |
 | Espaço virtual do kvcached | 25 GB fixo | não configurável | é o original |
+| Contabilidade das ativações pendentes (R2.1) | **ligado** | `PRISM_ACTIVATION_ACCOUNTING=0` | sim, mas só quando o controlador estava errando a conta: ele espera em vez de ativar sem espaço |
+| Prefill sem KV volta para a fila em vez de derrubar o servidor (R2.2) | **ligado** | sempre ligado | não: só age quando a alocação falharia |
+| Exceção num worker encerra só aquele worker (R2.2) | **ligado** | `PRISM_DETECT_DEAD_WORKERS=0` (volta a derrubar o servidor) | não: só age quando um worker já quebrou |
+| Ignorar a desativação atrasada de um modelo já reativado (R2.3) | **ligado** | sempre ligado | não: só age na corrida |
 
 Parâmetros da variante com o árbitro: `PRISM_GPU_HEADROOM_GB` (folga mantida livre, padrão 5% da GPU) e `PRISM_ACTIVATION_WAIT_S` (quanto uma ativação espera pela memória antes de desistir, padrão 30 s).
 
@@ -226,16 +315,36 @@ Sem o árbitro, uma ativação que fica sem memória ainda pode morrer pelo `abo
 | `python/sglang/multi_model/memory_arbiter.py` (novo) | árbitro de memória por GPU, `ActivationOutOfMemory`, registro de PIDs dos workers |
 | `python/sglang/multi_model/kvcached_patches.py` (novo) | ajustes do kvcached aplicados pelo Prism |
 | `python/sglang/srt/model_executor/worker_pool_model_runner.py` (do Prism) | reserva (com o árbitro) e desfazer da ativação, registro do PID |
-| `python/sglang/srt/managers/scheduler.py` (só `handle_activate_request`, do Prism) | responde `success=False` quando a ativação não tem memória |
-| `python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py` | `_on_model_lost`, detecção de mortes, aviso da falta de worker livre |
+| `python/sglang/srt/managers/scheduler.py` | rodada 1: `handle_activate_request` (do Prism) responde `success=False` quando a ativação não tem memória. Rodada 2 (SGLang): `get_new_batch_prefill` aloca o batch antes de mudar o estado e trata `PrefillKVFull`; `run_scheduler_process` encerra só o worker numa exceção |
+| `python/sglang/srt/managers/schedule_batch.py` (SGLang, rodada 2) | `PrefillKVFull`; `alloc_token_slots` e `prepare_for_extend` não encerram o processo num prefill sem KV |
+| `python/sglang/multi_model/scheduling/policy/simple_global.py` (rodada 2) | contabilidade das ativações pendentes (`pending_activations`, `activation_done`, `ACTIVATION_KV_GB`) |
+| `python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py` | `_on_model_lost`, detecção de mortes, aviso da falta de worker livre; rodada 2: evento `model_activated` e desativações superadas (`_pending_deacts`, `_stale_deacts`) |
 | `python/sglang/multi_model/scheduling/gpu/worker_pool.py` | `check_dead_workers` |
-| `python/sglang/multi_model/scheduling/controller_global.py` | `handle_model_events` (lê os avisos no Redis) |
+| `python/sglang/multi_model/scheduling/controller_global.py` | `handle_model_events` (lê os avisos no Redis); rodada 2: repassa `model_activated`/`model_lost` à contabilidade das ativações |
 | `python/sglang/multi_model/scheduling/constants.py` | `controller_events_key` |
 | `test/multi-model/test_memory_robustness.py` (novo) | 8 testes unitários sem GPU |
-| `polyaxon/run_examples.sh` | `PRISM_FAULT` (`kill`/`ballast`), `PRISM_OVL_WORKERS` |
+| `polyaxon/run_examples.sh` | `PRISM_FAULT` (`kill`/`ballast`), `PRISM_OVL_WORKERS`; rodada 2: nova tentativa de inicialização, `host_diag` |
+| `polyaxon/submit.sh` (rodada 2) | folga para esperar GPU no limite do cluster (`PRISM_QUEUE_WAIT`) |
+| `polyaxon/configs/fix_*_suite.tsv` (rodada 2) | suítes da nova análise de ociosidade e estratégias com as correções (`git add -f`) |
 | `polyaxon/extract_ovl.py`, `polyaxon/ovl_plots.py` | eventos novos (`model_lost`, `worker_dead`, `act_failed`, `kv_refused`) |
 | `polyaxon/kvcached_probe.py`, passo `kvcached_probe` em `run_examples.sh` | sonda de inicialização do kvcached (falha 5) |
 | `polyaxon/configs/robust_{a,b,c}_suite.tsv`, `robust_smoke_suite.tsv`, `cost_{a,b}_suite.tsv` | suítes deste relatório. As configurações "ligadas" agora trazem `PRISM_MEMORY_ARBITER=1` explícito. Os `.tsv` são ignorados pelo `.gitignore`: usar `git add -f` |
+
+## Histórico de mudanças
+
+| Data | Mudança | Tipo | Padrão |
+| --- | --- | --- | --- |
+| 2026-10-22 | Desfazer a ativação sem memória e responder `success=False` | só age em falha | ligado |
+| 2026-10-22 | Aviso de "modelo perdido" ao controlador (ativação desfeita, worker morto, falta de worker livre) | só age em falha | ligado |
+| 2026-10-22 | Detecção de workers mortos (inclusive zumbis) | só age em falha | ligado |
+| 2026-10-22 | Árbitro de memória por GPU, ajustes do kvcached, reserva antes da ativação | muda o comportamento normal; custo de até 16% do tempo esperando o lock | **desligado** (`PRISM_MEMORY_ARBITER=1`) |
+| 2026-10-22 | Espaço virtual do kvcached configurável | removido: não era a causa da falha dos 14 workers | — |
+| 2026-10-22 | Preempção e drenagem na desativação (`drain_timeout`; requisições retiradas voltam para a fila) | só usado pela troca por throughput | — |
+| 2026-10-26 | Contabilidade das ativações pendentes (R2.1) | corrige a conta de memória do controlador | ligado (`PRISM_ACTIVATION_ACCOUNTING=0` desliga) |
+| 2026-10-27 | Prefill sem KV volta para a fila (R2.2, SGLang) | só age em falha | ligado |
+| 2026-10-27 | Exceção num worker encerra só aquele worker (R2.2, SGLang) | só age em falha | ligado |
+| 2026-10-27 | Desativação atrasada não desativa um modelo já reativado (R2.3) | só age na corrida | ligado |
+| 2026-10-26/27 | Infraestrutura: até 6 jobs juntos, espera por GPU, nova tentativa de inicialização, diagnóstico do nó (R2.4) | testes | — |
 
 ## Como reproduzir
 
