@@ -277,6 +277,16 @@ Estas mudanças não alteram o Prism, mas mudam a forma como os testes rodam.
 | **Diagnóstico do nó** (hostname, memória, limite do contêiner, `max_map_count`, processos na GPU) | `polyaxon/run_examples.sh` (`host_diag`) | Registrado em `environment.txt` e em cada tentativa falha, para associar falhas a nós e à carga. |
 | **Verificação de saúde do nó antes de cada nível** (`health_gate`): 10 processos inicializam o kvcached ao mesmo tempo (`kvcached_probe.py --parallel`). Se algum falhar, o job espera 5 min e testa de novo, por até 2 h; depois disso, o nível é pulado | `polyaxon/run_examples.sh`, `polyaxon/kvcached_probe.py` | Na rodada `fix3` (2026-10-27, ~12h–17h UTC), o nó passou por um período em que o kvcached falhava na inicialização com a GPU vazia (222 vezes) e as alocações falhavam com até 31 GB livres. Só 101 dos 162 níveis rodaram, e 10,9% das requisições se perderam. Os dados desse período ficam de fora: o nível só roda com o nó saudável. Variáveis: `PRISM_HEALTH_PROCS` (10; 0 desliga), `PRISM_HEALTH_RETRY_S` (300), `PRISM_HEALTH_WAIT_S` (7200); o resultado vai para `health.log`. |
 
+### R2.5 Medição do término e do TTFT de requisições retiradas (SGLang), 2026-10-28
+
+**Problema.** Quando falta KV no decode, o SGLang retira requisições do batch (*decode retract*). Elas voltam para a fila com os tokens já gerados e, mais tarde, passam por um novo prefill. No SGLang 0.3.4, o ramo de prefill (`process_batch_result_prefill`):
+- grava `prefill_finish_timestamp` em **todo** prefill. O TTFT informado ao cliente (`prefill_finish_timestamp − arrival_timestamp`) passa a ir até o último prefill, e não até o primeiro token, que já tinha saído. O TTFT medido fica maior que o real, e o TPOT menor;
+- não grava `finish_timestamp` quando a requisição termina nele. Isso acontece quando falta só 1 token para ela terminar. A resposta sai com `finish_timestamp = None`, e o cliente de benchmark quebra com `TypeError` e conta como falha uma requisição que foi atendida. Isso aconteceu 1 vez nos 150 níveis da [nova análise](2026-10-28%20Janela%20de%20ociosidade%20e%20estratégias%20de%20troca%20no%20Prism,%20com%20as%20correções%20(SGLang).md#4-falhas-que-sobraram-e-as-correções-em-ação).
+
+**O que mudou.** `srt/managers/scheduler.py`, `process_batch_result_prefill`: o fim do prefill só é gravado na primeira vez, quando o prefill termina de fato (fora dos chunks intermediários), e o término é marcado quando a requisição acaba no prefill. O adaptador do vLLM deste repositório já fazia assim (`vllm_backend/engine_adapter.py`). O campo só é usado na resposta ao cliente, e não no escalonamento.
+
+**Efeito nos dados anteriores.** Teto de 0,8% das requisições no total e de 4,6% na pior configuração (`ovl_mem` 0,2 com troca). Ainda não testado num job.
+
 ### Resultados
 
 - **Rodada `fix2`** (só com a R2.1): 71 execuções, 4,3% de requisições perdidas. Por causa:
@@ -288,7 +298,13 @@ Estas mudanças não alteram o Prism, mas mudam a forma como os testes rodam.
   - nenhum `pretty_print`, com 4 prefills adiados em vez de derrubar o servidor;
   - 149 confirmações de desativação atrasadas ignoradas;
   - 64 workers encerrados sozinhos sem derrubar o servidor.
-- **Rodada `fix4`** (as mesmas correções + verificação de saúde do nó): em andamento, com os 21 jobs que não estavam limpos. Esta seção vai receber os resultados.
+- **Rodada `fix4`**: cancelada. Em vez de repetir jobs inteiros, os níveis limpos das rodadas `fix2` e `fix3` foram aproveitados (`polyaxon/collect_reps.py`), e só os 59 níveis que faltavam foram enviados, nas suítes `polyaxon/configs/fill_*_suite.tsv`.
+- **Rodada `fix5`** (R2.1–R2.3 + verificação de saúde do nó), 2026-10-27/28: **59 de 59 níveis limpos**, sem nenhum worker morto, queda, abort do kvcached ou `torch` OOM. A verificação de saúde nunca precisou esperar. As correções agiram: 5 prefills adiados e 66 confirmações de desativação atrasadas ignoradas.
+- **Nos 150 níveis usados na nova análise** ([Janela de ociosidade ... com as correções](2026-10-28%20Janela%20de%20ociosidade%20e%20estratégias%20de%20troca%20no%20Prism,%20com%20as%20correções%20(SGLang).md)), 7 tiveram perdas. Em 22/10, antes das correções, foram 19 de 57 execuções com perdas, quase todas por falha.
+  - 4 por comportamento da política: o travamento da original no `ovl_mix` e a fome no `ovl_mem`.
+  - 1 por erro de medição do SGLang: uma requisição que terminou no prefill depois de um *decode retract* saiu sem `finish_timestamp` (ainda não corrigido; depende de aprovação para mudar o SGLang).
+  - 2 com requisições realmente perdidas, sem causa identificada: 25 numa execução da troca P1D0 (trace12) e 1 numa da troca P0D0 (`ovl_mix`). **Ainda em aberto.**
+- **R2.3 conferida num caso real:** no `ovl_mix` com P0D0, o `model_9` foi reativado no worker 8 enquanto o worker 5 ainda terminava a desativação anterior (34,6 s, sem preempção). A confirmação atrasada do worker 5 foi ignorada, e o modelo continuou ativo.
 
 ## O que está valendo
 
@@ -315,7 +331,7 @@ Sem o árbitro, uma ativação que fica sem memória ainda pode morrer pelo `abo
 | `python/sglang/multi_model/memory_arbiter.py` (novo) | árbitro de memória por GPU, `ActivationOutOfMemory`, registro de PIDs dos workers |
 | `python/sglang/multi_model/kvcached_patches.py` (novo) | ajustes do kvcached aplicados pelo Prism |
 | `python/sglang/srt/model_executor/worker_pool_model_runner.py` (do Prism) | reserva (com o árbitro) e desfazer da ativação, registro do PID |
-| `python/sglang/srt/managers/scheduler.py` | rodada 1: `handle_activate_request` (do Prism) responde `success=False` quando a ativação não tem memória. Rodada 2 (SGLang): `get_new_batch_prefill` aloca o batch antes de mudar o estado e trata `PrefillKVFull`; `run_scheduler_process` encerra só o worker numa exceção |
+| `python/sglang/srt/managers/scheduler.py` | rodada 1: `handle_activate_request` (do Prism) responde `success=False` quando a ativação não tem memória. Rodada 2 (SGLang): `get_new_batch_prefill` aloca o batch antes de mudar o estado e trata `PrefillKVFull`; `run_scheduler_process` encerra só o worker numa exceção. R2.5 (SGLang): `process_batch_result_prefill` grava só o primeiro fim de prefill e marca o término quando a requisição acaba no prefill |
 | `python/sglang/srt/managers/schedule_batch.py` (SGLang, rodada 2) | `PrefillKVFull`; `alloc_token_slots` e `prepare_for_extend` não encerram o processo num prefill sem KV |
 | `python/sglang/multi_model/scheduling/policy/simple_global.py` (rodada 2) | contabilidade das ativações pendentes (`pending_activations`, `activation_done`, `ACTIVATION_KV_GB`) |
 | `python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py` | `_on_model_lost`, detecção de mortes, aviso da falta de worker livre; rodada 2: evento `model_activated` e desativações superadas (`_pending_deacts`, `_stale_deacts`) |
@@ -326,7 +342,9 @@ Sem o árbitro, uma ativação que fica sem memória ainda pode morrer pelo `abo
 | `polyaxon/run_examples.sh` | `PRISM_FAULT` (`kill`/`ballast`), `PRISM_OVL_WORKERS`; rodada 2: nova tentativa de inicialização, `host_diag` |
 | `polyaxon/submit.sh` (rodada 2) | folga para esperar GPU no limite do cluster (`PRISM_QUEUE_WAIT`) |
 | `polyaxon/configs/fix_*_suite.tsv` (rodada 2) | suítes da nova análise de ociosidade e estratégias com as correções (`git add -f`) |
-| `polyaxon/extract_ovl.py`, `polyaxon/ovl_plots.py` | eventos novos (`model_lost`, `worker_dead`, `act_failed`, `kv_refused`) |
+| `polyaxon/extract_ovl.py`, `polyaxon/ovl_plots.py` | eventos novos (`model_lost`, `worker_dead`, `act_failed`, `kv_refused`); rodada 2: `stale_deact` (substitui o `deact_ok` ignorado, para a linha do tempo não mostrar o modelo como inativo), `prefill_postponed`, `worker_exit`, `extract_level`, métrica "pior espera pelo 1º token" |
+| `polyaxon/collect_reps.py`, `polyaxon/summarize_reps.py`, `polyaxon/plot_reps.py` (novos, rodada 2) | juntam os níveis limpos de várias rodadas (com `manifest.csv`), resumem as repetições e desenham o resumo por configuração |
+| `polyaxon/configs/fill_*_suite.tsv` (rodada 2) | só os níveis que faltavam um nível limpo (`git add -f`) |
 | `polyaxon/kvcached_probe.py`, passo `kvcached_probe` em `run_examples.sh` | sonda de inicialização do kvcached (falha 5) |
 | `polyaxon/configs/robust_{a,b,c}_suite.tsv`, `robust_smoke_suite.tsv`, `cost_{a,b}_suite.tsv` | suítes deste relatório. As configurações "ligadas" agora trazem `PRISM_MEMORY_ARBITER=1` explícito. Os `.tsv` são ignorados pelo `.gitignore`: usar `git add -f` |
 
@@ -345,6 +363,7 @@ Sem o árbitro, uma ativação que fica sem memória ainda pode morrer pelo `abo
 | 2026-10-27 | Exceção num worker encerra só aquele worker (R2.2, SGLang) | só age em falha | ligado |
 | 2026-10-27 | Desativação atrasada não desativa um modelo já reativado (R2.3) | só age na corrida | ligado |
 | 2026-10-26/27 | Infraestrutura: até 6 jobs juntos, espera por GPU, nova tentativa de inicialização, diagnóstico do nó (R2.4) | testes | — |
+| 2026-10-28 | TTFT pelo primeiro prefill e término marcado quando a requisição acaba no prefill (R2.5, SGLang) | só medição | ligado |
 
 ## Como reproduzir
 

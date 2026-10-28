@@ -68,10 +68,11 @@ def metricas(lv):
     ok = req[req.status == "ok"]
     regime = ok[(ok.fim >= 0.25 * dur) & (ok.fim < dur)]
     k = ev.kind.value_counts()
-    espera_1a = []  # per model: delay from its first request to its first response
+    espera_1a, espera_tok = [], []  # per model: delay from its first request to its first response / first token
     for m, r in req.groupby("model"):
         rok = r[r.status == "ok"]
         espera_1a.append((rok.fim.min() if len(rok) else np.inf) - r.arrival.min())
+        espera_tok.append(((rok.arrival + rok.ttft).min() if len(rok) else np.inf) - r.arrival.min())
     return {
         "oferecido": s["offered_rps"], "em regime": len(regime) / (0.75 * dur),
         "atendidas": s["ok"], "enviadas": s["sent"], "não atendidas": s["unserved"], "falhas": s["failed"],
@@ -85,7 +86,10 @@ def metricas(lv):
         "falhas de driver kvcached": int(k.get("kv_oom", 0)), "torch OOM": int(k.get("oom", 0)),
         "KV recusado": int(k.get("kv_refused", 0)), "ativações revertidas": int(k.get("act_failed", 0)),
         "modelos perdidos": int(k.get("model_lost", 0)), "workers mortos": int(k.get("worker_dead", 0)),
+        "prefills adiados": int(k.get("prefill_postponed", 0)), "desativações atrasadas ignoradas": int(k.get("stale_deact", 0)),
+        "workers que saíram sozinhos": int(k.get("worker_exit", 0)),
         "pior 1ª resposta (s)": max(espera_1a) if espera_1a else np.nan,
+        "pior espera pelo 1º token (s)": max(espera_tok) if espera_tok else np.nan,
     }
 
 

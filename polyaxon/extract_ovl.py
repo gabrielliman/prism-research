@@ -13,13 +13,16 @@ For each level <outputs>/<step>/rate<r>/ (ts<s>/ for ovl_trace) writes <dest>/<N
                                free_mem (free GPU memory the controller saw, GB)
                   gpu_sched    act_req / act_ok / deact_ok (activation requests and completions),
                                model_lost (failed activation or dead worker; value = reason),
-                               worker_dead (value = worker id)
+                               worker_dead (value = worker id),
+                               stale_deact (late deactivation ignored: the model was re-activated since; replaces its deact_ok)
                   worker       retract (SGLang "Decode out of memory", value = retracted requests),
                                preempt (running requests retracted at deactivation, value = count),
                                drain (drain before deactivation, value = seconds),
                                kv_refused (Prism's kvcached fix refused KV pages, value = tokens),
                                act_failed (activation rolled back for lack of memory)
-                               kv_oom (kvcached cuMemCreate out of memory), oom (torch.OutOfMemoryError)
+                               kv_oom (kvcached cuMemCreate out of memory), oom (torch.OutOfMemoryError),
+                               prefill_postponed (prefill KV full: the batch waits instead of crashing),
+                               worker_exit (a worker exited after an exception, the others kept running)
 and copies configs/<step>.json to <dest>/<NAME or step>/config.json.
 
 Times are seconds from the load start. The logs use wall clock, so the load start is placed with the
@@ -109,6 +112,12 @@ def events(level_dir, t0):
             rows.append((t, "gpu_sched", "model_lost", m.group(1), m.group(2).strip()))
         elif m := re.search(r"Worker (\d+) on GPU \d+ died", line):
             rows.append((t, "gpu_sched", "worker_dead", "", m.group(1)))
+        elif m := re.search(r"Ignoring the late deactivation of (\S+?):", line):
+            # the "deactivation succeeded" line just before it did not change the model's state
+            last = next((i for i in range(len(rows) - 1, -1, -1) if rows[i][2:4] == ("deact_ok", m.group(1))), None)
+            if last is not None:
+                rows.pop(last)
+            rows.append((t, "gpu_sched", "stale_deact", m.group(1), ""))
     # server.log has the kvcached C++ messages; server_file.log has the workers' Python logging.
     for name in ("server_file.log", "server.log"):
         for ts, line in log_lines(os.path.join(level_dir, name)):
@@ -124,6 +133,10 @@ def events(level_dir, t0):
                 rows.append((t, "worker", "kv_refused", model, m.group(1)))
             elif m := re.search(r"Activation of (\S+) failed", line):
                 rows.append((t, "worker", "act_failed", m.group(1), ""))
+            elif "Prefill postponed" in line:
+                rows.append((t, "worker", "prefill_postponed", model, ""))
+            elif "Worker exits after an exception" in line:
+                rows.append((t, "worker", "worker_exit", model, ""))
             elif name == "server.log" and "cuMem" in line and "out of memory" in line:
                 rows.append((t, "worker", "kv_oom", "", ""))
             elif "torch.OutOfMemoryError" in line:
@@ -152,6 +165,23 @@ def write_csv(path, header, rows):
         w.writerows(rows)
 
 
+def extract_level(d, lvl):
+    """One level directory of the run outputs -> lvl (summary.json, requests.csv, gpu.csv, events.csv)."""
+    os.makedirs(lvl, exist_ok=True)
+    shutil.copy(os.path.join(d, "summary.json"), lvl)
+    reqs = json.load(open(os.path.join(d, "requests.json")))
+    cols = ["id", "model", "arrival", "prompt_len", "output_len", "status", "ttft", "tpot", "latency",
+            "generated", "error"]
+    write_csv(os.path.join(lvl, "requests.csv"), cols,
+              [[(r.get(c) or "")[:120] if c == "error" else r.get(c, "") for c in cols] for r in reqs])
+    t0 = load_start(d, reqs)
+    write_csv(os.path.join(lvl, "gpu.csv"), ["t", "used_gb", "total_gb", "util"],
+              gpu_rows(os.path.join(d, "gpu.csv"), t0))
+    ev = events(d, t0)
+    write_csv(os.path.join(lvl, "events.csv"), ["t", "source", "kind", "model", "value"], ev)
+    print(f"{lvl}: {len(reqs)} requests, {len(ev)} events")
+
+
 def main():
     args = sys.argv[1:]
     name = None
@@ -171,20 +201,7 @@ def main():
             if not os.path.exists(os.path.join(d, "summary.json")):
                 print(f"skip {d}: no summary.json")
                 continue
-            lvl = os.path.join(step_dest, os.path.basename(d))
-            os.makedirs(lvl, exist_ok=True)
-            shutil.copy(os.path.join(d, "summary.json"), lvl)
-            reqs = json.load(open(os.path.join(d, "requests.json")))
-            cols = ["id", "model", "arrival", "prompt_len", "output_len", "status", "ttft", "tpot", "latency",
-                    "generated", "error"]
-            write_csv(os.path.join(lvl, "requests.csv"), cols,
-                      [[(r.get(c) or "")[:120] if c == "error" else r.get(c, "") for c in cols] for r in reqs])
-            t0 = load_start(d, reqs)
-            write_csv(os.path.join(lvl, "gpu.csv"), ["t", "used_gb", "total_gb", "util"],
-                      gpu_rows(os.path.join(d, "gpu.csv"), t0))
-            ev = events(d, t0)
-            write_csv(os.path.join(lvl, "events.csv"), ["t", "source", "kind", "model", "value"], ev)
-            print(f"{lvl}: {len(reqs)} requests, {len(ev)} events")
+            extract_level(d, os.path.join(step_dest, os.path.basename(d)))
 
 
 if __name__ == "__main__":

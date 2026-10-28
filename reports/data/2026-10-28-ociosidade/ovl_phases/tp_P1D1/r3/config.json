@@ -1,0 +1,152 @@
+[
+  {
+    "model_name": "model_1",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tokenizer_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tp_size": 1,
+    "init_placements": [
+      {
+        "gpu_ids": [
+          0
+        ],
+        "on": true,
+        "max_memory_pool_size": 10.0
+      }
+    ]
+  },
+  {
+    "model_name": "model_2",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tokenizer_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tp_size": 1,
+    "init_placements": [
+      {
+        "gpu_ids": [
+          0
+        ],
+        "on": true,
+        "max_memory_pool_size": 10.0
+      }
+    ]
+  },
+  {
+    "model_name": "model_3",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tokenizer_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tp_size": 1,
+    "init_placements": [
+      {
+        "gpu_ids": [
+          0
+        ],
+        "on": true,
+        "max_memory_pool_size": 10.0
+      }
+    ]
+  },
+  {
+    "model_name": "model_4",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tokenizer_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tp_size": 1,
+    "init_placements": [
+      {
+        "gpu_ids": [
+          0
+        ],
+        "on": true,
+        "max_memory_pool_size": 10.0
+      }
+    ]
+  },
+  {
+    "model_name": "model_5",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tokenizer_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tp_size": 1,
+    "init_placements": [
+      {
+        "gpu_ids": [
+          0
+        ],
+        "on": true,
+        "max_memory_pool_size": 10.0
+      }
+    ]
+  },
+  {
+    "model_name": "model_6",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tokenizer_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tp_size": 1,
+    "init_placements": [
+      {
+        "gpu_ids": [
+          0
+        ],
+        "on": false,
+        "max_memory_pool_size": 10.0
+      }
+    ]
+  },
+  {
+    "model_name": "model_7",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tokenizer_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tp_size": 1,
+    "init_placements": [
+      {
+        "gpu_ids": [
+          0
+        ],
+        "on": false,
+        "max_memory_pool_size": 10.0
+      }
+    ]
+  },
+  {
+    "model_name": "model_8",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tokenizer_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tp_size": 1,
+    "init_placements": [
+      {
+        "gpu_ids": [
+          0
+        ],
+        "on": false,
+        "max_memory_pool_size": 10.0
+      }
+    ]
+  },
+  {
+    "model_name": "model_9",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tokenizer_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tp_size": 1,
+    "init_placements": [
+      {
+        "gpu_ids": [
+          0
+        ],
+        "on": false,
+        "max_memory_pool_size": 10.0
+      }
+    ]
+  },
+  {
+    "model_name": "model_10",
+    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tokenizer_path": "meta-llama/Llama-3.1-8B-Instruct",
+    "tp_size": 1,
+    "init_placements": [
+      {
+        "gpu_ids": [
+          0
+        ],
+        "on": false,
+        "max_memory_pool_size": 10.0
+      }
+    ]
+  }
+]

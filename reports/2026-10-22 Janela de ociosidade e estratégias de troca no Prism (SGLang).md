@@ -1,5 +1,7 @@
 # Janela de ociosidade e estratégias de troca de modelos no Prism, SGLang (2026-10-22)
 
+> **Substituído (2026-10-28).** A análise foi refeita com todas as correções de robustez e 3 repetições por configuração em [Janela de ociosidade e estratégias de troca no Prism, com as correções](2026-10-28%20Janela%20de%20ociosidade%20e%20estratégias%20de%20troca%20no%20Prism,%20com%20as%20correções%20(SGLang).md). Este relatório fica como registro do estado antes das correções.
+
 > **Correção (2026-10-22, após a análise de robustez).** Duas das falhas descritas aqui como modelos "pendurados" (a ativação que falha sem aviso e o KV que não cresce) eram, na verdade, **workers mortos**: quando o driver recusa uma página, o kvcached chama `abort()` e mata o processo, e o Prism continua mandando requisições para ele. A [seção das falhas](#fragilidades-do-prism-sob-pressão-de-memória) foi corrigida. A análise completa, com as correções e os testes, está em [Correções de robustez de memória no Prism](2026-10-22%20Correções%20de%20robustez%20de%20memória%20no%20Prism%20(SGLang).md).
 
 ## Resumo

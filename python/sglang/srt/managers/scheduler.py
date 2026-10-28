@@ -1258,16 +1258,20 @@ class Scheduler:
             # Check finish conditions
             logprob_pt = 0
             for i, req in enumerate(batch.reqs):
-                req.set_prefill_finish_time()
                 if req.is_inflight_req > 0:
                     req.is_inflight_req -= 1
                 else:
                     # Inflight reqs' prefill is not finished
+                    # Prism: keep the first prefill time; a request retracted in decode is prefilled again
+                    if req.prefill_finish_timestamp is None:
+                        req.set_prefill_finish_time()
                     req.completion_tokens_wo_jump_forward += 1
                     req.output_ids.append(next_token_ids[i])
                     req.check_finished()
 
                     if req.finished():
+                        # Prism: a retracted request one token short of max_new_tokens finishes here
+                        req.set_finish_time()
                         self.tree_cache.cache_finished_req(req)
                     elif not batch.decoding_reqs or req not in batch.decoding_reqs:
                         self.tree_cache.cache_unfinished_req(req)
