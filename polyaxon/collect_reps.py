@@ -27,7 +27,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import extract_ovl  # noqa: E402
 
-STRATEGY = {"pressure_phases": "pressure", "adaptive_trace12": "adaptive", "headroom_mem": "headroom",
+STRATEGY = {"pressure_phases": "pressure", "adaptive_trace12": "adaptive", "headroom_mem": "headroom", "headroom_mix": "headroom",
             "fair_mem": "fair"}
 REPS = 3
 

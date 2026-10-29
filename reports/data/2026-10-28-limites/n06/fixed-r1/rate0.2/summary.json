@@ -1,0 +1,105 @@
+{
+ "args": {
+  "base_url": "http://127.0.0.1:30002",
+  "models": [
+   "model_1",
+   "model_2",
+   "model_3",
+   "model_4",
+   "model_5",
+   "model_6"
+  ],
+  "rate": 0.2,
+  "model_rates": [],
+  "duration": 300.0,
+  "drain": 300.0,
+  "input_range": [
+   256,
+   1024
+  ],
+  "output_range": [
+   128,
+   512
+  ],
+  "cv": 1.0,
+  "groups": 1,
+  "phase": 150,
+  "slo_ttft": 1.0,
+  "slo_tpot": 0.1,
+  "seed": 42,
+  "real_trace": null,
+  "time_scale": 1.0,
+  "trace_adapters": 0,
+  "out": "/plx-context/artifacts/0cd4900e97cf475ca672e060982f3399/outputs/n06/ovl_mem/rate0.2"
+ },
+ "elapsed_s": 313.4903423525393,
+ "sent": 341,
+ "ok": 341,
+ "failed": 0,
+ "unserved": 0,
+ "offered_rps": 1.1366666666666667,
+ "served_rps": 1.0877528074422287,
+ "output_tok_s": 347.2610964122678,
+ "ttft_mean": 1.1956950212853394,
+ "ttft_p50": 0.17314720153808594,
+ "ttft_p99": 17.339792823791505,
+ "tpot_mean": 0.06824325770895312,
+ "tpot_p99": 0.14890147708652662,
+ "slo_attainment": 0.8211143695014663,
+ "per_model": {
+  "model_1": {
+   "sent": 65,
+   "ok": 65,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 12.021,
+   "ttft_p50": 0.16678595542907715,
+   "slo": 0.8769230769230769
+  },
+  "model_2": {
+   "sent": 52,
+   "ok": 52,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 7.44,
+   "ttft_p50": 0.18673360347747803,
+   "slo": 0.6923076923076923
+  },
+  "model_3": {
+   "sent": 58,
+   "ok": 58,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.302,
+   "ttft_p50": 0.17584896087646484,
+   "slo": 0.8275862068965517
+  },
+  "model_4": {
+   "sent": 47,
+   "ok": 47,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 4.984,
+   "ttft_p50": 0.1685638427734375,
+   "slo": 0.723404255319149
+  },
+  "model_5": {
+   "sent": 59,
+   "ok": 59,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 3.294,
+   "ttft_p50": 0.1679248809814453,
+   "slo": 0.8983050847457628
+  },
+  "model_6": {
+   "sent": 60,
+   "ok": 60,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 7.602,
+   "ttft_p50": 0.17727959156036377,
+   "slo": 0.8666666666666667
+  }
+ }
+}

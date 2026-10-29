@@ -54,7 +54,7 @@ Este relatório **substitui a análise** de [Janela de ociosidade e estratégias
 | Servidor | flags do exemplo 3 do README (kvcached, GPU scheduler, controlador `simple-global`, model service, worker pool), `--workers-per-gpu` = número de modelos |
 | Memória | como no Prism publicado: árbitro desligado (`PRISM_MEMORY_ARBITER=0`), espaço virtual do kvcached de 25 GB. Correções ligadas: R2.1, R2.2, R2.3 e as que agem em falha (desfazer ativação sem memória, detectar workers mortos) |
 | Carga | `polyaxon/overload_load.py`: chegadas abertas, saída de tamanho exato. A carga dura um tempo fixo, e depois o gerador espera mais 300 s pelas respostas. O que não foi respondido até lá conta como **não atendida**; erros de conexão contam como **falhas** |
-| SLO | TTFT ≤ 1 s e TPOT ≤ 100 ms |
+| SLO | o dos testes (enviado ao servidor e calculado pelo gerador de carga): TTFT < 1 s **e** TPOT < 100 ms. As tabelas mostram também o TTFT sozinho com limites de 1, 2 e 5 s e o TPOT sozinho com limite de 100 ms |
 | Saúde do nó | antes de cada nível, 10 processos inicializam o kvcached ao mesmo tempo. Se algum falhar, o job espera e testa de novo (`health_gate` em `run_examples.sh`) |
 
 **Cenários.**
@@ -100,7 +100,13 @@ O `manifest.csv` lista a origem de cada nível (rodada, job e caminho).
 **Como ler as tabelas.**
 - *Rep.*: quantas repetições a linha tem.
 - *Perdas*: o total nas repetições e, entre parênteses, o de cada uma.
+- *TTFT < 1 s / 2 s / 5 s* e *TPOT < 100 ms*: a porcentagem das requisições enviadas que cumpre só aquele limite (média das repetições).
+- *SLO: TTFT < 1 s e TPOT < 100 ms*: a porcentagem que cumpre os dois limites ao mesmo tempo. É o SLO usado nos testes e o mesmo valor que o gerador de carga calcula.
+- Em todas as colunas de SLO, a base é o total de requisições enviadas: as não atendidas e as falhas contam como fora do SLO. A comparação é estrita (`<`), como no gerador.
 - *TTFT p90* e *SLO*: a média das repetições, com o mínimo e o máximo entre parênteses.
+- **O que as colunas novas mostram nestes dados:**
+  - Afrouxar o limite de TTFT de 1 s para 5 s acrescenta só 0–8 pontos (4 em média). Quase toda requisição ou é atendida em menos de 1 s, ou espera dezenas de segundos pela ativação do modelo. Por isso, a ordem das configurações não muda com o limite.
+  - O TPOT quase nunca é o que reprova uma requisição: o SLO só de TPOT fica em ≥ 89% em 45 das 48 configurações. As exceções são as duas com perdas grandes (`ovl_mix` original, 3%, e `ovl_mem` 0,5 com limiar de 5 s, 77%) e o limiar de 5 s no `ovl_trace_big` 2× (85%). Assim, o SLO combinado fica próximo do SLO de TTFT < 1 s.
 - *Pior espera pelo 1º token*: entre todos os modelos, o maior tempo da primeira requisição do modelo até o primeiro token dele. Mede a fome: um valor perto da duração da carga quer dizer que o modelo só foi atendido quando a carga acabou. "nunca" = algum modelo não foi atendido nem no prazo extra.
 - *Ativações*: a média por execução.
 
@@ -108,15 +114,15 @@ O `manifest.csv` lista a origem de cada nível (rodada, job e caminho).
 
 ### `ovl_phases` (troca de grupos)
 
-| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | SLO (%) | Pior espera pelo 1º token (s) | Ativações |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| original (50 s) | 4 | 100,0% | — | 0,15 / 54,5 | 33,6 (32,3–34,3) | 71 (69–73) | 58 (57–59) | 15 |
-| limiar 25 s | 3 | 100,0% | — | 0,14 / 31,9 | 10,5 (7,5–16,1) | 82 (75–86) | 38 (34–48) | 15 |
-| limiar 10 s | 3 | 100,0% | — | 0,13 / 20,8 | 2,4 (0,3–5,1) | 87 (81–90) | 22 (21–24) | 16 |
-| limiar 5 s | 3 | 100,0% | — | 0,13 / 24,3 | 4,3 (1,7–9,0) | 88 (85–89) | 22 (21–23) | 16 |
-| limiar 1 s | 3 | 100,0% | — | 0,13 / 20,4 | 2,7 (0,2–7,1) | 87 (78–93) | 17 (16–18) | 20 |
-| limiar 0,5 s | 3 | 100,0% | — | 0,13 / 16,1 | 0,8 (0,3–1,4) | 91 (89–92) | 19 (18–20) | 20 |
-| limiar 0,1 s | 3 | 100,0% | — | 0,13 / 16,9 | 1,7 (0,3–2,6) | 89 (86–93) | 18 (17–19) | 20 |
+| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | TTFT < 1 s (%) | TTFT < 2 s (%) | TTFT < 5 s (%) | TPOT < 100 ms (%) | SLO: TTFT < 1 s e TPOT < 100 ms (%) | Pior espera pelo 1º token (s) | Ativações |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| original (50 s) | 4 | 100,0% | — | 0,15 / 54,5 | 33,6 (32,3–34,3) | 72 | 73 | 75 | 100 | 71 (69–73) | 58 (57–59) | 15 |
+| limiar 25 s | 3 | 100,0% | — | 0,14 / 31,9 | 10,5 (7,5–16,1) | 84 | 85 | 86 | 99 | 82 (75–86) | 38 (34–48) | 15 |
+| limiar 10 s | 3 | 100,0% | — | 0,13 / 20,8 | 2,4 (0,3–5,1) | 88 | 90 | 92 | 98 | 87 (81–90) | 22 (21–24) | 16 |
+| limiar 5 s | 3 | 100,0% | — | 0,13 / 24,3 | 4,3 (1,7–9,0) | 88 | 89 | 91 | 100 | 88 (85–89) | 22 (21–23) | 16 |
+| limiar 1 s | 3 | 100,0% | — | 0,13 / 20,4 | 2,7 (0,2–7,1) | 89 | 90 | 92 | 98 | 87 (78–93) | 17 (16–18) | 20 |
+| limiar 0,5 s | 3 | 100,0% | — | 0,13 / 16,1 | 0,8 (0,3–1,4) | 91 | 92 | 94 | 100 | 91 (89–92) | 19 (18–20) | 20 |
+| limiar 0,1 s | 3 | 100,0% | — | 0,13 / 16,9 | 1,7 (0,3–2,6) | 90 | 91 | 93 | 99 | 89 (86–93) | 18 (17–19) | 20 |
 
 ![ovl_phases: SLO e TTFT p90 por configuração](figs/2026-10-28-ociosidade/resumo__ovl_phases__rate0.5.png)
 
@@ -151,52 +157,74 @@ O `manifest.csv` lista a origem de cada nível (rodada, job e caminho).
 
 **A 0,2 req/s por modelo:**
 
-| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | SLO (%) | Pior espera pelo 1º token (s) | Ativações |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| original (50 s) | 6 | 100,0% | — | 0,20 / 340,3 | 268,1 (266,0–270,0) | 62 (50–66) | 352 (350–355) | 4 |
-| limiar 25 s | 3 | 100,0% | — | 2,78 / 313,8 | 225,9 (221,7–229,5) | 48 (20–67) | 327 (323–331) | 6 |
-| limiar 10 s | 3 | 100,0% | — | 4,06 / 309,4 | 187,9 (171,3–199,2) | 51 (33–65) | 327 (324–330) | 11 |
-| limiar 5 s | 3 | 100,0% | — | 0,19 / 305,7 | 199,5 (193,1–208,0) | 66 (65–67) | 325 (313–339) | 15 |
-| limiar 1 s | 3 | 100,0% | — | 11,98 / 231,2 | 139,5 (89,9–169,8) | 36 (27–42) | 55 (33–80) | 19 |
+| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | TTFT < 1 s (%) | TTFT < 2 s (%) | TTFT < 5 s (%) | TPOT < 100 ms (%) | SLO: TTFT < 1 s e TPOT < 100 ms (%) | Pior espera pelo 1º token (s) | Ativações |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| original (50 s) | 6 | 100,0% | — | 0,20 / 340,3 | 268,1 (266,0–270,0) | 64 | 65 | 65 | 98 | 62 (50–66) | 352 (350–355) | 4 |
+| limiar 25 s | 3 | 100,0% | — | 2,78 / 313,8 | 225,9 (221,7–229,5) | 55 | 58 | 60 | 90 | 48 (20–67) | 327 (323–331) | 6 |
+| limiar 10 s | 3 | 100,0% | — | 4,06 / 309,4 | 187,9 (171,3–199,2) | 53 | 54 | 56 | 97 | 51 (33–65) | 327 (324–330) | 11 |
+| limiar 5 s | 3 | 100,0% | — | 0,19 / 305,7 | 199,5 (193,1–208,0) | 66 | 67 | 68 | 98 | 66 (65–67) | 325 (313–339) | 15 |
+| limiar 1 s | 3 | 100,0% | — | 11,98 / 231,2 | 139,5 (89,9–169,8) | 37 | 39 | 45 | 98 | 36 (27–42) | 55 (33–80) | 19 |
 
 **A 0,5 req/s por modelo:**
 
-| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | SLO (%) | Pior espera pelo 1º token (s) | Ativações |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| original (50 s) | 3 | 100,0% | — | 88,02 / 381,1 | 312,9 (280,3–341,1) | 21 (15–29) | 373 (362–390) | 4 |
-| limiar 25 s | 3 | 100,0% | — | 56,97 / 360,6 | 276,8 (269,3–283,1) | 19 (15–25) | 372 (365–379) | 4 |
-| limiar 10 s | 3 | 100,0% | — | 80,51 / 356,9 | 278,5 (269,2–290,3) | 29 (27–33) | 368 (340–387) | 4 |
-| limiar 5 s | 3 | 85,9% | 614 (0, 614, 0) | 90,32 / 346,4 | 291,8 (279,0–303,6) | 16 (0–31) | nunca (348–nunca) | 4 |
-| limiar 1 s | 3 | 100,0% | — | 38,01 / 337,7 | 265,6 (252,6–276,3) | 13 (6–22) | 344 (336–357) | 7 |
+| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | TTFT < 1 s (%) | TTFT < 2 s (%) | TTFT < 5 s (%) | TPOT < 100 ms (%) | SLO: TTFT < 1 s e TPOT < 100 ms (%) | Pior espera pelo 1º token (s) | Ativações |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| original (50 s) | 3 | 100,0% | — | 88,02 / 381,1 | 312,9 (280,3–341,1) | 21 | 22 | 26 | 99 | 21 (15–29) | 373 (362–390) | 4 |
+| limiar 25 s | 3 | 100,0% | — | 56,97 / 360,6 | 276,8 (269,3–283,1) | 20 | 21 | 26 | 98 | 19 (15–25) | 372 (365–379) | 4 |
+| limiar 10 s | 3 | 100,0% | — | 80,51 / 356,9 | 278,5 (269,2–290,3) | 29 | 31 | 36 | 99 | 29 (27–33) | 368 (340–387) | 4 |
+| limiar 5 s | 3 | 85,9% | 614 (0, 614, 0) | 90,32 / 346,4 | 291,8 (279,0–303,6) | 16 | 17 | 20 | 77 | 16 (0–31) | nunca (348–nunca) | 4 |
+| limiar 1 s | 3 | 100,0% | — | 38,01 / 337,7 | 265,6 (252,6–276,3) | 16 | 18 | 22 | 89 | 13 (6–22) | 344 (336–357) | 7 |
 
 - **"100% atendidas" esconde a fome.** A carga dura 300 s, e os modelos que começam inativos esperam ~350 s pelo primeiro token: só são atendidos no prazo extra, depois que a carga acabou e os ativos ficaram ociosos. A pior espera pelo 1º token é o que mostra isso.
 - **O limiar só muda algo a 0,2 req/s e com 1 s.** A 0,2 req/s, cada modelo tem pausas curtas entre as requisições, e com 1 s o controlador aproveita essas pausas para revezar. A pior espera cai de 352 s para 55 s, mas o SLO cai de 62% para 36%. A 0,5 req/s nenhum modelo para, e todos os limiares se comportam como o original.
-- **As 614 não atendidas do limiar de 5 s a 0,5 req/s** (1 de 3 repetições) não vêm de falha, e sim da fome levada ao extremo. Os 4 modelos que começaram inativos (6, 8, 9 e 10) não foram ativados nem durante o prazo extra, porque os ativos continuaram com fila. O primeiro deles só entrou aos 583 s, e o prazo acabou antes de as requisições serem respondidas.
+- **As 614 não atendidas do limiar de 5 s a 0,5 req/s** (1 de 3 repetições, rodada `fix3`, job `50962574`; última linha do tempo desta seção) vêm de duas causas:
+  - **Fome (455):** o `model_8`, o `model_9` e o `model_10` começaram inativos e não couberam até o fim da carga, porque os ativos nunca ficaram ociosos. O `model_8` só entrou aos 583 s, e o prazo acabou antes de as requisições dele serem respondidas.
+  - **Um modelo ativo que não atende (137):** o `model_6` foi despejado aos 5 s, depois que uma requisição dele terminou. Foi reativado aos 28 s, com ~7 GB livres na visão do controlador, e ficou ativo até o fim **sem responder nada** até ~593 s. O GPU scheduler parou de lhe enviar requisições: ele contava 11 na fila do worker (o limite), mas o worker só recebeu 1, e nem ela passou pelo prefill. O modelo nunca ficou ocioso, então nunca foi despejado.
+  
+  O segundo caso tem o mesmo sintoma do travamento da política original no `ovl_mix` (seção 3). Lá também os modelos ficam ativos, com 11 requisições na fila de cada worker e nenhuma resposta. A hipótese é que um modelo ativado quando só cabem os pesos fica sem espaço para KV. Ele não atende, não fica ocioso e não sai. Isso ainda precisa ser confirmado (ver [Próximos passos](#próximos-passos)).
 - **Em 22/10, 4 das 10 execuções do `ovl_mem` caíram.** Agora nenhuma caiu.
 
 ![ovl_mem a 0,2 req/s: SLO e TTFT p90 por configuração](figs/2026-10-28-ociosidade/resumo__ovl_mem__rate0.2.png)
+
+**Linhas do tempo.** Em cada figura, a faixa azul mostra quando o modelo está ativo, e cada traço preto é uma resposta concluída, no instante em que terminou. Um "x" vermelho marca a chegada de uma requisição que nunca foi respondida.
+
+**Política original, 0,2 req/s.** Nesta repetição, o `model_8` é ativado logo no início, e os 7 modelos ativos ocupam a GPU (~130 de 140 GB) durante toda a carga. O `model_7`, o `model_9` e o `model_10` recebem requisições desde o começo, mas a primeira resposta deles só sai aos 355–362 s: eles só entram depois que a carga acaba e os outros ficam ociosos por 50 s.
+
+![ovl_mem a 0,2 req/s, política original](figs/2026-10-28-ociosidade/ovl_mem__original__r1__rate0.2.png)
+
+**Limiar de 1 s, 0,2 req/s.** Os modelos saem nas pausas curtas entre requisições e cedem lugar, e todos passam pela GPU várias vezes durante a carga. Cada volta é uma partida a frio (faixa amarela), e as quedas na memória da GPU marcam as trocas. Por isso, a pior espera cai de 352 s para 55 s, mas o SLO cai de 62% para 36%.
+
+![ovl_mem a 0,2 req/s, limiar de 1 s](figs/2026-10-28-ociosidade/ovl_mem__idle1__r1__rate0.2.png)
+
+**Troca por throughput P0D1, 0,2 req/s (seção 3).** O revezamento é mais regular: cada modelo fica de 50 s a 100 s na GPU e sai por uma troca (triângulo verde para baixo), e todos recebem resposta desde o primeiro minuto.
+
+![ovl_mem a 0,2 req/s, troca P0D1](figs/2026-10-28-ociosidade/ovl_mem__tp_P0D1__r1__rate0.2.png)
+
+**Limiar de 5 s, 0,5 req/s, a repetição com 614 não atendidas.** O `model_8`, o `model_9` e o `model_10` nunca entram durante a carga. O `model_6` fica ativo a partir dos 28 s, mas acumula "x" até o fim, sem nenhuma resposta (explicação acima).
+
+![ovl_mem a 0,5 req/s, limiar de 5 s, repetição 2](figs/2026-10-28-ociosidade/ovl_mem__idle5__r2__rate0.5.png)
 
 ### `ovl_trace_big` (trace real com 12 modelos)
 
 **Escala 1 (1×):**
 
-| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | SLO (%) | Pior espera pelo 1º token (s) | Ativações |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| original (50 s) | 5 | 100,0% | — | 0,48 / 425,2 | 214,2 (162,2–276,5) | 69 (28–81) | 649 (648–650) | 12 |
-| limiar 25 s | 3 | 100,0% | — | 0,11 / 343,1 | 50,2 (46,2–55,1) | 81 (80–83) | 54 (54–56) | 28 |
-| limiar 10 s | 3 | 100,0% | — | 0,11 / 287,9 | 35,1 (29,8–41,6) | 77 (74–81) | 42 (30–62) | 52 |
-| limiar 5 s | 3 | 100,0% | — | 0,12 / 266,7 | 36,1 (31,2–42,2) | 74 (64–81) | 47 (34–55) | 59 |
-| limiar 1 s | 3 | 100,0% | — | 0,14 / 247,2 | 31,0 (19,6–50,6) | 69 (49–79) | 67 (27–94) | 68 |
+| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | TTFT < 1 s (%) | TTFT < 2 s (%) | TTFT < 5 s (%) | TPOT < 100 ms (%) | SLO: TTFT < 1 s e TPOT < 100 ms (%) | Pior espera pelo 1º token (s) | Ativações |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| original (50 s) | 5 | 100,0% | — | 0,48 / 425,2 | 214,2 (162,2–276,5) | 74 | 75 | 76 | 92 | 69 (28–81) | 649 (648–650) | 12 |
+| limiar 25 s | 3 | 100,0% | — | 0,11 / 343,1 | 50,2 (46,2–55,1) | 82 | 83 | 84 | 98 | 81 (80–83) | 54 (54–56) | 28 |
+| limiar 10 s | 3 | 100,0% | — | 0,11 / 287,9 | 35,1 (29,8–41,6) | 79 | 80 | 83 | 98 | 77 (74–81) | 42 (30–62) | 52 |
+| limiar 5 s | 3 | 100,0% | — | 0,12 / 266,7 | 36,1 (31,2–42,2) | 77 | 79 | 81 | 96 | 74 (64–81) | 47 (34–55) | 59 |
+| limiar 1 s | 3 | 100,0% | — | 0,14 / 247,2 | 31,0 (19,6–50,6) | 74 | 77 | 81 | 92 | 69 (49–79) | 67 (27–94) | 68 |
 
 **Escala 0,5 (2×):**
 
-| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | SLO (%) | Pior espera pelo 1º token (s) | Ativações |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| original (50 s) | 3 | 100,0% | — | 0,16 / 247,7 | 205,1 (203,5–206,1) | 61 (56–64) | 355 (353–356) | 8 |
-| limiar 25 s | 3 | 100,0% | — | 0,14 / 220,3 | 173,7 (170,6–175,3) | 64 (62–64) | 329 (329–330) | 11 |
-| limiar 10 s | 3 | 100,0% | 1 (0, 1, 0) | 0,17 / 198,7 | 135,3 (106,5–152,3) | 57 (54–63) | 210 (203–220) | 18 |
-| limiar 5 s | 3 | 100,0% | — | 12,02 / 253,4 | 177,8 (107,7–273,9) | 41 (13–59) | 248 (206–327) | 21 |
-| limiar 1 s | 3 | 100,0% | — | 0,15 / 210,8 | 151,5 (143,2–165,4) | 62 (62–63) | 211 (208–213) | 32 |
+| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | TTFT < 1 s (%) | TTFT < 2 s (%) | TTFT < 5 s (%) | TPOT < 100 ms (%) | SLO: TTFT < 1 s e TPOT < 100 ms (%) | Pior espera pelo 1º token (s) | Ativações |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| original (50 s) | 3 | 100,0% | — | 0,16 / 247,7 | 205,1 (203,5–206,1) | 63 | 64 | 64 | 97 | 61 (56–64) | 355 (353–356) | 8 |
+| limiar 25 s | 3 | 100,0% | — | 0,14 / 220,3 | 173,7 (170,6–175,3) | 64 | 64 | 65 | 98 | 64 (62–64) | 329 (329–330) | 11 |
+| limiar 10 s | 3 | 100,0% | 1 (0, 1, 0) | 0,17 / 198,7 | 135,3 (106,5–152,3) | 59 | 60 | 61 | 97 | 57 (54–63) | 210 (203–220) | 18 |
+| limiar 5 s | 3 | 100,0% | — | 12,02 / 253,4 | 177,8 (107,7–273,9) | 47 | 51 | 53 | 85 | 41 (13–59) | 248 (206–327) | 21 |
+| limiar 1 s | 3 | 100,0% | — | 0,15 / 210,8 | 151,5 (143,2–165,4) | 63 | 63 | 65 | 98 | 62 (62–63) | 211 (208–213) | 32 |
 
 A perda do limiar de 10 s é o erro de medição descrito na [seção 4](#4-falhas-que-sobraram-e-as-correções-em-ação): a requisição foi atendida.
 
@@ -220,15 +248,15 @@ A perda do limiar de 10 s é o erro de medição descrito na [seção 4](#4-falh
 
 Cada uma no cenário que pretende resolver. A linha da política original é a mesma das tabelas da seção 1.
 
-| Cenário | Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | SLO (%) | Pior espera pelo 1º token (s) | Ativações |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `ovl_phases` | original | 4 | 100,0% | — | 0,15 / 54,5 | 33,6 (32,3–34,3) | 71 (69–73) | 58 (57–59) | 15 |
-| | despejo sob pressão | 3 | 100,0% | — | 0,14 / 46,6 | 12,2 (10,5–13,3) | 76 (75–78) | 29 (21–33) | 15 |
-| `ovl_trace_big` 1× | original | 5 | 100,0% | — | 0,48 / 425,2 | 214,2 (162,2–276,5) | 69 (28–81) | 649 (648–650) | 12 |
-| | ociosidade adaptativa | 3 | 100,0% | — | 0,11 / 313,4 | 36,7 (25,1–45,5) | 79 (76–81) | 59 (35–86) | 51 |
-| `ovl_mem` 0,2 | original | 6 | 100,0% | — | 0,20 / 340,3 | 268,1 (266,0–270,0) | 62 (50–66) | 352 (350–355) | 4 |
-| | só folga de 3 GB | 3 | 100,0% | — | 0,20 / 343,0 | 269,3 (268,6–269,7) | 63 (56–66) | 354 (353–356) | 4 |
-| | rodízio anti-fome | 3 | 100,0% | — | 6,74 / 303,5 | 170,7 (137,6–224,9) | 42 (39–44) | 320 (313–329) | 45 |
+| Cenário | Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | TTFT < 1 s (%) | TTFT < 2 s (%) | TTFT < 5 s (%) | TPOT < 100 ms (%) | SLO: TTFT < 1 s e TPOT < 100 ms (%) | Pior espera pelo 1º token (s) | Ativações |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `ovl_phases` 0,5 | original (50 s) | 4 | 100,0% | — | 0,15 / 54,5 | 33,6 (32,3–34,3) | 72 | 73 | 75 | 100 | 71 (69–73) | 58 (57–59) | 15 |
+|  | despejo sob pressão | 3 | 100,0% | — | 0,14 / 46,6 | 12,2 (10,5–13,3) | 77 | 79 | 83 | 100 | 76 (75–78) | 29 (21–33) | 15 |
+| `ovl_trace_big` 1× | original (50 s) | 5 | 100,0% | — | 0,48 / 425,2 | 214,2 (162,2–276,5) | 74 | 75 | 76 | 92 | 69 (28–81) | 649 (648–650) | 12 |
+|  | ociosidade adaptativa | 3 | 100,0% | — | 0,11 / 313,4 | 36,7 (25,1–45,5) | 80 | 81 | 83 | 99 | 79 (76–81) | 59 (35–86) | 51 |
+| `ovl_mem` 0,2 | original (50 s) | 6 | 100,0% | — | 0,20 / 340,3 | 268,1 (266,0–270,0) | 64 | 65 | 65 | 98 | 62 (50–66) | 352 (350–355) | 4 |
+|  | só folga de 3 GB | 3 | 100,0% | — | 0,20 / 343,0 | 269,3 (268,6–269,7) | 65 | 66 | 66 | 97 | 63 (56–66) | 354 (353–356) | 4 |
+|  | rodízio anti-fome | 3 | 100,0% | — | 6,74 / 303,5 | 170,7 (137,6–224,9) | 42 | 44 | 48 | 100 | 42 (39–44) | 320 (313–329) | 45 |
 
 - **Despejo sob pressão** melhora a troca de grupos (p90 de 34 s para 12 s), mas menos que um limiar curto (1–4 s). Ele só despeja quem está ocioso há ≥ 2 s, e o grupo que sai continua ocupado até terminar as requisições em andamento. Em 22/10 ele perdeu 157 requisições por uma falha externa; agora não perde nada.
 - **Ociosidade adaptativa** resolve a fome do trace (pior espera de 649 s para 59 s), com SLO de 79%. Fica no mesmo nível dos limiares fixos de 10–25 s, então não justifica a complexidade.
@@ -241,44 +269,44 @@ Desenho igual ao de 22/10 (ver a [seção 3 daquele relatório](2026-10-22%20Jan
 
 ### `ovl_mem` a 0,2 req/s
 
-| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | SLO (%) | Pior espera pelo 1º token (s) | Trocas / preemptadas |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| original | 6 | 100,0% | — | 0,20 / 340,3 | 268,1 (266,0–270,0) | 62 (50–66) | 352 (350–355) | 0 / 0 |
-| troca P0D0 | 3 | 100,0% | — | 15,75 / 102,8 | 58,3 (51,6–62,7) | 25 (21–27) | 43 (39–47) | 41 / 0 |
-| troca P0D1 | 3 | 100,0% | — | 15,95 / 94,6 | 59,7 (52,0–63,9) | 24 (22–26) | 39 (38–41) | 37 / 0 |
-| troca P1D0 | 3 | 100,0% | — | 20,41 / 149,3 | 73,3 (66,7–78,9) | 17 (16–17) | 31 (30–32) | 65 / 327 |
-| troca P1D1 | 3 | 100,0% | — | 15,01 / 94,4 | 58,1 (52,7–67,5) | 25 (22–28) | 38 (37–39) | 45 / 51 |
+| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | TTFT < 1 s (%) | TTFT < 2 s (%) | TTFT < 5 s (%) | TPOT < 100 ms (%) | SLO: TTFT < 1 s e TPOT < 100 ms (%) | Pior espera pelo 1º token (s) | Trocas / preemptadas |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| original (50 s) | 6 | 100,0% | — | 0,20 / 340,3 | 268,1 (266,0–270,0) | 64 | 65 | 65 | 98 | 62 (50–66) | 352 (350–355) | 0 / 0 |
+| troca P0D0 | 3 | 100,0% | — | 15,75 / 102,8 | 58,3 (51,6–62,7) | 25 | 27 | 33 | 99 | 25 (21–27) | 43 (39–47) | 41 / 0 |
+| troca P0D1 | 3 | 100,0% | — | 15,95 / 94,6 | 59,7 (52,0–63,9) | 25 | 28 | 33 | 98 | 24 (22–26) | 39 (38–41) | 37 / 0 |
+| troca P1D0 | 3 | 100,0% | — | 20,41 / 149,3 | 73,3 (66,7–78,9) | 17 | 19 | 24 | 100 | 17 (16–17) | 31 (30–32) | 65 / 327 |
+| troca P1D1 | 3 | 100,0% | — | 15,01 / 94,4 | 58,1 (52,7–67,5) | 25 | 27 | 33 | 100 | 25 (22–28) | 38 (37–39) | 45 / 51 |
 
 ### `ovl_mix`
 
-| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | SLO (%) | Pior espera pelo 1º token (s) | Trocas / preemptadas |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| original | 3 | 2,6% | 1605 (536, 536, 533) | 0,12 / 9,4 | 2,1 (1,3–3,4) | 2 (2–2) | nunca | 0 / 0 |
-| troca P0D0 | 3 | 99,9% | 1 (0, 0, 1) | 4,70 / 72,4 | 41,7 (31,8–57,6) | 44 (30–53) | 54 (47–64) | 38 / 0 |
-| troca P0D1 | 3 | 100,0% | — | 1,14 / 58,2 | 36,1 (33,3–40,1) | 51 (46–56) | 53 (39–73) | 38 / 0 |
-| troca P1D0 | 3 | 100,0% | — | 3,46 / 86,3 | 36,3 (30,1–45,0) | 46 (34–53) | 30 (24–33) | 51 / 158 |
-| troca P1D1 | 3 | 100,0% | — | 1,00 / 57,7 | 34,5 (31,1–38,5) | 51 (48–55) | 44 (40–51) | 38 / 26 |
+| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | TTFT < 1 s (%) | TTFT < 2 s (%) | TTFT < 5 s (%) | TPOT < 100 ms (%) | SLO: TTFT < 1 s e TPOT < 100 ms (%) | Pior espera pelo 1º token (s) | Trocas / preemptadas |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| original (50 s) | 3 | 2,6% | 1605 (536, 536, 533) | 0,12 / 9,4 | 2,1 (1,3–3,4) | 2 | 2 | 2 | 3 | 2 (2–2) | nunca (nunca–nunca) | 0 / 0 |
+| troca P0D0 | 3 | 99,9% | 1 (0, 0, 1) | 4,70 / 72,4 | 41,7 (31,8–57,6) | 46 | 48 | 52 | 97 | 44 (30–53) | 54 (47–64) | 38 / 0 |
+| troca P0D1 | 3 | 100,0% | — | 1,14 / 58,2 | 36,1 (33,3–40,1) | 51 | 53 | 57 | 99 | 51 (46–56) | 53 (39–73) | 38 / 0 |
+| troca P1D0 | 3 | 100,0% | — | 3,46 / 86,3 | 36,3 (30,1–45,0) | 46 | 47 | 52 | 100 | 46 (34–53) | 30 (24–33) | 51 / 158 |
+| troca P1D1 | 3 | 100,0% | — | 1,00 / 57,7 | 34,5 (31,1–38,5) | 51 | 54 | 56 | 100 | 51 (48–55) | 44 (40–51) | 38 / 26 |
 
 ### `ovl_trace_big` escala 1
 
-| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | SLO (%) | Pior espera pelo 1º token (s) | Trocas / preemptadas |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| original | 5 | 100,0% | — | 0,48 / 425,2 | 214,2 (162,2–276,5) | 69 (28–81) | 649 (648–650) | 0 / 0 |
-| troca P0D0 | 3 | 100,0% | — | 0,13 / 79,3 | 32,0 (29,0–34,1) | 68 (64–72) | 57 (48–62) | 62 / 0 |
-| troca P0D1 | 3 | 100,0% | — | 0,11 / 71,3 | 27,7 (26,4–28,7) | 72 (72–73) | 50 (48–54) | 62 / 0 |
-| troca P1D0 | 3 | 99,3% | 25 (25, 0, 0) | 0,16 / 267,6 | 60,4 (44,5–80,1) | 55 (53–57) | 48 (48–49) | 132 / 599 |
-| troca P1D1 | 3 | 100,0% | — | 0,12 / 105,4 | 36,5 (35,3–38,0) | 65 (63–68) | 48 (48–48) | 72 / 56 |
+| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | TTFT < 1 s (%) | TTFT < 2 s (%) | TTFT < 5 s (%) | TPOT < 100 ms (%) | SLO: TTFT < 1 s e TPOT < 100 ms (%) | Pior espera pelo 1º token (s) | Trocas / preemptadas |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| original (50 s) | 5 | 100,0% | — | 0,48 / 425,2 | 214,2 (162,2–276,5) | 74 | 75 | 76 | 92 | 69 (28–81) | 649 (648–650) | 0 / 0 |
+| troca P0D0 | 3 | 100,0% | — | 0,13 / 79,3 | 32,0 (29,0–34,1) | 71 | 73 | 74 | 96 | 68 (64–72) | 57 (48–62) | 62 / 0 |
+| troca P0D1 | 3 | 100,0% | — | 0,11 / 71,3 | 27,7 (26,4–28,7) | 73 | 74 | 76 | 99 | 72 (72–73) | 50 (48–54) | 62 / 0 |
+| troca P1D0 | 3 | 99,3% | 25 (25, 0, 0) | 0,16 / 267,6 | 60,4 (44,5–80,1) | 55 | 57 | 59 | 99 | 55 (53–57) | 48 (48–49) | 132 / 599 |
+| troca P1D1 | 3 | 100,0% | — | 0,12 / 105,4 | 36,5 (35,3–38,0) | 65 | 66 | 68 | 100 | 65 (63–68) | 48 (48–48) | 72 / 56 |
 
 ### `ovl_phases`
 
-| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | SLO (%) | Pior espera pelo 1º token (s) | Trocas / preemptadas |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| original | 4 | 100,0% | — | 0,15 / 54,5 | 33,6 (32,3–34,3) | 71 (69–73) | 58 (57–59) | 0 / 0 |
-| limiar 0,5 s (seção 1) | 3 | 100,0% | — | 0,13 / 16,1 | 0,8 (0,3–1,4) | 91 (89–92) | 19 (18–20) | 0 / 0 |
-| troca P0D0 | 3 | 100,0% | — | 0,14 / 38,9 | 10,7 (8,0–12,6) | 79 (77–81) | 21 (21–21) | 9 / 0 |
-| troca P0D1 | 3 | 100,0% | — | 0,13 / 41,0 | 10,2 (9,7–10,9) | 79 (78–81) | 23 (21–28) | 9 / 0 |
-| troca P1D0 | 3 | 100,0% | — | 0,14 / 38,7 | 7,0 (6,8–7,2) | 82 (80–83) | 25 (21–27) | 12 / 3 |
-| troca P1D1 | 3 | 100,0% | — | 0,14 / 41,4 | 10,8 (9,8–11,7) | 78 (77–79) | 25 (21–27) | 9 / 0 |
+| Configuração | Rep. | Atendidas | Perdas | TTFT p50 / p99 (s) | TTFT p90 (s) | TTFT < 1 s (%) | TTFT < 2 s (%) | TTFT < 5 s (%) | TPOT < 100 ms (%) | SLO: TTFT < 1 s e TPOT < 100 ms (%) | Pior espera pelo 1º token (s) | Trocas / preemptadas |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| original (50 s) | 4 | 100,0% | — | 0,15 / 54,5 | 33,6 (32,3–34,3) | 72 | 73 | 75 | 100 | 71 (69–73) | 58 (57–59) | 0 / 0 |
+| limiar 0,5 s | 3 | 100,0% | — | 0,13 / 16,1 | 0,8 (0,3–1,4) | 91 | 92 | 94 | 100 | 91 (89–92) | 19 (18–20) | 0 / 0 |
+| troca P0D0 | 3 | 100,0% | — | 0,14 / 38,9 | 10,7 (8,0–12,6) | 79 | 81 | 84 | 100 | 79 (77–81) | 21 (21–21) | 9 / 0 |
+| troca P0D1 | 3 | 100,0% | — | 0,13 / 41,0 | 10,2 (9,7–10,9) | 79 | 81 | 85 | 100 | 79 (78–81) | 23 (21–28) | 9 / 0 |
+| troca P1D0 | 3 | 100,0% | — | 0,14 / 38,7 | 7,0 (6,8–7,2) | 82 | 83 | 88 | 100 | 82 (80–83) | 25 (21–27) | 12 / 3 |
+| troca P1D1 | 3 | 100,0% | — | 0,14 / 41,4 | 10,8 (9,8–11,7) | 79 | 81 | 85 | 100 | 78 (77–79) | 25 (21–27) | 9 / 0 |
 
 **Espera do grupo novo em cada troca de fase** (mesma medida da seção 1):
 
@@ -303,6 +331,18 @@ Desenho igual ao de 22/10 (ver a [seção 3 daquele relatório](2026-10-22%20Jan
 ![ovl_mix, política original](figs/2026-10-28-ociosidade/ovl_mix__original__r1__rate0.2.png)
 ![ovl_mix, troca P1D1](figs/2026-10-28-ociosidade/ovl_mix__tp_P1D1__r1__rate0.2.png)
 
+**Linhas do tempo: política original contra troca P0D1.** P0D1 é a variante que fica entre as melhores em todos os cenários. Nas figuras da troca, o triângulo verde para baixo marca o momento em que o controlador escolhe a vítima. Com drenagem, o modelo ainda atende a sua fila por até 15 s antes de sair, por isso a faixa azul continua um pouco depois do triângulo.
+
+*`ovl_mem` a 0,2 req/s.* Na original, os modelos que começam ativos ficam na GPU durante toda a carga, e o `model_7`, o `model_9` e o `model_10` só respondem depois dos 350 s. Na troca, todos os modelos se revezam em turnos de 50–100 s, e cada um tem respostas espalhadas pela carga inteira.
+
+![ovl_mem a 0,2 req/s, política original](figs/2026-10-28-ociosidade/ovl_mem__original__r1__rate0.2.png)
+![ovl_mem a 0,2 req/s, troca P0D1](figs/2026-10-28-ociosidade/ovl_mem__tp_P0D1__r2__rate0.2.png)
+
+*`ovl_trace_big`, escala 1.* Na original, depois dos primeiros ~200 s, os mesmos modelos ficam ativos, e o `model_8` e o `model_12` só respondem depois dos 600 s. Na troca, os modelos de tráfego esparso (7 a 12) entram e saem em turnos curtos durante toda a carga. Os mais requisitados (`model_1` e, a partir de ~215 s, o `model_2`) ficam na GPU quase o tempo todo.
+
+![ovl_trace_big, escala 1, política original](figs/2026-10-28-ociosidade/ovl_trace_big__original__r2__ts1.png)
+![ovl_trace_big, escala 1, troca P0D1](figs/2026-10-28-ociosidade/ovl_trace_big__tp_P0D1__r1__ts1.png)
+
 **O que os resultados mostram:**
 
 - **A troca acaba com a fome em todos os cenários com pressão.** A pior espera pelo 1º token fica em 30–57 s no `ovl_mem`, no `ovl_mix` e no trace12, contra 352 s, "nunca" e 649 s na original.
@@ -320,7 +360,7 @@ Desenho igual ao de 22/10 (ver a [seção 3 daquele relatório](2026-10-22%20Jan
 | Nível | Perdas | Causa |
 | --- | --- | --- |
 | `ovl_mix`, original (3 de 3) | 533–536 cada | travamento da política (ver seção 3) |
-| `ovl_mem` 0,5, limiar 5 s (1 de 3) | 614 | fome: 4 modelos não foram ativados nem no prazo extra (ver seção 1) |
+| `ovl_mem` 0,5, limiar 5 s (1 de 3) | 614 | fome de 3 modelos que não couberam (455) e um modelo ativo que não atendeu nada (137, `model_6`), com o mesmo sintoma do travamento do `ovl_mix` (ver seção 1) |
 | `ovl_trace_big` 1×, troca P1D0 (1 de 3, rodada `fix5`, job `4485f194`) | 25 | **requisições perdidas, sem causa identificada** (abaixo) |
 | `ovl_mix`, troca P0D0 (1 de 3, rodada `fix3`, job `38c50954`) | 1 | **sem causa identificada.** Uma requisição do `model_9` chegou aos 144,6 s, pouco antes de uma troca que tirou o modelo, e nunca foi respondida. Nenhum evento de falha no nível |
 | `ovl_trace_big` 2×, limiar 10 s (1 de 3, rodada `fix5`, job `d8b55e8a`) | 1 | **erro de medição do SGLang; a requisição foi atendida** (abaixo) |
@@ -386,7 +426,8 @@ O mesmo novo prefill também sobrescreve `prefill_finish_timestamp`. Por isso, o
 | Suítes completas | `polyaxon/configs/fix_{phases_idle,mem_idle,trace12,strategies}_suite.tsv`, `fix_throughput_{mem,mix,phases,trace12}_suite.tsv` |
 | Suítes de preenchimento (só os níveis que faltavam) | `polyaxon/configs/fill_*_suite.tsv` |
 | Juntar níveis limpos de várias rodadas | `polyaxon/collect_reps.py` (gera `manifest.csv`) |
-| Métricas por nível e resumo por configuração | `polyaxon/summarize_reps.py` (`metricas.csv`, `resumo.csv`) |
+| Métricas por nível e resumo por configuração | `polyaxon/summarize_reps.py` (`metricas.csv`, `resumo.csv`); as métricas vêm de `ovl_plots.metricas` |
+| Tabelas de resultados (formato padrão) | `polyaxon/report_tables.py` |
 | Figuras | `polyaxon/plot_suite.py` (linhas do tempo), `polyaxon/plot_reps.py` (resumo por configuração) |
 | Extração dos logs | `polyaxon/extract_ovl.py` (eventos novos: `stale_deact`, `prefill_postponed`, `worker_exit`) |
 | Dados e figuras | `reports/data/2026-10-28-ociosidade/`, `reports/figs/2026-10-28-ociosidade/` |
@@ -401,6 +442,9 @@ python3 polyaxon/collect_reps.py reports/data/2026-10-28-ociosidade fix5=<pasta 
 python3 polyaxon/summarize_reps.py reports/data/2026-10-28-ociosidade
 python3 polyaxon/plot_suite.py reports/data/2026-10-28-ociosidade reports/figs/2026-10-28-ociosidade
 python3 polyaxon/plot_reps.py reports/data/2026-10-28-ociosidade reports/figs/2026-10-28-ociosidade
+# uma tabela: <cenário>/<nível> (todas as configurações) ou <cenário>/<nível>/<config> (uma linha)
+python3 polyaxon/report_tables.py reports/data/2026-10-28-ociosidade/metricas.csv ovl_phases/rate0.5
+python3 polyaxon/report_tables.py reports/data/2026-10-28-ociosidade/metricas.csv --extra trocas ovl_mem/rate0.2/original ovl_mem/rate0.2/tp_P0D1
 ```
 
 **Jobs usados** (níveis aproveitados entre parênteses; a lista exata de cada nível está em `manifest.csv`):

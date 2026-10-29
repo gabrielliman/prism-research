@@ -1,0 +1,105 @@
+{
+ "args": {
+  "base_url": "http://127.0.0.1:30002",
+  "models": [
+   "model_1",
+   "model_2",
+   "model_3",
+   "model_4",
+   "model_5",
+   "model_6"
+  ],
+  "rate": 0.2,
+  "model_rates": [],
+  "duration": 300.0,
+  "drain": 300.0,
+  "input_range": [
+   256,
+   1024
+  ],
+  "output_range": [
+   128,
+   512
+  ],
+  "cv": 1.0,
+  "groups": 1,
+  "phase": 150,
+  "slo_ttft": 1.0,
+  "slo_tpot": 0.1,
+  "seed": 42,
+  "real_trace": null,
+  "time_scale": 1.0,
+  "trace_adapters": 0,
+  "out": "/plx-context/artifacts/e7298d4f3bb746dda827f899c517714f/outputs/n06/ovl_mem/rate0.2"
+ },
+ "elapsed_s": 323.3476967699826,
+ "sent": 341,
+ "ok": 341,
+ "failed": 0,
+ "unserved": 0,
+ "offered_rps": 1.1366666666666667,
+ "served_rps": 1.054592327102842,
+ "output_tok_s": 336.6747346199316,
+ "ttft_mean": 0.17702822531423262,
+ "ttft_p50": 0.1454484462738037,
+ "ttft_p99": 0.7139833450317383,
+ "tpot_mean": 0.05548944432238062,
+ "tpot_p99": 0.09358735632837542,
+ "slo_attainment": 0.9970674486803519,
+ "per_model": {
+  "model_1": {
+   "sent": 65,
+   "ok": 65,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 12.021,
+   "ttft_p50": 0.1422882080078125,
+   "slo": 1.0
+  },
+  "model_2": {
+   "sent": 52,
+   "ok": 52,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 7.44,
+   "ttft_p50": 0.1396876573562622,
+   "slo": 1.0
+  },
+  "model_3": {
+   "sent": 58,
+   "ok": 58,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.302,
+   "ttft_p50": 0.15510857105255127,
+   "slo": 1.0
+  },
+  "model_4": {
+   "sent": 47,
+   "ok": 47,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 4.984,
+   "ttft_p50": 0.15236544609069824,
+   "slo": 1.0
+  },
+  "model_5": {
+   "sent": 59,
+   "ok": 59,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 3.294,
+   "ttft_p50": 0.14406895637512207,
+   "slo": 0.9830508474576272
+  },
+  "model_6": {
+   "sent": 60,
+   "ok": 60,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 7.602,
+   "ttft_p50": 0.15251624584197998,
+   "slo": 1.0
+  }
+ }
+}

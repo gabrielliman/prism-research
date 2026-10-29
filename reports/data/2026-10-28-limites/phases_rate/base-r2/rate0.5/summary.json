@@ -1,0 +1,145 @@
+{
+ "args": {
+  "base_url": "http://127.0.0.1:30002",
+  "models": [
+   "model_1",
+   "model_2",
+   "model_3",
+   "model_4",
+   "model_5",
+   "model_6",
+   "model_7",
+   "model_8",
+   "model_9",
+   "model_10"
+  ],
+  "rate": 0.5,
+  "model_rates": [],
+  "duration": 600.0,
+  "drain": 300.0,
+  "input_range": [
+   256,
+   1024
+  ],
+  "output_range": [
+   128,
+   512
+  ],
+  "cv": 1.0,
+  "groups": 2,
+  "phase": 150.0,
+  "slo_ttft": 1.0,
+  "slo_tpot": 0.1,
+  "seed": 42,
+  "real_trace": null,
+  "time_scale": 1.0,
+  "trace_adapters": 0,
+  "out": "/plx-context/artifacts/6cd427163b9144dfa67076db2eb8aebb/outputs/phases_rate/ovl_phases/rate0.5"
+ },
+ "elapsed_s": 615.4024261124432,
+ "sent": 1564,
+ "ok": 1564,
+ "failed": 0,
+ "unserved": 0,
+ "offered_rps": 2.6066666666666665,
+ "served_rps": 2.541426444936104,
+ "output_tok_s": 810.788158818263,
+ "ttft_mean": 6.974338902536865,
+ "ttft_p50": 0.1377267837524414,
+ "ttft_p99": 53.452422153949705,
+ "tpot_mean": 0.04415494536192269,
+ "tpot_p99": 0.06369770658689473,
+ "slo_attainment": 0.731457800511509,
+ "per_model": {
+  "model_1": {
+   "sent": 151,
+   "ok": 151,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 4.808,
+   "ttft_p50": 0.1258842945098877,
+   "slo": 0.8344370860927153
+  },
+  "model_2": {
+   "sent": 145,
+   "ok": 145,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.254,
+   "ttft_p50": 0.1337299346923828,
+   "slo": 0.8413793103448276
+  },
+  "model_3": {
+   "sent": 161,
+   "ok": 161,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 3.452,
+   "ttft_p50": 0.1281578540802002,
+   "slo": 0.7701863354037267
+  },
+  "model_4": {
+   "sent": 142,
+   "ok": 142,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 1.318,
+   "ttft_p50": 0.1317429542541504,
+   "slo": 0.8098591549295775
+  },
+  "model_5": {
+   "sent": 163,
+   "ok": 163,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 4.458,
+   "ttft_p50": 0.13416314125061035,
+   "slo": 0.8282208588957055
+  },
+  "model_6": {
+   "sent": 143,
+   "ok": 143,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 151.179,
+   "ttft_p50": 0.13794684410095215,
+   "slo": 0.7622377622377622
+  },
+  "model_7": {
+   "sent": 169,
+   "ok": 169,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 152.215,
+   "ttft_p50": 0.15648865699768066,
+   "slo": 0.591715976331361
+  },
+  "model_8": {
+   "sent": 142,
+   "ok": 142,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 150.798,
+   "ttft_p50": 0.13786494731903076,
+   "slo": 0.7323943661971831
+  },
+  "model_9": {
+   "sent": 157,
+   "ok": 157,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 150.813,
+   "ttft_p50": 0.17015385627746582,
+   "slo": 0.5668789808917197
+  },
+  "model_10": {
+   "sent": 191,
+   "ok": 191,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 152.172,
+   "ttft_p50": 0.16190695762634277,
+   "slo": 0.6282722513089005
+  }
+ }
+}

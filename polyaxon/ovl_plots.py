@@ -34,6 +34,7 @@ EV = {  # log events: color, marker, label
     "oom": (ERRO, "X", "worker sem memória (torch OOM)"),
 }
 DESPEJOS = ("evict", "evict_pressure", "evict_fair", "evict_swap")
+SLOS_TTFT = (1, 2, 5)  # s; extra TTFT-only SLO columns of metricas()
 PESOS_8B_GB = 15.0
 
 plt.rcParams.update({
@@ -73,7 +74,13 @@ def metricas(lv):
         rok = r[r.status == "ok"]
         espera_1a.append((rok.fim.min() if len(rok) else np.inf) - r.arrival.min())
         espera_tok.append(((rok.arrival + rok.ttft).min() if len(rok) else np.inf) - r.arrival.min())
+    # Fractions of all sent requests, as overload_load.py's slo_attainment: strict "<", unserved/failed count as misses.
+    okm = req.status == "ok"
+    slo_ttft, slo_tpot = s["args"]["slo_ttft"], s["args"]["slo_tpot"]
+    slos = {f"SLO TTFT < {t} s": float((okm & (req.ttft < t)).mean()) for t in SLOS_TTFT}
+    slos[f"SLO TPOT < {slo_tpot * 1000:.0f} ms"] = float((okm & (req.tpot < slo_tpot)).mean())
     return {
+        **slos,
         "oferecido": s["offered_rps"], "em regime": len(regime) / (0.75 * dur),
         "atendidas": s["ok"], "enviadas": s["sent"], "não atendidas": s["unserved"], "falhas": s["failed"],
         "TTFT p50 (s)": s["ttft_p50"], "TTFT p90 (s)": float(np.nanpercentile(ok.ttft, 90)) if len(ok) else np.nan,
@@ -186,8 +193,7 @@ def linha_do_tempo(lv, titulo, out=None, xlim=None, fases=None):
     ax.set_xlim(*(xlim or (x0, None)))
     alca = [Patch(color=COR, alpha=0.28, label="ativo"),
             Patch(facecolor="none", edgecolor="#c98500", hatch="////", label="ativando (pedido sem conclusão)"),
-            Line2D([], [], marker="|", ls="", color=TINTA, ms=8, label="resposta concluída"),
-            Line2D([], [], marker="x", ls="", color=ERRO, label="chegada não atendida")]
+            Line2D([], [], marker="|", ls="", color=TINTA, ms=8, label="resposta concluída"),            Line2D([], [], marker="x", ls="", color=ERRO, label="chegada não atendida")]
     if len(req[req.status == "failed"]):
         alca.append(Line2D([], [], marker=".", ls="", color=ERRO, label="chegada que falhou"))
     if fases:

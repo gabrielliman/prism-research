@@ -6,6 +6,7 @@
 #   PRISM_JOB_ENV    env for the job, e.g. "PRISM_STEPS=static PRISM_TIMEOUT=1800"
 #   PRISM_JOB_SUFFIX suffix for the run name
 #   PRISM_GPUS       GPUs to request (default 1; prism2 needs 2)
+#   PRISM_PYTHON_SRC python/ tree to upload (default this repo's; e.g. a git worktree of the base version)
 set -euo pipefail
 JOB="${1:-prism_examples}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -15,7 +16,8 @@ IMAGE="${PRISM_IMAGE:-gabrielliman/prism:sglang0.3.4-cu121}"
 
 STAGE="$(mktemp -d /tmp/prism-polyaxon-XXXXXX)"
 trap 'rm -rf "$STAGE"' EXIT
-rsync -a --exclude __pycache__ --exclude '*.egg-info' "$REPO/python" "$STAGE"/
+PY_SRC="${PRISM_PYTHON_SRC:-$REPO/python}"
+rsync -a --exclude __pycache__ --exclude '*.egg-info' "${PY_SRC%/}/" "$STAGE/python/"
 mkdir -p "$STAGE/benchmark/multi-model" "$STAGE/polyaxon"
 rsync -a "$REPO/benchmark/multi-model/"{benchmark.py,trace.py,utils.py,model_configs,real_trace.pkl,model_lst.yml,model_lst_18.yml} \
   "$STAGE/benchmark/multi-model/"
@@ -30,5 +32,5 @@ sed -i "s|__IMAGE__|$IMAGE|; s|__ENV__|${PRISM_JOB_ENV:-}|; s|__SUFFIX__|${PRISM
 # The run itself is still limited to PRISM_TIMEOUT by the `timeout` inside the container.
 JOB_TIMEOUT=$(echo "${PRISM_JOB_ENV:-}" | grep -o "PRISM_TIMEOUT=[0-9]*" | cut -d= -f2 || true)
 sed -i "s|__PLX_TIMEOUT__|$(( ${JOB_TIMEOUT:-5400} + 1800 + ${PRISM_QUEUE_WAIT:-43200} ))|" "$STAGE/$JOB.yaml"
-echo "image: $IMAGE | gpus: ${PRISM_GPUS:-1} | env: ${PRISM_JOB_ENV:-(none)} | uploading $(du -sh "$STAGE" | cut -f1)"
+echo "python: $PY_SRC | image: $IMAGE | gpus: ${PRISM_GPUS:-1} | env: ${PRISM_JOB_ENV:-(none)} | uploading $(du -sh "$STAGE" | cut -f1)"
 cd "$STAGE" && "$POLYAXON" run -p kunumi/hpc4ai -f "$JOB".yaml -u

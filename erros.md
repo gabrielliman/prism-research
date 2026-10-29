@@ -25,3 +25,14 @@
 | 1 | **Falha 3: falta de KV no prefill** leva a `tree_cache.pretty_print()`, que levanta `NotImplementedError` porque o radix cache está desligado | O worker cai | **R2.2:** nova exceção `PrefillKVFull`. O batch é alocado antes de o estado mudar; se faltar KV, a requisição volta para a fila e o prefill é tentado de novo depois de 50 ms | Resolvido. Zero `pretty_print` depois disso, com 5 prefills adiados nos 139 níveis |
 | 2 | **Uma exceção num worker derruba todos** (`kill_parent_process`) | Uma falha local vira queda do servidor | **R2.2:** com o worker pool, só aquele worker sai (`os._exit(1)`), e a detecção de mortes do Prism reativa o modelo | Resolvido |
 | 3 | **`torch.OutOfMemoryError` ao copiar os pesos** derrubava o servidor (falha 4\) | Queda total | Desfazer a ativação (Prism) \+ R2.1 | Resolvido |
+| 4 | **Término vazio e TTFT sobrescrito numa requisição retirada no decode.** Ela volta a fazer prefill; se termina nele, sai sem `finish_timestamp`, e o novo prefill sobrescreve o horário do 1º token | Requisição atendida contada como falha; TTFT maior e TPOT menor que os reais | **R2.5:** `process_batch_result_prefill` grava só o primeiro prefill e marca o término | Resolvido (2026-10-28, ainda não commitado) |
+
+## Ainda em aberto
+
+| \# | Problema | Efeito | Situação |
+| :---- | :---- | :---- | :---- |
+| T1 | **Travamento: GPU cheia de pesos, todos os workers parados.** Ocorre com 8 e com 14 modelos no `ovl_mem` (e no `ovl_mix` original), na base e com as correções | Quase nada é atendido até o fim (2% com 8 modelos) | Não resolvido. Candidatos: folga de KV na ativação, despejo quando nenhum ativo progride, troca por throughput |
+| F5 | **Servidor que não sobe com 14 workers** | Nível perdido | Não reproduziu em 2026-10-28 (3/3 subiram); depende do estado do nó, que a verificação de saúde controla |
+| — | **25 requisições perdidas numa execução com troca P1D0** (trace12) | Perda real, sem causa identificada | Em investigação (caminho de devolução ao Redis) |
+
+Limites de carga por erro, base × corrigida, e onde está cada mudança no código: [relatório de 2026-10-28](reports/2026-10-28%20Limites%20de%20carga%20do%20Prism%20base%20e%20correções%20por%20erro%20(SGLang).md).
