@@ -25,11 +25,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Union
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    # schedule_batch pulls in the SGLang runtime (outlines, ...), which the vLLM backend does not install.
-    from sglang.srt.managers.schedule_batch import BaseFinishReason
+from sglang.srt.managers.schedule_batch import BaseFinishReason
 from sglang.srt.sampling.sampling_params import SamplingParams
 
 
@@ -319,7 +315,7 @@ class BatchTokenIDOut:
     skip_special_tokens: List[bool]
     spaces_between_special_tokens: List[bool]
     meta_info: List[Dict]
-    finished_reason: List["BaseFinishReason"]
+    finished_reason: List[BaseFinishReason]
     no_stop_trim: List[bool]
 
 
@@ -332,7 +328,7 @@ class BatchStrOut:
     # The meta info
     meta_info: List[Dict]
     # The finish reason
-    finished_reason: List["BaseFinishReason"]
+    finished_reason: List[BaseFinishReason]
 
 
 @dataclass
@@ -344,7 +340,7 @@ class BatchEmbeddingOut:
     # The meta info
     meta_info: List[Dict]
     # The finish reason
-    finished_reason: List["BaseFinishReason"]
+    finished_reason: List[BaseFinishReason]
 
 
 @dataclass

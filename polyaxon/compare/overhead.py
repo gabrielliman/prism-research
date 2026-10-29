@@ -1,9 +1,8 @@
-"""Latency of one model behind Prism's vLLM adapter vs. a plain `vllm serve` (same model and settings), to
-measure the adapter's own overhead (Python step loop, Redis queues, request handler).
+"""Latency of one model behind Prism vs. upstream SGLang (same model and settings), to measure Prism's own
+overhead (Redis queues, request handler, GPU scheduler).
 
-Usage: python3 polyaxon/compare/overhead.py {prism|vllm|sglang} <port> <model> <out.json>
-  prism: Prism's /generate (either backend); vllm: `vllm serve` (OpenAI API); sglang: upstream SGLang's
-  /generate (same format as Prism's, without the `model` field).
+Usage: python3 polyaxon/compare/overhead.py {prism|sglang} <port> <model> <out.json>
+  prism: Prism's /generate; sglang: upstream SGLang's /generate (same format, without the `model` field).
 For concurrency 1, 8 and 32: 4 x concurrency streaming requests (fixed ~200-token prompt, 256 output
 tokens, ignore_eos); records TTFT and inter-token latency per request (client side).
 """
@@ -22,16 +21,11 @@ OUT_TOKENS = 256
 
 
 async def one(session):
-    if MODE in ("prism", "sglang"):
-        url = f"{URL}/generate"
-        payload = {"text": PROMPT, "stream": True,
-                   "sampling_params": {"temperature": 0, "max_new_tokens": OUT_TOKENS, "ignore_eos": True}}
-        if MODE == "prism":
-            payload["model"] = MODEL
-    else:
-        url = f"{URL}/v1/completions"
-        payload = {"model": MODEL, "prompt": PROMPT, "stream": True, "temperature": 0,
-                   "max_tokens": OUT_TOKENS, "ignore_eos": True}
+    url = f"{URL}/generate"
+    payload = {"text": PROMPT, "stream": True,
+               "sampling_params": {"temperature": 0, "max_new_tokens": OUT_TOKENS, "ignore_eos": True}}
+    if MODE == "prism":
+        payload["model"] = MODEL
     st = time.perf_counter()
     stamps, last_len = [], 0
     async with session.post(url, json=payload) as r:
@@ -40,13 +34,11 @@ async def one(session):
             if not line.startswith(b"data: ") or line == b"data: [DONE]":
                 continue
             d = json.loads(line[6:])
-            # Prism streams the cumulative text; vLLM's OpenAI API streams deltas.
-            cumulative = MODE in ("prism", "sglang")
-            text = d.get("text") if cumulative else d["choices"][0].get("text", "")
-            grew = len(text) > last_len if cumulative else bool(text)
-            if grew:
+            # the stream carries the cumulative text
+            text = d.get("text")
+            if len(text) > last_len:
                 stamps.append(time.perf_counter())
-                last_len = len(text) if cumulative else last_len
+                last_len = len(text)
     itl = [b - a for a, b in zip(stamps, stamps[1:])]
     return {"ttft": stamps[0] - st if stamps else None, "itl_mean": statistics.mean(itl) if itl else None,
             "e2e": time.perf_counter() - st}

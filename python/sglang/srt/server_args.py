@@ -146,7 +146,6 @@ class ServerArgs:
     use_kvcached_v0: bool = False
     abort_exceed_slos: bool = False
     async_loading: bool = False
-    engine_backend: str = "sglang"
 
     # for redis generate and response queue
     generate_request_key_prefix: str = "generate_request"
@@ -270,9 +269,6 @@ class ServerArgs:
             "policy",
             "enable_model_service",
             "num_model_service_workers",
-            "tp_workers_per_group",
-            "prism_tp_slots",
-            "prism_model_tp",
         }
         # remove keys to remove in multi_model_server_args
         multi_model_server_args = vars(multi_model_server_args).copy()

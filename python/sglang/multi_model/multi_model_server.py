@@ -53,13 +53,22 @@ from fastapi.responses import JSONResponse, ORJSONResponse, Response, StreamingR
 from uvicorn.config import LOGGING_CONFIG
 
 from sglang.lang.backend.runtime_endpoint import RuntimeEndpoint
+from sglang.multi_model.model_sevice import ModelService
 from sglang.multi_model.multi_model_server_args import MultiModelServerArgs
 from sglang.multi_model.request_handler import RequestHandler
 from sglang.multi_model.request_handler_worker_pool import RequestHandlerWorkerPool
 
 from sglang.multi_model.scheduling.controller_global import run_controller_process
 from sglang.multi_model.scheduling.gpu.gpu_scheduler import run_gpu_scheduler_process
+from sglang.multi_model.utils.load_cpu_model import (
+    init_torch_distributed_tp_1,
+    load_shared_cpu_model,
+)
 from sglang.srt.hf_transformers_utils import get_tokenizer
+from sglang.srt.managers.data_parallel_controller import (
+    run_data_parallel_controller_process,
+)
+from sglang.srt.managers.detokenizer_manager import run_detokenizer_process
 from sglang.srt.managers.io_struct import (
     ActivateReqInput,
     DeactivateReqInput,
@@ -72,6 +81,7 @@ from sglang.srt.managers.io_struct import (
     RewardReqInput,
     UpdateWeightReqInput,
 )
+from sglang.srt.managers.scheduler import run_scheduler_process
 from sglang.srt.redis_utils import RedisClient
 from sglang.srt.server_args import PortArgs, ServerArgs
 from sglang.srt.utils import (
@@ -295,18 +305,6 @@ def launch_engine(
     server_args.check_server_args()
     _set_envs_and_config(server_args)
 
-    if server_args.engine_backend == "vllm":
-        return launch_vllm_engine(
-            server_args, port_args, gpu_ids, instance_idx, model_names_to_model_paths
-        )
-
-    # The SGLang runtime modules need SGLang 0.3.4's dependencies (vllm 0.6.3); import them only here.
-    from sglang.srt.managers.data_parallel_controller import (
-        run_data_parallel_controller_process,
-    )
-    from sglang.srt.managers.detokenizer_manager import run_detokenizer_process
-    from sglang.srt.managers.scheduler import run_scheduler_process
-
     # If using model from www.modelscope.cn, first download the model.
     server_args.model_path, server_args.tokenizer_path = prepare_model_and_tokenizer(
         server_args.model_path, server_args.tokenizer_path
@@ -394,131 +392,6 @@ def launch_engine(
         on=server_args.on,
         init_memory_pool_size=server_args.max_memory_pool_size,
     )
-
-
-_engine_env_lock = threading.Lock()
-
-
-def launch_vllm_engine(
-    server_args: ServerArgs,
-    port_args: PortArgs,
-    gpu_ids: List[int],
-    instance_idx: int,
-    model_names_to_model_paths: Optional[Dict[str, str]] = None,
-):
-    """vLLM backend: one adapter process per model instance (it drives all TP ranks and detokenizes),
-    or per worker-pool slot."""
-    from sglang.multi_model.vllm_backend.engine_adapter import (
-        kvcached_env,
-        run_vllm_engine_process,
-        run_vllm_worker_process,
-    )
-
-    reader, writer = mp.Pipe(duplex=False)
-    if server_args.enable_worker_pool:
-        proc = mp.Process(
-            target=run_vllm_worker_process,
-            args=(server_args, port_args, gpu_ids, writer, model_names_to_model_paths),
-        )
-    else:
-        proc = mp.Process(
-            target=run_vllm_engine_process,
-            args=(server_args, port_args, gpu_ids, writer),
-        )
-    # A spawned process inherits os.environ at start(); engines are launched from parallel threads.
-    with _engine_env_lock:
-        saved = {k: os.environ.get(k) for k in kvcached_env(server_args, gpu_ids)}
-        os.environ.update(kvcached_env(server_args, gpu_ids))
-        try:
-            proc.start()
-        finally:
-            for k, v in saved.items():
-                if v is None:
-                    os.environ.pop(k, None)
-                else:
-                    os.environ[k] = v
-    memory_usage = reader.recv()
-    if not isinstance(memory_usage, MemoryUsage):
-        raise RuntimeError(
-            f"vLLM engine for {server_args.model_name} failed to start:\n{memory_usage}"
-        )
-    logger.info(
-        f"Model {server_args.model_name} instance {instance_idx} loaded in vLLM process {proc.pid}"
-    )
-    return EngineInfo(
-        port_args=port_args,
-        gpu_ids=gpu_ids,
-        model_name=server_args.model_name,
-        model_path=server_args.model_path,
-        instance_idx=instance_idx,
-        memory_usage=memory_usage,
-        on=server_args.on,
-        init_memory_pool_size=server_args.max_memory_pool_size,
-    )
-
-
-def check_vllm_backend_args(server_args: MultiModelServerArgs):
-    """Reject the Prism features the vLLM backend does not implement (see vllm_backend/README_VLLM.md)."""
-    unsupported = {
-        "enable_overlap_schedule": "overlap schedule (vLLM's own scheduler is used)",
-        "enable_double_sparsity": "double sparsity",
-        "lora_paths": "LoRA",
-        "async_loading": "async loading",
-    }
-    for arg, what in unsupported.items():
-        if getattr(server_args, arg):
-            raise ValueError(f"--engine-backend vllm does not support {what}.")
-    if server_args.dp_size != 1 or server_args.nnodes != 1:
-        raise ValueError("--engine-backend vllm supports dp_size=1 on a single node only.")
-    if server_args.use_kvcached_v0:
-        logger.warning(
-            "--use-kvcached-v0 is ignored by the vLLM backend: elastic memory uses upstream kvcached."
-        )
-    if server_args.enable_model_service or server_args.enable_cpu_share_memory:
-        logger.info(
-            "vLLM backend: --enable-model-service / --enable-cpu-share-memory are served by the shared "
-            "CPU weight cache (vllm_backend/weight_cache.py)."
-        )
-        # The SGLang model service queues and CPU models are not created for this backend.
-        server_args.enable_model_service = False
-        server_args.enable_cpu_share_memory = False
-
-
-def ensure_model_info(model_paths: List[str]):
-    """The GPU scheduler and controller need every model in utils/model_info.json. With the vLLM backend
-    profile_model_info.py cannot run (it needs SGLang 0.3.4's vLLM), so missing entries are estimated
-    from the checkpoint (utils/estimate_model_info.py, within 1% of the profiled values)."""
-    from sglang.multi_model.utils import estimate_model_info
-
-    with open(estimate_model_info.MODEL_INFO_PATH) as f:
-        model_info = json.load(f)
-    missing = [p for p in model_paths if p not in model_info]
-    if not missing:
-        return
-    for path in missing:
-        model_info[path] = estimate_model_info.estimate(path)
-        logger.info(f"model_info.json: estimated {path}: {model_info[path]}")
-    with open(estimate_model_info.MODEL_INFO_PATH, "w") as f:
-        json.dump(model_info, f)
-
-
-def prewarm_vllm_weight_cache(server_args: MultiModelServerArgs, models: List[Tuple[str, int]]):
-    """Fill the vLLM backend's shared CPU weight cache for (model path, tp_size) pairs before the
-    worker-pool slots start (counterpart of load_shared_cpu_models). Runs in a child process on GPUs
-    0..max tp - 1."""
-    from sglang.multi_model.vllm_backend.engine_adapter import run_weight_cache_prewarm
-
-    tic = time.perf_counter()
-    reader, writer = mp.Pipe(duplex=False)
-    sargs = ServerArgs.from_multi_model_server_args(server_args, worker_id=0)
-    gpus = list(range(max(tp for _, tp in models)))
-    proc = mp.Process(target=run_weight_cache_prewarm, args=(sargs, gpus, models, writer))
-    proc.start()
-    result = reader.recv()
-    proc.join()
-    if result != "ok":
-        raise RuntimeError(f"Weight cache prewarm failed:\n{result}")
-    logger.info(f"Weight cache ready for {len(models)} models in {time.perf_counter() - tic:.1f}s")
 
 
 def launch_request_handler(
@@ -661,13 +534,6 @@ def load_shared_cpu_models(
     """
     Load shared CPU models.
     """
-    if multi_model_server_args.engine_backend == "vllm":
-        return {}  # check_vllm_backend_args rejects --enable-cpu-share-memory
-    from sglang.multi_model.utils.load_cpu_model import (
-        init_torch_distributed_tp_1,
-        load_shared_cpu_model,
-    )
-
     print("Initializing torch distributed...")
     init_torch_distributed_tp_1(device="cpu")
     print("Torch distributed initialized.")
@@ -942,13 +808,6 @@ def launch_worker_pool_engines(
     start_port = multi_model_server_args.port
     workers_per_gpu = multi_model_server_args.workers_per_gpu
     num_gpus = multi_model_server_args.num_gpus
-    # vLLM slots: each model's configured KV pool size (first placement), used as its KV limit when an
-    # activation does not give one, and each model's tp_size (instance attributes, pickled with the args).
-    pool_sizes = {
-        m.model_name: (m.init_placements[0].get("max_memory_pool_size") if m.init_placements else None)
-        for m in model_configs
-    }
-    model_tp = {m.model_name: m.tp_size for m in model_configs}
     for gpu_id in range(num_gpus):
         for worker_id in range(workers_per_gpu):
             engine_id = f"{gpu_id}_{worker_id}"
@@ -956,10 +815,6 @@ def launch_worker_pool_engines(
                 multi_model_server_args=multi_model_server_args,
                 worker_id=worker_id,
             )
-            # vLLM slots: each model's configured KV pool size (first placement), used as its KV
-            # limit when an activation does not give one (instance attribute, pickled with the args).
-            server_args.prism_pool_sizes = pool_sizes
-            server_args.prism_model_tp = model_tp
             # Allocate ports for inter-process communications
             port_args = PortArgs.init_with_request_handler_ipc_name(
                 start_port, request_handler_ipc_name, schedulers_to_controller_ipc_name
@@ -986,37 +841,6 @@ def launch_worker_pool_engines(
                     ),
                 )
             )
-
-    # vLLM backend: TP slots for models with tp_size > 1 (the paper's engine pool with reusable
-    # distributed contexts). A TP slot spans a group of tp consecutive GPUs; it is registered with the
-    # GPU scheduler of the group's first GPU, with worker ids after that GPU's tp=1 slots.
-    tp_slots = defaultdict(list)  # first GPU -> [(worker_id, tp_size, gpu_ids)]
-    if multi_model_server_args.engine_backend == "vllm":
-        next_worker_id = defaultdict(lambda: workers_per_gpu)
-        for tp in sorted({m.tp_size for m in model_configs if m.tp_size > 1}):
-            for start in range(0, num_gpus - tp + 1, tp):
-                group = list(range(start, start + tp))
-                for _ in range(multi_model_server_args.tp_workers_per_group):
-                    worker_id = next_worker_id[start]
-                    next_worker_id[start] += 1
-                    server_args = ServerArgs.from_multi_model_server_args(
-                        multi_model_server_args=multi_model_server_args, worker_id=worker_id
-                    )
-                    server_args.tp_size = tp
-                    server_args.prism_pool_sizes = pool_sizes
-                    server_args.prism_model_tp = model_tp
-                    port_args = PortArgs.init_with_request_handler_ipc_name(
-                        start_port, request_handler_ipc_name, schedulers_to_controller_ipc_name
-                    )
-                    start_port = port_args.nccl_port
-                    engine_launch_args.append(
-                        (server_args, port_args, group, worker_id, path_to_shared_cpu_models,
-                         model_names_to_model_paths, f"{start}_{worker_id}", None, None)
-                    )
-                    tp_slots[start].append((worker_id, tp, group))
-    # Read by the GPU schedulers (WorkerPool, ResourceManager) and the global controller.
-    multi_model_server_args.prism_tp_slots = dict(tp_slots)
-    multi_model_server_args.prism_model_tp = model_tp
 
     # Launch engines in parallel with small delays
     all_results = []
@@ -1070,16 +894,6 @@ def launch_multi_model_server(
     torch.multiprocessing.set_start_method("spawn")
 
     configure_logger(multi_model_server_args)
-    if multi_model_server_args.engine_backend == "vllm":
-        check_vllm_backend_args(multi_model_server_args)
-        ensure_model_info(
-            sorted({m.model_path for m in multi_model_server_args.model_configs})
-        )
-    else:
-        # Importing model_runner registers SGLang's model classes in vLLM's ModelRegistry. The shared
-        # CPU models (--enable-cpu-share-memory) are built in this process, so it must happen here
-        # (it used to be a side effect of importing the scheduler at the top of this module).
-        import sglang.srt.model_executor.model_runner  # noqa: F401
     # check whether the port are available
     if not is_port_available(multi_model_server_args.port):
         raise RuntimeError(
@@ -1110,17 +924,8 @@ def launch_multi_model_server(
 
     if multi_model_server_args.enable_worker_pool:
 
-        if multi_model_server_args.engine_backend == "vllm":
-            prewarm_vllm_weight_cache(
-                multi_model_server_args,
-                sorted({(m.model_path, m.tp_size) for m in multi_model_server_args.model_configs}),
-            )
-
         # launch model service
-        if (
-            multi_model_server_args.enable_model_service
-            and multi_model_server_args.engine_backend != "vllm"
-        ):
+        if multi_model_server_args.enable_model_service:
             engine_ids = []
             workers_per_gpu = multi_model_server_args.workers_per_gpu
             num_gpus = multi_model_server_args.num_gpus
@@ -1297,12 +1102,12 @@ def _set_envs_and_config(server_args: ServerArgs):
     set_ulimit()
 
     # Fix triton bugs
-    if server_args.tp_size * server_args.dp_size > 1 and server_args.engine_backend != "vllm":
+    if server_args.tp_size * server_args.dp_size > 1:
         # FIXME: remove this after https://github.com/triton-lang/triton/pull/4295 is used as a dependency.
         maybe_set_triton_cache_manager()
 
-    # Check flashinfer version (the SGLang runtime needs 0.1.6; vLLM brings its own)
-    if server_args.attention_backend == "flashinfer" and server_args.engine_backend != "vllm":
+    # Check flashinfer version
+    if server_args.attention_backend == "flashinfer":
         assert_pkg_version(
             "flashinfer",
             "0.1.6",

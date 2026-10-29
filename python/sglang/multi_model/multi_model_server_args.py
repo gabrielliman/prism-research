@@ -213,12 +213,6 @@ class MultiModelServerArgs:
     num_model_service_workers: int = 1
     abort_exceed_slos: bool = False
 
-    # Engine that runs each model instance: "sglang" (the Prism-modified SGLang runtime in
-    # sglang/srt) or "vllm" (an unmodified vLLM engine behind the adapter in multi_model/vllm_backend).
-    engine_backend: str = "sglang"
-    # vLLM worker pool: TP slots per group of tp GPUs, for models with tp_size > 1.
-    tp_workers_per_group: int = 1
-
     def __post_init__(self):
         if self.model_path is not None:
             # set missing default values, for the single model case
@@ -918,19 +912,6 @@ class MultiModelServerArgs:
             ],
             default=MultiModelServerArgs.policy,
             help="The policy for multi-model scheduling.",
-        )
-        parser.add_argument(
-            "--engine-backend",
-            type=str,
-            choices=["sglang", "vllm"],
-            default=MultiModelServerArgs.engine_backend,
-            help="The engine that runs each model instance.",
-        )
-        parser.add_argument(
-            "--tp-workers-per-group",
-            type=int,
-            default=MultiModelServerArgs.tp_workers_per_group,
-            help="vLLM worker pool: TP slots per group of tp_size GPUs for models with tp_size > 1.",
         )
         parser.add_argument(
             "--queue-id",

@@ -1,7 +1,7 @@
 """Estimate a model_info.json entry without loading the model (no GPU, no vLLM 0.6 loader).
 
-profile_model_info.py measures the GPU memory of a model loaded with SGLang 0.3.4's vLLM (0.6.3) and
-does not run with the vLLM backend's environment. This estimates the same two fields from the checkpoint:
+profile_model_info.py measures the GPU memory of a model loaded with SGLang 0.3.4's vLLM (0.6.3), which
+fails for some models (e.g. Qwen2). This estimates the same two fields from the checkpoint:
   model_size: bytes of the safetensors weights, in GiB (the profiled values match it within ~1%);
   cell_size:  KV bytes per token, num_kv_heads * head_dim * num_layers * 2 * dtype bytes (same formula as
               profile_model_info.get_cell_size).

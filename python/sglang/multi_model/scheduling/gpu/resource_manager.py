@@ -7,27 +7,9 @@ from typing import Dict, Optional, Set
 
 import numpy as np
 import torch
+from kvcached.slab_allocator import MemoryUsageReader
 
 from sglang.multi_model.utils.get_memory_pool_size import get_model_path_to_model_size
-
-
-class KvcachedSegmentReader:
-    """Reads the KV bytes in use from upstream kvcached's per-instance segment (/dev/shm/<name>, int64
-    [total, used, prealloc]). A worker-pool slot of the vLLM backend re-creates the segment for every
-    engine it builds, so it is reopened on every read; a missing segment means nothing is mapped."""
-
-    def __init__(self, ipc_name: str):
-        self.path = os.path.join("/dev/shm", ipc_name)
-
-    def get_memory_usage_in_bytes(self) -> int:
-        try:
-            with open(self.path, "rb") as f:
-                buf = f.read(24)
-        except FileNotFoundError:
-            return 0
-        if len(buf) < 16:
-            return 0
-        return int(np.frombuffer(buf[:16], dtype=np.int64)[1])
 
 
 class ResourceManager:
@@ -45,14 +27,8 @@ class ResourceManager:
         enable_worker_pool: bool,
         model_names_to_model_paths: Dict[str, str],
         num_workers: Optional[int] = None,
-        extra_worker_ids: Optional[list] = None,
-        model_tp: Optional[Dict[str, int]] = None,
     ):
         self.gpu_id = gpu_id
-        # vLLM backend: TP slots registered with this GPU (their KV usage segment is named after it).
-        self.extra_worker_ids = list(extra_worker_ids or [])
-        # A TP model holds 1/tp of its weights on each of its GPUs.
-        self.model_tp = model_tp or {}
         self.mem_frac = mem_frac
         self.active_model_names = set(active_model_names)
         self.enable_worker_pool = enable_worker_pool
@@ -67,14 +43,8 @@ class ResourceManager:
         """Initialize shared memory readers."""
         self.username = getpass.getuser()
         if self.enable_worker_pool:
-            try:
-                from kvcached.slab_allocator import MemoryUsageReader
-            except ImportError:
-                # Upstream kvcached (vLLM backend) has no slab_allocator.
-                MemoryUsageReader = KvcachedSegmentReader
-
             self._worker_to_mem_reader = {}
-            for worker_id in list(range(self.num_workers)) + self.extra_worker_ids:
+            for worker_id in range(self.num_workers):
                 self._worker_to_mem_reader[worker_id] = MemoryUsageReader(
                     f"ipc_{self.gpu_id}_{worker_id}_{self.username}"
                 )
@@ -127,7 +97,7 @@ class ResourceManager:
         """Get total used KV cache memory in bytes."""
         if self.enable_worker_pool:
             used_sum = 0
-            for worker_id in self._worker_to_mem_reader:
+            for worker_id in range(self.num_workers):
                 used_sum += self._worker_to_mem_reader[
                     worker_id
                 ].get_memory_usage_in_bytes()
@@ -161,10 +131,6 @@ class ResourceManager:
                 )
                 return 0
         shm = self._model_name_to_shm[ipc_name]
-        # The SGLang engine (kvcached prism/shm) writes one int64: the bytes in use. Upstream kvcached,
-        # used by the vLLM backend, writes its MemInfoStruct there: int64 [total, used, prealloc].
-        if shm.size >= 3 * np.dtype(np.int64).itemsize:
-            return np.ndarray((3,), dtype=np.int64, buffer=shm.buf)[1]
         memory_in_use = np.ndarray((1,), dtype=np.int64, buffer=shm.buf)
         return memory_in_use[0]  # in bytes
 
@@ -192,6 +158,5 @@ class ResourceManager:
                 model_name: model_path_to_model_size[
                     self.model_names_to_model_paths[model_name]
                 ]
-                / self.model_tp.get(model_name, 1)
                 for model_name in self.model_names_to_model_paths.keys()
             }
