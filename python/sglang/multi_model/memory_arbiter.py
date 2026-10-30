@@ -34,8 +34,16 @@ _ARBITERS: Dict[int, "GPUMemoryArbiter"] = {}
 STATS_LOG_INTERVAL_S = 30.0
 
 
-class ActivationOutOfMemory(RuntimeError):
+class ActivationFailed(RuntimeError):
+    """A model activation failed and was rolled back; the engine stays alive and deactivated."""
+
+
+class ActivationOutOfMemory(ActivationFailed):
     """A model activation could not get the GPU memory it needs; the engine stays alive and deactivated."""
+
+
+class ModelServiceUnavailable(ActivationFailed):
+    """The model service died or did not answer a load request in time (P12)."""
 
 
 def get_arbiter(gpu_id: int) -> "GPUMemoryArbiter":
@@ -192,6 +200,26 @@ def write_worker_pid(gpu_id: int, worker_id: int):
     """Worker pool engines record their PID so that the GPU scheduler can tell when one has died."""
     with open(_worker_pid_path(gpu_id, worker_id), "w") as f:
         f.write(str(os.getpid()))
+
+
+def _model_service_pid_path(service_id: int) -> str:
+    return f"/dev/shm/prism_model_service{service_id}_{os.environ.get('USER', 'prism')}.pid"
+
+
+def write_model_service_pid(service_id: int):
+    """The model service records its PID so that the engines waiting on it can tell when it has died (P12)."""
+    with open(_model_service_pid_path(service_id), "w") as f:
+        f.write(str(os.getpid()))
+
+
+def model_service_alive(service_id: int) -> Optional[bool]:
+    """True/False if the model service registered a PID, None if it has not."""
+    try:
+        with open(_model_service_pid_path(service_id)) as f:
+            pid = int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return None
+    return _alive(pid)
 
 
 def worker_alive(gpu_id: int, worker_id: int) -> Optional[bool]:

@@ -101,9 +101,10 @@ from sglang.srt.utils import (
     suppress_other_loggers,
 )
 from sglang.utils import cleanup_zmq_ipc, get_exception_traceback
-from sglang.multi_model.memory_arbiter import ActivationOutOfMemory
+from sglang.multi_model.memory_arbiter import ActivationFailed
 
 logger = logging.getLogger(__name__)
+TRACE_RIDS = os.environ.get("PRISM_TRACE_RIDS", "0") == "1"  # F1.2: log every request hop by rid
 
 # Crash on warning if we are running CI tests
 crash_on_warning = os.getenv("SGLANG_IS_IN_CI", "false") == "true"
@@ -674,6 +675,8 @@ class Scheduler:
         return recv_reqs
 
     def process_input_gen_requests(self, recv_reqs: List):
+        if TRACE_RIDS and recv_reqs:
+            logger.info(f"RID backend_to_worker {self.model_name} {[r.rid for r in recv_reqs]}")
         for recv_req in recv_reqs:
             assert isinstance(recv_req, GenerateReqInput)
             tokenized_req = self._tokenize(recv_req)
@@ -1653,7 +1656,7 @@ class Scheduler:
                 gpu_id=gpu_id,
                 model_name=recv_req.model_name,
             )
-        except ActivationOutOfMemory as e:
+        except ActivationFailed as e:
             # Prism: the model runner rolled the activation back; report it instead of dying, so the GPU
             # scheduler frees this worker and the controller can retry later.
             logger.error(f"Activation of {recv_req.model_name} failed: {e}")
@@ -1886,6 +1889,8 @@ class Scheduler:
         if not self.waiting_queue:
             return
         try:
+            if TRACE_RIDS:
+                logger.info(f"RID worker_to_frontend {self.model_name} {[r.rid for r in self.waiting_queue]}")
             # send back to frontend queue
             for req in self.waiting_queue:
                 self.redis_client.send_pyobj(
@@ -2174,6 +2179,9 @@ def run_scheduler_process(
             prefix=f" {server_args.model_name} GPU={gpu_id} DP{dp_rank} TP{tp_rank}",
         )
 
+    from sglang.multi_model.stack_dump import enable_stack_dumps
+
+    enable_stack_dumps(f"worker {server_args.worker_id} GPU={gpu_id} TP{tp_rank}")
     suppress_other_loggers()
 
     try:

@@ -1,0 +1,71 @@
+worker 5 GPU=0 TP0 pid 10021
+    sampler.py:44 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 7 GPU=0 TP0 pid 10148
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 8 GPU=0 TP0 pid 10149
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 10 GPU=0 TP0 pid 10150
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 11 GPU=0 TP0 pid 10151
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 9 GPU=0 TP0 pid 10152
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 12 GPU=0 TP0 pid 10224
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 13 GPU=0 TP0 pid 10267
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+gpu_scheduler 0 pid 15886
+worker 1 GPU=0 TP0 pid 9760
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 2 GPU=0 TP0 pid 9764
+    sampler.py:44 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 0 GPU=0 TP0 pid 9765
+    sampler.py:44 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 3 GPU=0 TP0 pid 9766
+    module.py:2285 named_parameters <- module.py:2255 parameters <- utils.py:780 wait_for_cuda <- llama.py:227 forward
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    socket.py:120 readline <- resp3.py:65 _read_response <- resp3.py:40 read_response <- connection.py:1407 read_response
+worker 4 GPU=0 TP0 pid 9830
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 6 GPU=0 TP0 pid 9855
+    sampler.py:44 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run

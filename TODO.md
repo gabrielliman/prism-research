@@ -14,13 +14,14 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F0.5 Relatório `reports/fases/F00_*.md` com critérios e decisão do gate (2026-10-30, reports/fases/F00_reconhecimento.md; gate APROVADO)
 
 ## F1 — Robustez restante · gate automático
-- [ ] F1.1 T1 com 14 modelos: reprodução mínima + `py-spy dump` + causa + correção ou encaminhamento para F4
-- [ ] F1.2 25 requisições perdidas: instrumentar retirada/reinserção no Redis, causa, correção, 10 repetições sem perdas
-- [ ] F1.3 Folga de KV no `ovl_mix` (A0.4), 5 repetições
-- [ ] F1.4 K1: frequência com nó saudável e degradado; decisão sobre o árbitro registrada
-- [ ] F1.5 Repetir F0.4 após as correções (sem regressão; critério D2 de `decisoes.md`; confirmar com o Gabriel a referência proposta antes de rodar)
-- [ ] F1.7 P11: desativação de ~30 s sem trabalho pendente (`deactivate()`), causa e correção ou encaminhamento
-- [ ] F1.6 `erros.md` atualizado; relatório F01
+- [x] F1.1 T1 com 14 modelos: reprodução mínima + `py-spy dump` + causa + correção ou encaminhamento para F4 (2026-10-30, reports/erros.md T1: impasse de memória da política, pilhas via `PRISM_STACK_DUMPS` em vez de py-spy; encaminhado para F4 A1.1/A1.2)
+- [x] F1.2 25 requisições perdidas: instrumentar retirada/reinserção no Redis, causa, correção, 10 repetições sem perdas (2026-10-30, `PRISM_TRACE_RIDS` + polyaxon/trace_rids.py; 10 repetições limpas, 55 não atendidas, todas explicadas: 54 em ciclo de preempção/recomputação, 1 à espera de modelo nunca reativado; nenhuma descartada; correção é de política, encaminhada para F4/F6)
+- [x] F1.3 Folga de KV no `ovl_mix` (A0.4), 5 repetições (2026-10-30, reports/data/F01/folga_ovl_mix/; 5/5 limpas e idênticas: SLO 76%, pior espera 342 s por fome de `model_6`/`model_7`)
+- [x] F1.4 K1: frequência com nó saudável e degradado; decisão sobre o árbitro registrada (2026-10-30, 0 em 37 execuções fora da janela degradada, 5 em 6 dentro; árbitro continua desligado: reports/registro/decisoes.md D5)
+- [x] F1.5 Repetir F0.4 após as correções (sem regressão) (2026-10-30, reports/data/F01/reproducao/ e reports/data/F01/ab_codigo/; contra as referências de outro dia falhou por cluster mais lento; A/B de código no mesmo período sem regressão; aceito pelo Gabriel: decisoes.md D7, D8)
+- [x] F1.7 P11: desativação de ~30 s sem trabalho pendente (`deactivate()`), causa e correção ou encaminhamento (2026-10-30, reports/erros.md P11: unmap do kvcached em `trim()`, > 10 s em 18 de 986 desativações em execuções limpas (até 30 s), até 88 s com nó degradado; kvcached não alterado; custo a medir na F2.3)
+- [x] F1.6 `erros.md` atualizado; relatório F01 (2026-10-30, reports/fases/F01_robustez.md; gate APROVADO)
+- [x] F1.8 P12: detecção da morte do model service (2026-10-30, decisoes.md D9; verificado em `f1-p12b-on/off`; tests/robustness/test_model_service_alive.py)
 
 ## F2 — Instrumentação, validador e estimadores · gate [HUMANO]
 - [ ] F2.1 Logs estruturados do controlador (retrato de estado + ações + motivo) e das requisições (prazo, classe, estado final)

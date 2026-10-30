@@ -81,6 +81,7 @@ from sglang.utils import cleanup_zmq_ipc, get_exception_traceback
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 logger = logging.getLogger(__name__)
+TRACE_RIDS = os.environ.get("PRISM_TRACE_RIDS", "0") == "1"  # F1.2: log every request hop by rid
 
 
 @dataclasses.dataclass
@@ -376,6 +377,8 @@ class RequestHandlerWorkerPool:
                 key=f"{self.generate_request_key_prefix}:{model}",
                 obj=single_request_obj,
             )
+            if TRACE_RIDS:
+                logger.info(f"RID handler_to_frontend {model} {single_request_obj.rid}")
         except asyncio.exceptions.CancelledError:
             raise
         except Exception as e:
@@ -549,6 +552,8 @@ class RequestHandlerWorkerPool:
 
             state.out_list = []
             if state.finished:
+                if TRACE_RIDS:
+                    logger.info(f"RID handler_finished {obj.model} {rid}")
                 del self.rid_to_state[rid]
                 finish_obj = FinishReq(
                     rid=rid,

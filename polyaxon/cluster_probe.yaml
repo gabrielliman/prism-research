@@ -1,0 +1,24 @@
+# Node/GPU performance probe on 1 H200 (cluster_probe.sh). Submit with: polyaxon/submit.sh cluster_probe
+version: 1.1
+kind: operation
+tags: [prism, cluster-probe]
+queue: axia/default
+name: cluster-probe__SUFFIX__
+# The cluster kills the pod after this, even if processes hang.
+termination:
+  timeout: __PLX_TIMEOUT__
+component:
+  kind: component
+  run:
+    kind: job
+    connections: [local-scratch, axia-artifacts]
+    container:
+      image: __IMAGE__
+      imagePullPolicy: Always
+      workingDir: "{{ globals.artifacts_path }}/{{ globals.uuid }}/uploads"
+      command: ["bash", "-c", "export __ENV__; export PRISM_RESULTS='{{ globals.run_outputs_path }}'; timeout -k 60 ${PRISM_TIMEOUT:-1800} bash polyaxon/cluster_probe.sh"]
+      resources:
+        requests:
+          nvidia.com/gpu: __GPUS__
+        limits:
+          nvidia.com/gpu: __GPUS__

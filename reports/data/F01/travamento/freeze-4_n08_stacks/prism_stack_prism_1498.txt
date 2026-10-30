@@ -1,0 +1,186 @@
+# worker 0 GPU=0 TP0 pid 1498
+Thread 0x00007f3f06f8d700 (most recent call first):
+  File "/usr/lib/python3.10/threading.py", line 320 in wait
+  File "/sgl-workspace/kvcached/kvcached/slab_allocator.py", line 255 in _prealloc_worker
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b17db700 (most recent call first):
+  File "/usr/lib/python3.10/threading.py", line 320 in wait
+  File "/usr/lib/python3.10/multiprocessing/queues.py", line 231 in _feed
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b1fdc700 (most recent call first):
+  File "/usr/lib/python3.10/socket.py", line 293 in accept
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 609 in accept
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 463 in accept
+  File "/usr/lib/python3.10/multiprocessing/resource_sharer.py", line 138 in _serve
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b27dd700 (most recent call first):
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 399 in _send_token_tput_updates
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f4a22226700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 57 in _recv_msg
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 123 in _read_thread
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Current thread 0x00007f4bb73fc740 (most recent call first):
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 488 in event_loop_normal
+  File "/usr/local/lib/python3.10/dist-packages/torch/utils/_contextlib.py", line 116 in decorate_context
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 2206 in run_scheduler_process
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108 in run
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314 in _bootstrap
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 129 in _main
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 116 in spawn_main
+  File "<string>", line 1 in <module>
+Thread 0x00007f3f06f8d700 (most recent call first):
+  File "/usr/lib/python3.10/threading.py", line 320 in wait
+  File "/sgl-workspace/kvcached/kvcached/slab_allocator.py", line 255 in _prealloc_worker
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b17db700 (most recent call first):
+  File "/usr/lib/python3.10/threading.py", line 320 in wait
+  File "/usr/lib/python3.10/multiprocessing/queues.py", line 231 in _feed
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b1fdc700 (most recent call first):
+  File "/usr/lib/python3.10/socket.py", line 293 in accept
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 609 in accept
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 463 in accept
+  File "/usr/lib/python3.10/multiprocessing/resource_sharer.py", line 138 in _serve
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b27dd700 (most recent call first):
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 399 in _send_token_tput_updates
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f4a22226700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 57 in _recv_msg
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 123 in _read_thread
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Current thread 0x00007f4bb73fc740 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/torch/cuda/memory.py", line 685 in mem_get_info
+  File "/sgl-workspace/kvcached/kvcached/slab_allocator.py", line 677 in _physical_free_size
+  File "/sgl-workspace/kvcached/kvcached/slab_allocator.py", line 655 in available_size
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/mem_cache/memory_pool.py", line 406 in available_size
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 600 in recv_generation_requests
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 461 in event_loop_normal
+  File "/usr/local/lib/python3.10/dist-packages/torch/utils/_contextlib.py", line 116 in decorate_context
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 2206 in run_scheduler_process
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108 in run
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314 in _bootstrap
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 129 in _main
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 116 in spawn_main
+  File "<string>", line 1 in <module>
+Thread 0x00007f3f06f8d700 (most recent call first):
+  File "/usr/lib/python3.10/threading.py", line 320 in wait
+  File "/sgl-workspace/kvcached/kvcached/slab_allocator.py", line 255 in _prealloc_worker
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b17db700 (most recent call first):
+  File "/usr/lib/python3.10/threading.py", line 320 in wait
+  File "/usr/lib/python3.10/multiprocessing/queues.py", line 231 in _feed
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b1fdc700 (most recent call first):
+  File "/usr/lib/python3.10/socket.py", line 293 in accept
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 609 in accept
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 463 in accept
+  File "/usr/lib/python3.10/multiprocessing/resource_sharer.py", line 138 in _serve
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b27dd700 (most recent call first):
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 399 in _send_token_tput_updates
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f4a22226700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 57 in _recv_msg
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 123 in _read_thread
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Current thread 0x00007f4bb73fc740 (most recent call first):
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 488 in event_loop_normal
+  File "/usr/local/lib/python3.10/dist-packages/torch/utils/_contextlib.py", line 116 in decorate_context
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 2206 in run_scheduler_process
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108 in run
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314 in _bootstrap
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 129 in _main
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 116 in spawn_main
+  File "<string>", line 1 in <module>
+Thread 0x00007f3f06f8d700 (most recent call first):
+  File "/usr/lib/python3.10/threading.py", line 320 in wait
+  File "/sgl-workspace/kvcached/kvcached/slab_allocator.py", line 255 in _prealloc_worker
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b17db700 (most recent call first):
+  File "/usr/lib/python3.10/threading.py", line 320 in wait
+  File "/usr/lib/python3.10/multiprocessing/queues.py", line 231 in _feed
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b1fdc700 (most recent call first):
+  File "/usr/lib/python3.10/socket.py", line 293 in accept
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 609 in accept
+  File "/usr/lib/python3.10/multiprocessing/connection.py", line 463 in accept
+  File "/usr/lib/python3.10/multiprocessing/resource_sharer.py", line 138 in _serve
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f43b27dd700 (most recent call first):
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 399 in _send_token_tput_updates
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007f4a22226700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 57 in _recv_msg
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 123 in _read_thread
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Current thread 0x00007f4bb73fc740 (most recent call first):
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 488 in event_loop_normal
+  File "/usr/local/lib/python3.10/dist-packages/torch/utils/_contextlib.py", line 116 in decorate_context
+  File "/plx-context/artifacts/1e22020edf8c46ab98321d1c6dc74e55/uploads/python/sglang/srt/managers/scheduler.py", line 2206 in run_scheduler_process
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108 in run
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314 in _bootstrap
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 129 in _main
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 116 in spawn_main
+  File "<string>", line 1 in <module>

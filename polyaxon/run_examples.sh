@@ -154,8 +154,30 @@ backend_args() {
   done
 }
 
+# PRISM_STACK_DUMP_AT="<s> ..." (ovl_* steps, with PRISM_STACK_DUMPS=1; F1.1): <s> seconds into the load, send SIGUSR1
+# to every process that registered for stack dumps (python/sglang/multi_model/stack_dump.py); each one appends all
+# its threads' stacks to its own file, collected into <level>/stacks/ after the server stops.
+stack_dumps() {
+  local start=$SECONDS t p
+  for t in $PRISM_STACK_DUMP_AT; do
+    while [ $((SECONDS - start)) -lt "$t" ]; do sleep 1; done
+    echo "[stacks] $(date -u +%T) t=${t}s"
+    for p in /dev/shm/prism_stack_"${USER:-prism}"_*.pid; do
+      [ -e "$p" ] && kill -USR1 "$(basename "$p" .pid | sed 's/.*_//')" 2>/dev/null
+    done
+  done
+}
+
+collect_stacks() {
+  ls /dev/shm/prism_stack_"${USER:-prism}"_*.txt >/dev/null 2>&1 || return 0
+  mkdir -p "$RESULTS/$1/stacks"
+  mv /dev/shm/prism_stack_"${USER:-prism}"_*.txt "$RESULTS/$1/stacks/"
+  rm -f /dev/shm/prism_stack_"${USER:-prism}"_*.pid
+}
+
 # PRISM_FAULT (ovl_* steps), injected during the load to test Prism's memory robustness:
 #   kill:<model>:<s>         kill -9, <s> seconds into the load, the worker process serving <model>
+#   kill_model_service:<s>   kill -9, <s> seconds into the load, the model service (P12)
 #   ballast:<s>:<hold>       <s> seconds into the load, a foreign process takes all the free GPU memory
 #                            (down to 1 GB) for <hold> seconds, then frees it
 fault_inject() {
@@ -167,6 +189,11 @@ fault_inject() {
       w=$(grep -o "Assign worker [0-9]* to ${f[1]}\." "$RESULTS/$lvl/server_file.log.gpu_scheduler.log" | tail -1 | awk '{print $3}')
       pid=$(cat "/dev/shm/prism_gpu0_worker${w}_${USER:-prism}.pid" 2>/dev/null)
       echo "[fault] $(date -u +%T) t=${f[2]}s kill -9 worker $w (${f[1]}), pid $pid"
+      [ -n "$pid" ] && kill -9 "$pid" ;;
+    kill_model_service)
+      sleep "${f[1]}"
+      pid=$(cat "/dev/shm/prism_model_service0_${USER:-prism}.pid" 2>/dev/null)
+      echo "[fault] $(date -u +%T) t=${f[1]}s kill -9 model service, pid $pid"
       [ -n "$pid" ] && kill -9 "$pid" ;;
     ballast)
       sleep "${f[1]}"
@@ -459,6 +486,7 @@ PY2
             --enable-model-service --enable-worker-pool --workers-per-gpu "${PRISM_OVL_WORKERS:-$n}" \
             --num-model-service-workers 4 --num-gpus 1; then
           FAULT_PID=; [ -n "${PRISM_FAULT:-}" ] && { fault_inject "$lvl" & FAULT_PID=$!; }
+          STACK_PID=; [ -n "${PRISM_STACK_DUMP_AT:-}" ] && { stack_dumps & STACK_PID=$!; }
           nvidia-smi --query-gpu=timestamp,memory.used,memory.total,utilization.gpu --format=csv,nounits -lms 1000 \
             > "$RESULTS/$lvl/gpu.csv" 2>/dev/null &
           SMI_PID=$!
@@ -468,11 +496,13 @@ PY2
             --out "$RESULTS/$lvl" > "$RESULTS/$lvl/load.log" 2>&1 || rc=1
           kill $SMI_PID 2>/dev/null
           [ -n "$FAULT_PID" ] && { kill $FAULT_PID 2>/dev/null; pkill -P $FAULT_PID 2>/dev/null; }
+          [ -n "$STACK_PID" ] && { kill $STACK_PID 2>/dev/null; pkill -P $STACK_PID 2>/dev/null; }
           echo "[$lvl] load exit, $(grep -c . "$RESULTS/$lvl/gpu.csv") GPU samples"; tail -n "$((n + 2))" "$RESULTS/$lvl/load.log"
         else
           rc=1
         fi
         stop_server
+        collect_stacks "$lvl"
       done
       [ $rc = 0 ]
       ;;

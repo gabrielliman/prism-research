@@ -1,0 +1,1883 @@
+[
+{
+"uuid": "c1495ad1b15843029492b879ffa531c2",
+"name": "mms-run-prism-oracle-grupos",
+"created_at": "2026-10-21T13:55:40.392324+02:00",
+"started_at": "2026-10-21T13:55:53.090775+02:00",
+"finished_at": "2026-10-21T15:16:22.591047+02:00",
+"status": "succeeded",
+"wait_time": 12.7
+},
+{
+"uuid": "5980af99be8b46508fb150b17083fb40",
+"name": "prism-examples-sglang-ovl_mem",
+"created_at": "2026-10-21T14:26:37.968259+02:00",
+"started_at": "2026-10-21T14:26:44.677825+02:00",
+"finished_at": "2026-10-21T14:45:04.105877+02:00",
+"status": "succeeded",
+"wait_time": 6.71
+},
+{
+"uuid": "6af4c960d3114d5cb9898f8f16abd88c",
+"name": "prism-examples-sglang-ovl_phases",
+"created_at": "2026-10-21T14:26:43.098424+02:00",
+"started_at": "2026-10-21T14:26:53.151641+02:00",
+"finished_at": "2026-10-21T14:39:14.247147+02:00",
+"status": "succeeded",
+"wait_time": 10.05
+},
+{
+"uuid": "8917456ea4c846b79138d7caaff925a8",
+"name": "prism-examples-sglang-ovl_kv",
+"created_at": "2026-10-21T14:26:48.927776+02:00",
+"started_at": "2026-10-21T14:26:53.275171+02:00",
+"finished_at": "2026-10-21T14:52:01.123387+02:00",
+"status": "succeeded",
+"wait_time": 4.35
+},
+{
+"uuid": "339e85e88e154c55be05124590c306a4",
+"name": "prism-examples-sglang-ovl_compute",
+"created_at": "2026-10-21T14:26:53.391210+02:00",
+"started_at": "2026-10-21T14:27:01.632470+02:00",
+"finished_at": "2026-10-21T14:41:20.536348+02:00",
+"status": "succeeded",
+"wait_time": 8.24
+},
+{
+"uuid": "7e229f2bd3304a7ea9f2e24e46fd87c0",
+"name": "prism-examples-sglang-ovl_compute2",
+"created_at": "2026-10-21T14:43:36.602539+02:00",
+"started_at": "2026-10-21T14:43:47.277357+02:00",
+"finished_at": "2026-10-21T15:03:17.749108+02:00",
+"status": "succeeded",
+"wait_time": 10.67
+},
+{
+"uuid": "52b58015ffbd4c3fa5b23b644cc4e185",
+"name": "prism-examples-vllm-ovl_mem",
+"created_at": "2026-10-21T14:54:20.038642+02:00",
+"started_at": "2026-10-21T14:54:27.895276+02:00",
+"finished_at": "2026-10-21T15:14:46.863497+02:00",
+"status": "succeeded",
+"wait_time": 7.86
+},
+{
+"uuid": "b3d7266e31f24e27b3ef41175a8ef1c1",
+"name": "prism-examples-vllm-ovl_phases",
+"created_at": "2026-10-21T14:54:25.238831+02:00",
+"started_at": "2026-10-21T14:54:36.266564+02:00",
+"finished_at": "2026-10-21T15:09:18.354949+02:00",
+"status": "succeeded",
+"wait_time": 11.03
+},
+{
+"uuid": "b4b644897fd347d08664f81a207ef948",
+"name": "prism-examples-vllm-ovl_kv",
+"created_at": "2026-10-21T14:54:30.152492+02:00",
+"started_at": "2026-10-21T14:54:36.293388+02:00",
+"finished_at": "2026-10-21T15:18:40.579775+02:00",
+"status": "succeeded",
+"wait_time": 6.14
+},
+{
+"uuid": "b82b4409320b4ea0a0e98a80828807e6",
+"name": "prism-examples-vllm-ovl_compute",
+"created_at": "2026-10-21T14:54:34.730861+02:00",
+"started_at": "2026-10-21T14:54:44.985652+02:00",
+"finished_at": "2026-10-21T15:17:46.159390+02:00",
+"status": "succeeded",
+"wait_time": 10.25
+},
+{
+"uuid": "b96746e9583d4599a1597ed53c4fcd86",
+"name": "prism-examples-sglang-cmp-fine",
+"created_at": "2026-10-21T15:38:07.426841+02:00",
+"started_at": "2026-10-21T15:38:18.972008+02:00",
+"finished_at": "2026-10-21T16:05:02.789043+02:00",
+"status": "succeeded",
+"wait_time": 11.55
+},
+{
+"uuid": "df8f4804294640fbaa3c32832d454cb0",
+"name": "prism-examples-vllm-cmp-fine",
+"created_at": "2026-10-21T15:38:12.372321+02:00",
+"started_at": "2026-10-21T15:38:18.965346+02:00",
+"finished_at": "2026-10-21T16:08:09.854390+02:00",
+"status": "succeeded",
+"wait_time": 6.59
+},
+{
+"uuid": "d2044035af6e4cf19e4bc7ac825acdde",
+"name": "prism-examples-sglang-cmp-sustained",
+"created_at": "2026-10-21T15:38:17.164268+02:00",
+"started_at": "2026-10-21T15:38:27.362705+02:00",
+"finished_at": "2026-10-21T15:55:06.192241+02:00",
+"status": "succeeded",
+"wait_time": 10.2
+},
+{
+"uuid": "89ed905e4ccb4bf8b2fb044079d893ba",
+"name": "prism-examples-vllm-cmp-sustained",
+"created_at": "2026-10-21T15:38:21.305167+02:00",
+"started_at": "2026-10-21T15:38:27.372855+02:00",
+"finished_at": "2026-10-21T15:55:27.563943+02:00",
+"status": "succeeded",
+"wait_time": 6.07
+},
+{
+"uuid": "42f0433200af4009a6820ecbcd51a76a",
+"name": "prism-examples-sglang-cmp-models4",
+"created_at": "2026-10-21T15:38:25.898893+02:00",
+"started_at": "2026-10-21T15:38:35.989757+02:00",
+"finished_at": "2026-10-21T15:52:11.874081+02:00",
+"status": "succeeded",
+"wait_time": 10.09
+},
+{
+"uuid": "5821f01b69874c2d97f1129894add24b",
+"name": "prism-examples-vllm-cmp-models4",
+"created_at": "2026-10-21T15:38:30.211606+02:00",
+"started_at": "2026-10-21T15:38:36.008284+02:00",
+"finished_at": "2026-10-21T15:54:20.594804+02:00",
+"status": "succeeded",
+"wait_time": 5.8
+},
+{
+"uuid": "ccecb91645e54bb5903196b15707c0f0",
+"name": "prism-examples-sglang-cmp-models6",
+"created_at": "2026-10-21T15:38:34.746989+02:00",
+"started_at": "2026-10-21T15:38:44.819911+02:00",
+"finished_at": "2026-10-21T15:57:34.559687+02:00",
+"status": "succeeded",
+"wait_time": 10.07
+},
+{
+"uuid": "e356c0170fb742818eb66cf9b1b6a8ed",
+"name": "prism-examples-vllm-cmp-models6",
+"created_at": "2026-10-21T15:38:40.627380+02:00",
+"started_at": "2026-10-21T15:38:44.840250+02:00",
+"finished_at": "2026-10-21T15:56:54.850915+02:00",
+"status": "succeeded",
+"wait_time": 4.21
+},
+{
+"uuid": "f3a8d680f0f74c18b0bc7963095d60cf",
+"name": "prism-examples-sglang-cmp-prefill",
+"created_at": "2026-10-21T15:38:45.735629+02:00",
+"started_at": "2026-10-21T15:38:53.407289+02:00",
+"finished_at": "2026-10-21T16:13:50.273370+02:00",
+"status": "succeeded",
+"wait_time": 7.67
+},
+{
+"uuid": "a41e5380e1ae4e518af0c746a3986d7f",
+"name": "prism-examples-vllm-cmp-prefill",
+"created_at": "2026-10-21T15:38:50.252118+02:00",
+"started_at": "2026-10-21T15:39:01.953011+02:00",
+"finished_at": "2026-10-21T16:17:41.799574+02:00",
+"status": "succeeded",
+"wait_time": 11.7
+},
+{
+"uuid": "44bb497006df482a820f85b1af864ba7",
+"name": "prism-examples-sglang-cmp-decode",
+"created_at": "2026-10-21T15:38:54.881120+02:00",
+"started_at": "2026-10-21T15:39:01.978870+02:00",
+"finished_at": "2026-10-21T16:10:49.763623+02:00",
+"status": "succeeded",
+"wait_time": 7.1
+},
+{
+"uuid": "380106d9780248148a330eeabb373d4d",
+"name": "prism-examples-vllm-cmp-decode",
+"created_at": "2026-10-21T15:38:59.664797+02:00",
+"started_at": "2026-10-21T15:39:10.574523+02:00",
+"finished_at": "2026-10-21T16:14:01.825815+02:00",
+"status": "succeeded",
+"wait_time": 10.91
+},
+{
+"uuid": "0a1dfe4bcb684008b7a387f9596f94d1",
+"name": "prism-examples-sglang-cmp-bursty",
+"created_at": "2026-10-21T15:39:03.963609+02:00",
+"started_at": "2026-10-21T15:39:10.807846+02:00",
+"finished_at": "2026-10-21T16:03:53.740733+02:00",
+"status": "succeeded",
+"wait_time": 6.84
+},
+{
+"uuid": "58effdf6dfac4742b41d94c1320af6ae",
+"name": "prism-examples-vllm-cmp-bursty",
+"created_at": "2026-10-21T15:39:09.349095+02:00",
+"started_at": "2026-10-21T15:39:19.365224+02:00",
+"finished_at": "2026-10-21T16:06:35.915145+02:00",
+"status": "succeeded",
+"wait_time": 10.02
+},
+{
+"uuid": "bf7acc1478294123bb02bdab94fddacb",
+"name": "prism-examples-sglang-cmp-sustained",
+"created_at": "2026-10-21T15:39:19.117125+02:00",
+"started_at": "2026-10-21T15:39:27.874671+02:00",
+"finished_at": "2026-10-21T16:19:28.074913+02:00",
+"status": "succeeded",
+"wait_time": 8.76
+},
+{
+"uuid": "47a46d1025734e32bbdf3419ae2b4687",
+"name": "prism-examples-sglang-cmp-fine-alone",
+"created_at": "2026-10-21T20:29:02.304748+02:00",
+"started_at": "2026-10-21T20:29:15.142158+02:00",
+"finished_at": "2026-10-21T20:53:00.932742+02:00",
+"status": "succeeded",
+"wait_time": 12.84
+},
+{
+"uuid": "264025f04cb04ae88e0b65eaec5dd963",
+"name": "prism-examples-sglang-cmp-fine-alone",
+"created_at": "2026-10-21T20:29:11.422720+02:00",
+"started_at": "2026-10-21T20:29:15.137163+02:00",
+"finished_at": "2026-10-21T20:29:31.896336+02:00",
+"status": "stopped",
+"wait_time": 3.71
+},
+{
+"uuid": "4a34fee1dcd04891947deb6e00b94408",
+"name": "prism-examples-sglang-cmp-sustained-alone",
+"created_at": "2026-10-21T20:55:01.699155+02:00",
+"started_at": null,
+"finished_at": null,
+"status": "failed",
+"wait_time": null
+},
+{
+"uuid": "01b2e87ba68e42c4be5d5b77ebad24e4",
+"name": "prism-examples-sglang-cmp-suite",
+"created_at": "2026-10-22T13:08:05.244477+02:00",
+"started_at": "2026-10-22T13:08:10.930662+02:00",
+"finished_at": "2026-10-22T14:36:12.390260+02:00",
+"status": "succeeded",
+"wait_time": 5.69
+},
+{
+"uuid": "2054e2aa6b324899a22abd5e7d1168c3",
+"name": "prism-examples-vllm-cmp-suite",
+"created_at": "2026-10-22T13:08:10.046070+02:00",
+"started_at": "2026-10-22T13:08:19.340728+02:00",
+"finished_at": "2026-10-22T14:44:57.273558+02:00",
+"status": "succeeded",
+"wait_time": 9.29
+},
+{
+"uuid": "e92eed1ed61a4f56af7e62e69bea0996",
+"name": "prism-examples-smoke-trace",
+"created_at": "2026-10-22T16:08:41.395611+02:00",
+"started_at": "2026-10-22T16:08:49.636615+02:00",
+"finished_at": "2026-10-22T16:12:37.162690+02:00",
+"status": "succeeded",
+"wait_time": 8.24
+},
+{
+"uuid": "bc5712af817a42ab895ab4103f1d32b4",
+"name": "prism-examples-idle-mem",
+"created_at": "2026-10-22T16:08:49.573165+02:00",
+"started_at": "2026-10-22T16:08:57.937178+02:00",
+"finished_at": "2026-10-22T17:43:58.349452+02:00",
+"status": "succeeded",
+"wait_time": 8.36
+},
+{
+"uuid": "ebafecd80e6f4f2a96df8e2f9dbd23e3",
+"name": "prism-examples-idle-phases",
+"created_at": "2026-10-22T16:08:53.888192+02:00",
+"started_at": "2026-10-22T16:08:58.041967+02:00",
+"finished_at": "2026-10-22T17:16:16.500625+02:00",
+"status": "succeeded",
+"wait_time": 4.15
+},
+{
+"uuid": "474770d4f3d54666b45ade405552753d",
+"name": "prism-examples-idle-trace",
+"created_at": "2026-10-22T16:13:29.718924+02:00",
+"started_at": "2026-10-22T16:13:36.813348+02:00",
+"finished_at": "2026-10-22T18:27:15.451416+02:00",
+"status": "succeeded",
+"wait_time": 7.09
+},
+{
+"uuid": "faadf3d5dea4492e866e9fdc6ea76abc",
+"name": "prism-examples-eviction",
+"created_at": "2026-10-22T16:14:09.356551+02:00",
+"started_at": "2026-10-22T16:14:18.880262+02:00",
+"finished_at": "2026-10-22T17:27:35.144702+02:00",
+"status": "succeeded",
+"wait_time": 9.52
+},
+{
+"uuid": "18411b56de8b4e0ab6d8800a86851362",
+"name": "prism-examples-smoke-swap",
+"created_at": "2026-10-22T16:28:53.105028+02:00",
+"started_at": "2026-10-22T16:29:04.812798+02:00",
+"finished_at": "2026-10-22T16:50:00.166978+02:00",
+"status": "succeeded",
+"wait_time": 11.71
+},
+{
+"uuid": "4bc42f84f0514fb383c8be086a17d535",
+"name": "prism-examples-smoke-swap2",
+"created_at": "2026-10-22T16:52:29.831647+02:00",
+"started_at": "2026-10-22T16:52:37.843207+02:00",
+"finished_at": "2026-10-22T17:36:56.955456+02:00",
+"status": "succeeded",
+"wait_time": 8.01
+},
+{
+"uuid": "b56dfb0bc0034660817aaf966930d815",
+"name": "prism-examples-smoke-swap3",
+"created_at": "2026-10-22T17:39:16.542195+02:00",
+"started_at": "2026-10-22T17:39:28.788128+02:00",
+"finished_at": "2026-10-22T17:44:29.183310+02:00",
+"status": "succeeded",
+"wait_time": 12.25
+},
+{
+"uuid": "57a698c8d2dd411bb3fdd4cdf03561c1",
+"name": "prism-examples-swap-mem",
+"created_at": "2026-10-22T17:47:22.018573+02:00",
+"started_at": "2026-10-22T17:47:33.456555+02:00",
+"finished_at": "2026-10-22T18:34:27.992754+02:00",
+"status": "succeeded",
+"wait_time": 11.44
+},
+{
+"uuid": "8db586d39f0c445fa825edeabca3ccd5",
+"name": "prism-examples-swap-mix",
+"created_at": "2026-10-22T17:47:27.347364+02:00",
+"started_at": "2026-10-22T17:47:33.468928+02:00",
+"finished_at": "2026-10-22T18:34:09.202340+02:00",
+"status": "succeeded",
+"wait_time": 6.12
+},
+{
+"uuid": "1e50e2fb9ee248aeb1e9dabbd5cec9f5",
+"name": "prism-examples-swap-trace",
+"created_at": "2026-10-22T17:47:32.052626+02:00",
+"started_at": "2026-10-22T17:47:41.663795+02:00",
+"finished_at": "2026-10-22T18:29:19.777417+02:00",
+"status": "succeeded",
+"wait_time": 9.61
+},
+{
+"uuid": "0bc0f97c681b411ab8ee4af984919921",
+"name": "prism-examples-swap-phases",
+"created_at": "2026-10-22T17:47:36.863769+02:00",
+"started_at": "2026-10-22T17:47:41.704089+02:00",
+"finished_at": "2026-10-22T19:29:24.273023+02:00",
+"status": "succeeded",
+"wait_time": 4.84
+},
+{
+"uuid": "34d0593471ab41cfa49c8b43926864da",
+"name": "prism-examples-robust-smoke",
+"created_at": "2026-10-22T20:40:32.711479+02:00",
+"started_at": "2026-10-22T20:40:43.531503+02:00",
+"finished_at": "2026-10-22T20:51:31.935895+02:00",
+"status": "succeeded",
+"wait_time": 10.82
+},
+{
+"uuid": "3d24a037856e4bc4a4e3450b8977340b",
+"name": "prism-examples-robust-smoke2",
+"created_at": "2026-10-22T20:52:35.694646+02:00",
+"started_at": "2026-10-22T20:52:40.800375+02:00",
+"finished_at": "2026-10-22T21:00:22.797436+02:00",
+"status": "succeeded",
+"wait_time": 5.11
+},
+{
+"uuid": "76e9194fbcc44b779234ac21032f1fc8",
+"name": "prism-examples-robust-a",
+"created_at": "2026-10-22T20:52:41.034036+02:00",
+"started_at": "2026-10-22T20:52:49.179510+02:00",
+"finished_at": "2026-10-22T21:29:57.635357+02:00",
+"status": "succeeded",
+"wait_time": 8.15
+},
+{
+"uuid": "8921a77936dc4781bbb6c80244a0c7dc",
+"name": "prism-examples-robust-b",
+"created_at": "2026-10-22T20:52:46.981423+02:00",
+"started_at": "2026-10-22T20:52:57.643178+02:00",
+"finished_at": "2026-10-22T21:44:03.233701+02:00",
+"status": "succeeded",
+"wait_time": 10.66
+},
+{
+"uuid": "8c9a3008a693484289ad6d137aa4f779",
+"name": "prism-examples-robust-c",
+"created_at": "2026-10-22T21:01:05.966865+02:00",
+"started_at": "2026-10-22T21:01:15.805960+02:00",
+"finished_at": "2026-10-22T22:10:25.921813+02:00",
+"status": "succeeded",
+"wait_time": 9.84
+},
+{
+"uuid": "97d1819e3a2841a7af502708d88110a3",
+"name": "prism-examples-kvcached-probe",
+"created_at": "2026-10-22T22:25:55.941008+02:00",
+"started_at": "2026-10-22T22:26:03.231951+02:00",
+"finished_at": "2026-10-22T22:30:56.211868+02:00",
+"status": "succeeded",
+"wait_time": 7.29
+},
+{
+"uuid": "ad40a44073b44fab85d3221d2959506f",
+"name": "prism-examples-cost-a",
+"created_at": "2026-10-22T22:26:14.497694+02:00",
+"started_at": "2026-10-22T22:26:19.889700+02:00",
+"finished_at": "2026-10-22T23:41:36.356209+02:00",
+"status": "succeeded",
+"wait_time": 5.39
+},
+{
+"uuid": "d9f058a5195c4842b314156ad9c07e05",
+"name": "prism-examples-cost-b",
+"created_at": "2026-10-22T22:26:19.378242+02:00",
+"started_at": "2026-10-22T22:26:28.367325+02:00",
+"finished_at": "2026-10-22T23:31:05.175158+02:00",
+"status": "succeeded",
+"wait_time": 8.99
+},
+{
+"uuid": "8098e7264e5d4b6c8e41b72c39e3661c",
+"name": "prism-examples-rep-phases-1",
+"created_at": "2026-10-22T22:42:27.398772+02:00",
+"started_at": "2026-10-22T22:42:37.509380+02:00",
+"finished_at": "2026-10-22T23:20:36.835233+02:00",
+"status": "succeeded",
+"wait_time": 10.11
+},
+{
+"uuid": "e4927caac30445cea35f4817943e3629",
+"name": "prism-examples-rep-phases-2",
+"created_at": "2026-10-22T22:42:32.302752+02:00",
+"started_at": "2026-10-22T22:42:37.543295+02:00",
+"finished_at": "2026-10-23T00:07:59.420799+02:00",
+"status": "succeeded",
+"wait_time": 5.24
+},
+{
+"uuid": "618a6745b4cc44ccb30a4ef48fd841c3",
+"name": "prism-examples-rep-phases-3",
+"created_at": "2026-10-22T22:42:37.132029+02:00",
+"started_at": "2026-10-22T22:42:47.731149+02:00",
+"finished_at": "2026-10-23T00:13:31.251403+02:00",
+"status": "succeeded",
+"wait_time": 10.6
+},
+{
+"uuid": "cc480dcff42a49ce9377a26aadc410c1",
+"name": "prism-examples-rep-mem-1",
+"created_at": "2026-10-22T22:42:41.904921+02:00",
+"started_at": "2026-10-22T22:42:47.713725+02:00",
+"finished_at": "2026-10-23T00:02:34.831721+02:00",
+"status": "succeeded",
+"wait_time": 5.81
+},
+{
+"uuid": "6d7b6081b3c843f38c181c87a8a4afd3",
+"name": "prism-examples-rep-mem-2",
+"created_at": "2026-10-22T22:42:47.167853+02:00",
+"started_at": "2026-10-22T22:42:56.103015+02:00",
+"finished_at": "2026-10-23T00:07:49.181498+02:00",
+"status": "succeeded",
+"wait_time": 8.94
+},
+{
+"uuid": "941c9facf4894ffdb61fc19ade197568",
+"name": "prism-examples-rep-mem-3",
+"created_at": "2026-10-22T22:42:52.061308+02:00",
+"started_at": "2026-10-22T22:42:56.194100+02:00",
+"finished_at": "2026-10-23T00:16:15.691950+02:00",
+"status": "failed",
+"wait_time": 4.13
+},
+{
+"uuid": "a96c44a62a0c4e0c91f637df0e8f0700",
+"name": "prism-examples-rep-mix-1",
+"created_at": "2026-10-22T22:42:56.269219+02:00",
+"started_at": "2026-10-22T22:43:04.877417+02:00",
+"finished_at": "2026-10-23T00:16:23.693969+02:00",
+"status": "failed",
+"wait_time": 8.61
+},
+{
+"uuid": "373c6488e17445e98e385d59fbfb8450",
+"name": "prism-examples-rep-mix-2",
+"created_at": "2026-10-22T22:43:01.475825+02:00",
+"started_at": "2026-10-22T22:43:13.029890+02:00",
+"finished_at": "2026-10-23T00:16:32.712070+02:00",
+"status": "failed",
+"wait_time": 11.55
+},
+{
+"uuid": "8f35c520ce37486ba8da14823dbb0200",
+"name": "prism-examples-rep-mix-3",
+"created_at": "2026-10-22T22:43:06.553380+02:00",
+"started_at": "2026-10-22T22:43:13.047099+02:00",
+"finished_at": "2026-10-23T00:16:37.698768+02:00",
+"status": "stopped",
+"wait_time": 6.49
+},
+{
+"uuid": "c23826d08d3446618840437c5b832e7c",
+"name": "prism-examples-rep-mem-3b",
+"created_at": "2026-10-23T00:21:00.555535+02:00",
+"started_at": "2026-10-23T00:21:09.354737+02:00",
+"finished_at": "2026-10-23T00:38:40.213346+02:00",
+"status": "succeeded",
+"wait_time": 8.8
+},
+{
+"uuid": "1281bda87e0945c982673f90bcbe03f5",
+"name": "prism-examples-rep-mix-1b",
+"created_at": "2026-10-23T00:21:05.284007+02:00",
+"started_at": "2026-10-23T00:21:09.365241+02:00",
+"finished_at": "2026-10-23T00:47:34.722287+02:00",
+"status": "succeeded",
+"wait_time": 4.08
+},
+{
+"uuid": "b2f432400aa4419bbfeed067c11f21f6",
+"name": "prism-examples-rep-mix-2b",
+"created_at": "2026-10-23T00:21:09.700348+02:00",
+"started_at": "2026-10-23T00:21:17.678401+02:00",
+"finished_at": "2026-10-23T01:02:18.964287+02:00",
+"status": "succeeded",
+"wait_time": 7.98
+},
+{
+"uuid": "ede340b514244b01b041d67dd953fe33",
+"name": "prism-examples-rep-mix-3b",
+"created_at": "2026-10-23T00:21:14.391865+02:00",
+"started_at": "2026-10-23T00:21:26.110818+02:00",
+"finished_at": "2026-10-23T01:03:46.425614+02:00",
+"status": "succeeded",
+"wait_time": 11.72
+},
+{
+"uuid": "f3119e6f6de34211889e846f97e6d398",
+"name": "prism-examples-rep-idle-phases-1",
+"created_at": "2026-10-26T12:46:14.329652+01:00",
+"started_at": "2026-10-26T12:46:27.836616+01:00",
+"finished_at": "2026-10-26T13:29:03.815519+01:00",
+"status": "stopped",
+"wait_time": 13.51
+},
+{
+"uuid": "12a364bd6804493a82ef720b374e5084",
+"name": "prism-examples-rep-idle-phases-2",
+"created_at": "2026-10-26T12:46:21.320912+01:00",
+"started_at": "2026-10-26T12:46:27.832225+01:00",
+"finished_at": "2026-10-26T13:29:03.854056+01:00",
+"status": "stopped",
+"wait_time": 6.51
+},
+{
+"uuid": "1798599bc96e44d88701c3109616d3b9",
+"name": "prism-examples-rep-idle-phases-3",
+"created_at": "2026-10-26T12:46:26.548406+01:00",
+"started_at": "2026-10-26T12:46:36.122465+01:00",
+"finished_at": "2026-10-26T13:29:03.799609+01:00",
+"status": "stopped",
+"wait_time": 9.57
+},
+{
+"uuid": "3a385a1b151242b7bf4348554c869b6e",
+"name": "prism-examples-idle-subsec-1",
+"created_at": "2026-10-26T12:48:14.304326+01:00",
+"started_at": "2026-10-26T12:48:25.977527+01:00",
+"finished_at": "2026-10-26T13:29:03.697107+01:00",
+"status": "stopped",
+"wait_time": 11.67
+},
+{
+"uuid": "77846bbb1ac64096a90e5858e81d37e1",
+"name": "prism-examples-idle-subsec-2",
+"created_at": "2026-10-26T12:48:19.512689+01:00",
+"started_at": "2026-10-26T12:48:25.977424+01:00",
+"finished_at": "2026-10-26T13:29:03.565960+01:00",
+"status": "stopped",
+"wait_time": 6.46
+},
+{
+"uuid": "183660f60e964befa59f5529ccdfc140",
+"name": "prism-examples-idle-subsec-3",
+"created_at": "2026-10-26T12:48:24.686760+01:00",
+"started_at": "2026-10-26T12:48:34.363556+01:00",
+"finished_at": "2026-10-26T13:29:03.654192+01:00",
+"status": "stopped",
+"wait_time": 9.68
+},
+{
+"uuid": "1fff70d147e644229d2a87ca34af5cbf",
+"name": "prism-examples-rep-mem-crash-1",
+"created_at": "2026-10-26T12:57:17.615243+01:00",
+"started_at": "2026-10-26T12:57:26.184029+01:00",
+"finished_at": "2026-10-26T13:29:03.566536+01:00",
+"status": "stopped",
+"wait_time": 8.57
+},
+{
+"uuid": "b8b63af665014b95982e747eb30a6b3f",
+"name": "prism-examples-rep-mem-crash-2",
+"created_at": "2026-10-26T12:57:22.728235+01:00",
+"started_at": "2026-10-26T12:57:34.618039+01:00",
+"finished_at": "2026-10-26T13:28:55.264418+01:00",
+"status": "stopped",
+"wait_time": 11.89
+},
+{
+"uuid": "4d51455f6fa249f4a9cd5dc196d9b1a2",
+"name": "prism-examples-rep-mem-crash-3",
+"created_at": "2026-10-26T12:57:27.820432+01:00",
+"started_at": "2026-10-26T12:57:34.738352+01:00",
+"finished_at": "2026-10-26T13:28:55.337744+01:00",
+"status": "stopped",
+"wait_time": 6.92
+},
+{
+"uuid": "1f3fa107941d42cc9007e474ebf4cb98",
+"name": "prism-examples-smoke-trace12",
+"created_at": "2026-10-26T13:08:23.782553+01:00",
+"started_at": "2026-10-26T13:08:33.526875+01:00",
+"finished_at": "2026-10-26T13:28:55.365092+01:00",
+"status": "stopped",
+"wait_time": 9.74
+},
+{
+"uuid": "de078101edd849abafd2c510f5b0553b",
+"name": "prism-examples-fix-phases-idle-1",
+"created_at": "2026-10-26T13:29:09.735110+01:00",
+"started_at": "2026-10-26T13:29:21.421420+01:00",
+"finished_at": "2026-10-26T15:06:56.686775+01:00",
+"status": "succeeded",
+"wait_time": 11.69
+},
+{
+"uuid": "1cd103ee33a14f1a94b9c3b890d8ef62",
+"name": "prism-examples-fix-phases-idle-2",
+"created_at": "2026-10-26T13:29:14.588826+01:00",
+"started_at": "2026-10-26T13:29:21.437180+01:00",
+"finished_at": "2026-10-26T15:52:12.847221+01:00",
+"status": "succeeded",
+"wait_time": 6.85
+},
+{
+"uuid": "92fe3853047f4ce59cf07ab41c702d82",
+"name": "prism-examples-fix-phases-idle-3",
+"created_at": "2026-10-26T13:29:18.846616+01:00",
+"started_at": "2026-10-26T13:29:29.868808+01:00",
+"finished_at": "2026-10-26T15:52:12.072071+01:00",
+"status": "succeeded",
+"wait_time": 11.02
+},
+{
+"uuid": "1c2acb56ebba43819eaaaa238f881de6",
+"name": "prism-examples-fix-mem-idle-1",
+"created_at": "2026-10-26T13:29:24.672934+01:00",
+"started_at": "2026-10-26T13:29:29.874017+01:00",
+"finished_at": "2026-10-26T16:17:23.980270+01:00",
+"status": "failed",
+"wait_time": 5.2
+},
+{
+"uuid": "3bf164f54de8418a99111012b148e26a",
+"name": "prism-examples-fix-mem-idle-2",
+"created_at": "2026-10-26T13:29:29.260433+01:00",
+"started_at": "2026-10-26T13:29:38.495564+01:00",
+"finished_at": "2026-10-26T16:17:20.803531+01:00",
+"status": "failed",
+"wait_time": 9.24
+},
+{
+"uuid": "f7a6e2afeed741d0b82ccb9114bcf476",
+"name": "prism-examples-fix-mem-idle-3",
+"created_at": "2026-10-26T13:29:34.582055+01:00",
+"started_at": "2026-10-26T13:29:38.510448+01:00",
+"finished_at": "2026-10-26T16:17:16.114317+01:00",
+"status": "failed",
+"wait_time": 3.93
+},
+{
+"uuid": "bdd4a57115154ba8bc105008c019b04a",
+"name": "prism-examples-fix-trace12-1",
+"created_at": "2026-10-26T13:29:39.030215+01:00",
+"started_at": "2026-10-26T13:29:46.803568+01:00",
+"finished_at": "2026-10-26T16:50:42.777153+01:00",
+"status": "failed",
+"wait_time": 7.77
+},
+{
+"uuid": "a614843571934618ba65b33cecb2f233",
+"name": "prism-examples-fix-trace12-2",
+"created_at": "2026-10-26T13:29:44.145802+01:00",
+"started_at": "2026-10-26T13:29:55.277967+01:00",
+"finished_at": "2026-10-26T16:50:44.492563+01:00",
+"status": "failed",
+"wait_time": 11.13
+},
+{
+"uuid": "64bef4e492874275afb16c49755daea8",
+"name": "prism-examples-fix-trace12-3",
+"created_at": "2026-10-26T13:29:48.874042+01:00",
+"started_at": "2026-10-26T13:29:55.300944+01:00",
+"finished_at": "2026-10-26T17:19:55.227902+01:00",
+"status": "failed",
+"wait_time": 6.43
+},
+{
+"uuid": "f54a41f7611d41589be84a70c1f3f9e6",
+"name": "prism-examples-fix-strategies-1",
+"created_at": "2026-10-26T13:34:57.168772+01:00",
+"started_at": "2026-10-26T13:35:08.945531+01:00",
+"finished_at": "2026-10-26T16:35:08.518737+01:00",
+"status": "failed",
+"wait_time": 11.78
+},
+{
+"uuid": "4c0a15d5d1c4410da4ef852ce10ebf3e",
+"name": "prism-examples-fix-strategies-2",
+"created_at": "2026-10-26T13:35:01.902269+01:00",
+"started_at": "2026-10-26T13:35:08.947129+01:00",
+"finished_at": "2026-10-26T16:35:08.503082+01:00",
+"status": "failed",
+"wait_time": 7.04
+},
+{
+"uuid": "c445e841c8a84feaab8b761b50a22401",
+"name": "prism-examples-fix-strategies-3",
+"created_at": "2026-10-26T13:35:06.642114+01:00",
+"started_at": "2026-10-26T13:35:17.837853+01:00",
+"finished_at": "2026-10-26T16:35:17.247658+01:00",
+"status": "failed",
+"wait_time": 11.2
+},
+{
+"uuid": "e0c57e0b67654d4a9c6ce6be181bc7c4",
+"name": "prism-examples-fix-tp-mem-1",
+"created_at": "2026-10-26T13:35:12.881871+01:00",
+"started_at": "2026-10-26T13:35:17.877195+01:00",
+"finished_at": "2026-10-26T16:02:02.415571+01:00",
+"status": "stopped",
+"wait_time": 5.0
+},
+{
+"uuid": "eeaf7ec12dc64f38b5bd8c54b877f80a",
+"name": "prism-examples-fix-tp-mem-2",
+"created_at": "2026-10-26T13:35:17.784346+01:00",
+"started_at": "2026-10-26T13:35:25.877597+01:00",
+"finished_at": "2026-10-26T16:02:10.206145+01:00",
+"status": "stopped",
+"wait_time": 8.09
+},
+{
+"uuid": "0fa336511b034c939a9afaba1d72ae0f",
+"name": "prism-examples-fix-tp-mem-3",
+"created_at": "2026-10-26T13:35:22.635619+01:00",
+"started_at": "2026-10-26T13:35:34.655276+01:00",
+"finished_at": "2026-10-26T16:02:19.441760+01:00",
+"status": "stopped",
+"wait_time": 12.02
+},
+{
+"uuid": "fe3f35c5a37e41db80639c90d5adc8b5",
+"name": "prism-examples-fix-tp-mix-1",
+"created_at": "2026-10-26T13:35:27.895921+01:00",
+"started_at": "2026-10-26T13:35:35.095599+01:00",
+"finished_at": "2026-10-26T16:02:19.213095+01:00",
+"status": "stopped",
+"wait_time": 7.2
+},
+{
+"uuid": "9a5aea45829f4f2cac190147e7d6ff06",
+"name": "prism-examples-fix-tp-mix-2",
+"created_at": "2026-10-26T13:35:32.712427+01:00",
+"started_at": "2026-10-26T13:35:43.282158+01:00",
+"finished_at": "2026-10-26T16:02:28.235412+01:00",
+"status": "stopped",
+"wait_time": 10.57
+},
+{
+"uuid": "abe81f82e80342cd999e69615da0073a",
+"name": "prism-examples-fix-tp-mix-3",
+"created_at": "2026-10-26T13:35:37.310535+01:00",
+"started_at": "2026-10-26T13:35:43.340683+01:00",
+"finished_at": "2026-10-26T16:02:28.226747+01:00",
+"status": "stopped",
+"wait_time": 6.03
+},
+{
+"uuid": "c223dc54bfc340d59c617c0f4333ac3d",
+"name": "prism-examples-fix-tp-phases-1",
+"created_at": "2026-10-26T13:35:42.226145+01:00",
+"started_at": "2026-10-26T13:35:51.856215+01:00",
+"finished_at": "2026-10-26T16:27:31.342088+01:00",
+"status": "failed",
+"wait_time": 9.63
+},
+{
+"uuid": "59eefee107214c659a6862574e503c8c",
+"name": "prism-examples-fix-tp-phases-2",
+"created_at": "2026-10-26T13:35:47.633316+01:00",
+"started_at": "2026-10-26T13:36:00.261800+01:00",
+"finished_at": "2026-10-26T16:27:45.202695+01:00",
+"status": "stopped",
+"wait_time": 12.63
+},
+{
+"uuid": "3b0eaf74407441b3add990e780bfb539",
+"name": "prism-examples-fix-tp-phases-3",
+"created_at": "2026-10-26T13:35:53.228686+01:00",
+"started_at": "2026-10-26T13:36:00.270674+01:00",
+"finished_at": "2026-10-26T16:27:45.198816+01:00",
+"status": "stopped",
+"wait_time": 7.04
+},
+{
+"uuid": "f16d279a7bbf4114adcbbe9f81d95ff4",
+"name": "prism-examples-fix-tp-trace12-1",
+"created_at": "2026-10-26T13:35:58.069697+01:00",
+"started_at": "2026-10-26T13:36:08.835671+01:00",
+"finished_at": "2026-10-26T16:36:08.206148+01:00",
+"status": "failed",
+"wait_time": 10.77
+},
+{
+"uuid": "3c3abe4c9e9349cebe88525b46b78c39",
+"name": "prism-examples-fix-tp-trace12-2",
+"created_at": "2026-10-26T13:36:02.629895+01:00",
+"started_at": "2026-10-26T13:36:09.119445+01:00",
+"finished_at": "2026-10-26T16:36:13.341572+01:00",
+"status": "stopped",
+"wait_time": 6.49
+},
+{
+"uuid": "ad7635e177e446b59bb3776d76ee15ca",
+"name": "prism-examples-fix-tp-trace12-3",
+"created_at": "2026-10-26T13:36:08.091234+01:00",
+"started_at": "2026-10-26T13:36:17.339813+01:00",
+"finished_at": "2026-10-26T16:36:22.186985+01:00",
+"status": "stopped",
+"wait_time": 9.25
+},
+{
+"uuid": "c6c1d074096040179a9faf2c286c227a",
+"name": "prism-examples-fix2-mem-idle-1",
+"created_at": "2026-10-26T20:24:23.723568+01:00",
+"started_at": "2026-10-26T20:24:35.745202+01:00",
+"finished_at": "2026-10-26T23:23:47.361078+01:00",
+"status": "stopped",
+"wait_time": 12.02
+},
+{
+"uuid": "7759c55e481a479d8afdac14ef165ee2",
+"name": "prism-examples-fix2-trace12-1",
+"created_at": "2026-10-26T20:25:30.144260+01:00",
+"started_at": "2026-10-26T20:25:34.914881+01:00",
+"finished_at": "2026-10-26T23:23:47.361319+01:00",
+"status": "stopped",
+"wait_time": 4.77
+},
+{
+"uuid": "16b189948cc1414184e636f4555e7bb2",
+"name": "prism-examples-fix2-strategies-1",
+"created_at": "2026-10-26T20:26:36.786880+01:00",
+"started_at": "2026-10-26T20:26:42.708613+01:00",
+"finished_at": "2026-10-26T23:23:47.337515+01:00",
+"status": "stopped",
+"wait_time": 5.92
+},
+{
+"uuid": "10e21760946643e2bb7b9eada8c944a2",
+"name": "prism-examples-fix2-tp-mem-1",
+"created_at": "2026-10-26T20:27:45.243220+01:00",
+"started_at": "2026-10-26T20:27:50.136488+01:00",
+"finished_at": "2026-10-26T22:54:34.385627+01:00",
+"status": "stopped",
+"wait_time": 4.89
+},
+{
+"uuid": "ef27ed56428f41edb2cc1331bad8b226",
+"name": "prism-examples-fix2-tp-mix-1",
+"created_at": "2026-10-26T20:28:52.498925+01:00",
+"started_at": "2026-10-26T20:28:57.692013+01:00",
+"finished_at": "2026-10-26T22:55:42.240842+01:00",
+"status": "stopped",
+"wait_time": 5.19
+},
+{
+"uuid": "943d1b2d103d40649763e904931bf663",
+"name": "prism-examples-fix2-tp-phases-1",
+"created_at": "2026-10-26T20:29:59.856146+01:00",
+"started_at": "2026-10-26T20:30:05.060259+01:00",
+"finished_at": "2026-10-26T23:21:49.508680+01:00",
+"status": "stopped",
+"wait_time": 5.2
+},
+{
+"uuid": "cf012d4f7afb4b61bcb40822a3e93212",
+"name": "prism-examples-fix2-tp-trace12-1",
+"created_at": "2026-10-26T22:54:58.810405+01:00",
+"started_at": "2026-10-26T22:55:07.923601+01:00",
+"finished_at": "2026-10-26T23:23:47.303754+01:00",
+"status": "stopped",
+"wait_time": 9.11
+},
+{
+"uuid": "755887974d7a4566b84fe01691952d1f",
+"name": "prism-examples-fix2-phases-idle-2",
+"created_at": "2026-10-26T22:56:06.354416+01:00",
+"started_at": "2026-10-26T22:56:15.325560+01:00",
+"finished_at": "2026-10-26T23:23:38.796932+01:00",
+"status": "stopped",
+"wait_time": 8.97
+},
+{
+"uuid": "32a26820e413462f8687e1ee6a80a163",
+"name": "prism-examples-fix2-mem-idle-1",
+"created_at": "2026-10-26T23:23:57.876709+01:00",
+"started_at": "2026-10-26T23:24:04.241843+01:00",
+"finished_at": "2026-10-27T06:59:16.333918+01:00",
+"status": "succeeded",
+"wait_time": 6.37
+},
+{
+"uuid": "1c13e9b2780e4cc3b01b553f357046df",
+"name": "prism-examples-fix2-trace12-1",
+"created_at": "2026-10-26T23:25:03.992813+01:00",
+"started_at": "2026-10-26T23:25:12.875677+01:00",
+"finished_at": "2026-10-27T08:29:10.439477+01:00",
+"status": "succeeded",
+"wait_time": 8.88
+},
+{
+"uuid": "f1cb4580634c4602ad0125bc6d1cb5d8",
+"name": "prism-examples-fix2-strategies-1",
+"created_at": "2026-10-26T23:26:10.669215+01:00",
+"started_at": "2026-10-26T23:26:20.250147+01:00",
+"finished_at": "2026-10-27T08:11:18.544460+01:00",
+"status": "succeeded",
+"wait_time": 9.58
+},
+{
+"uuid": "385dbd755c4f4708a07a1d639516085c",
+"name": "prism-examples-fix2-tp-mem-1",
+"created_at": "2026-10-26T23:27:17.625442+01:00",
+"started_at": "2026-10-26T23:27:27.599730+01:00",
+"finished_at": "2026-10-27T08:00:16.770601+01:00",
+"status": "succeeded",
+"wait_time": 9.97
+},
+{
+"uuid": "68d4c54978994d50961d18268bfb71a4",
+"name": "prism-examples-fix2-tp-mix-1",
+"created_at": "2026-10-26T23:28:24.927632+01:00",
+"started_at": "2026-10-26T23:28:35.091112+01:00",
+"finished_at": "2026-10-27T00:41:51.070989+01:00",
+"status": "succeeded",
+"wait_time": 10.16
+},
+{
+"uuid": "52b6c5c5b7854f7c8139cfdd20c0d3a0",
+"name": "prism-examples-fix2-tp-phases-1",
+"created_at": "2026-10-26T23:29:31.241673+01:00",
+"started_at": "2026-10-26T23:29:42.702795+01:00",
+"finished_at": "2026-10-27T06:48:27.442358+01:00",
+"status": "succeeded",
+"wait_time": 11.46
+},
+{
+"uuid": "b43713ae52a84d568b9a1987ed616a9e",
+"name": "prism-examples-fix2-tp-trace12-1",
+"created_at": "2026-10-27T00:43:34.522640+01:00",
+"started_at": "2026-10-27T00:43:41.835211+01:00",
+"finished_at": "2026-10-27T02:58:27.447973+01:00",
+"status": "succeeded",
+"wait_time": 7.31
+},
+{
+"uuid": "fbb97c7b92e14ffa9c3b377bf39d5ad0",
+"name": "prism-examples-fix2-phases-idle-2",
+"created_at": "2026-10-27T02:59:42.906197+01:00",
+"started_at": "2026-10-27T02:59:48.339084+01:00",
+"finished_at": "2026-10-27T05:49:02.426517+01:00",
+"status": "succeeded",
+"wait_time": 5.43
+},
+{
+"uuid": "28c6be07d5bb42db9bb98d75587119ad",
+"name": "prism-examples-fix2-mem-idle-2",
+"created_at": "2026-10-27T05:51:00.775691+01:00",
+"started_at": "2026-10-27T05:51:12.865842+01:00",
+"finished_at": "2026-10-27T09:19:56.596820+01:00",
+"status": "succeeded",
+"wait_time": 12.09
+},
+{
+"uuid": "5ad7f548a7724c688f7e34037d73916a",
+"name": "prism-examples-fix2-trace12-2",
+"created_at": "2026-10-27T11:48:10.651046+01:00",
+"started_at": "2026-10-27T11:48:23.695028+01:00",
+"finished_at": "2026-10-27T11:55:53.173254+01:00",
+"status": "stopped",
+"wait_time": 13.04
+},
+{
+"uuid": "89d9f5b0a594465986374e33b6e7b224",
+"name": "prism-examples-fix2-strategies-2",
+"created_at": "2026-10-27T11:49:18.523523+01:00",
+"started_at": "2026-10-27T11:49:23.031696+01:00",
+"finished_at": "2026-10-27T11:55:53.175418+01:00",
+"status": "stopped",
+"wait_time": 4.51
+},
+{
+"uuid": "efddfa68d6664b43b7b7e7ce6155ac83",
+"name": "prism-examples-fix2-tp-mem-2",
+"created_at": "2026-10-27T11:50:25.212508+01:00",
+"started_at": "2026-10-27T11:50:30.623037+01:00",
+"finished_at": "2026-10-27T11:55:53.182269+01:00",
+"status": "stopped",
+"wait_time": 5.41
+},
+{
+"uuid": "be0b70fce9c747bab3dafdc5e5d6b970",
+"name": "prism-examples-fix2-tp-mix-2",
+"created_at": "2026-10-27T11:51:32.109658+01:00",
+"started_at": "2026-10-27T11:51:38.773257+01:00",
+"finished_at": "2026-10-27T11:55:53.208167+01:00",
+"status": "stopped",
+"wait_time": 6.66
+},
+{
+"uuid": "15d0383dd047429690e8b2add31610e6",
+"name": "prism-examples-fix2-tp-phases-2",
+"created_at": "2026-10-27T11:52:38.447674+01:00",
+"started_at": "2026-10-27T11:52:46.329032+01:00",
+"finished_at": "2026-10-27T11:55:53.153339+01:00",
+"status": "stopped",
+"wait_time": 7.88
+},
+{
+"uuid": "9a535a7a200146b4aaf7c2b6e9396e37",
+"name": "prism-examples-fix2-tp-trace12-2",
+"created_at": "2026-10-27T11:53:44.761432+01:00",
+"started_at": "2026-10-27T11:53:53.745634+01:00",
+"finished_at": "2026-10-27T11:55:53.190017+01:00",
+"status": "stopped",
+"wait_time": 8.98
+},
+{
+"uuid": "a8f9e7f4dbba4ee48b4b73af0c06a2c9",
+"name": "prism-examples-fix3-phases-idle-1",
+"created_at": "2026-10-27T11:56:16.512017+01:00",
+"started_at": "2026-10-27T11:56:26.832455+01:00",
+"finished_at": "2026-10-27T13:26:24.743430+01:00",
+"status": "succeeded",
+"wait_time": 10.32
+},
+{
+"uuid": "7f1615465cce4784b541f610691b0d72",
+"name": "prism-examples-fix3-mem-idle-1",
+"created_at": "2026-10-27T11:57:23.252907+01:00",
+"started_at": "2026-10-27T11:57:34.324754+01:00",
+"finished_at": "2026-10-27T13:21:39.057616+01:00",
+"status": "succeeded",
+"wait_time": 11.07
+},
+{
+"uuid": "005f776b187243e48a9d77480e2684fc",
+"name": "prism-examples-fix3-trace12-1",
+"created_at": "2026-10-27T11:58:30.019138+01:00",
+"started_at": "2026-10-27T11:58:42.120323+01:00",
+"finished_at": "2026-10-27T13:58:51.005157+01:00",
+"status": "succeeded",
+"wait_time": 12.1
+},
+{
+"uuid": "1506e42af7a044928bf052af3886e29e",
+"name": "prism-examples-fix3-strategies-1",
+"created_at": "2026-10-27T11:59:36.635025+01:00",
+"started_at": "2026-10-27T11:59:41.484497+01:00",
+"finished_at": "2026-10-27T14:54:40.375432+01:00",
+"status": "succeeded",
+"wait_time": 4.85
+},
+{
+"uuid": "b71e3d7e715f4710b9e288722a041033",
+"name": "prism-examples-fix3-tp-mem-1",
+"created_at": "2026-10-27T12:00:43.431131+01:00",
+"started_at": "2026-10-27T12:00:49.077177+01:00",
+"finished_at": "2026-10-27T14:22:25.924385+01:00",
+"status": "succeeded",
+"wait_time": 5.65
+},
+{
+"uuid": "38c50954a86c47ba8512374042e1e6aa",
+"name": "prism-examples-fix3-tp-mix-1",
+"created_at": "2026-10-27T12:01:51.193853+01:00",
+"started_at": "2026-10-27T12:01:56.466294+01:00",
+"finished_at": "2026-10-27T14:10:34.133121+01:00",
+"status": "succeeded",
+"wait_time": 5.27
+},
+{
+"uuid": "43e45d43f9a1483e94a0e1ef05fe8187",
+"name": "prism-examples-fix3-tp-phases-1",
+"created_at": "2026-10-27T13:22:04.039069+01:00",
+"started_at": "2026-10-27T13:22:16.140577+01:00",
+"finished_at": "2026-10-27T14:54:45.238015+01:00",
+"status": "succeeded",
+"wait_time": 12.1
+},
+{
+"uuid": "3fe4035cdc744f3a8c64a639ab3b34e1",
+"name": "prism-examples-fix3-tp-trace12-1",
+"created_at": "2026-10-27T13:27:14.726852+01:00",
+"started_at": "2026-10-27T13:27:21.636716+01:00",
+"finished_at": "2026-10-27T15:11:54.223538+01:00",
+"status": "succeeded",
+"wait_time": 6.91
+},
+{
+"uuid": "e0b560de4bd644e382f9c6641dbed3a5",
+"name": "prism-examples-fix3-trace12-2",
+"created_at": "2026-10-27T14:00:47.377829+01:00",
+"started_at": "2026-10-27T14:00:56.601367+01:00",
+"finished_at": "2026-10-27T15:57:46.754576+01:00",
+"status": "succeeded",
+"wait_time": 9.22
+},
+{
+"uuid": "30a4ce7efe554377a09b984cfe303306",
+"name": "prism-examples-fix3-strategies-2",
+"created_at": "2026-10-27T14:12:03.357506+01:00",
+"started_at": "2026-10-27T14:12:13.577661+01:00",
+"finished_at": "2026-10-27T15:39:25.818430+01:00",
+"status": "succeeded",
+"wait_time": 10.22
+},
+{
+"uuid": "deab7783bd784b2e9d271bcd98301cd1",
+"name": "prism-examples-fix3-tp-mem-2",
+"created_at": "2026-10-27T14:23:19.191023+01:00",
+"started_at": "2026-10-27T14:23:24.744407+01:00",
+"finished_at": "2026-10-27T15:31:02.481161+01:00",
+"status": "succeeded",
+"wait_time": 5.55
+},
+{
+"uuid": "f036ae5eff28452a840cf1630ec61d32",
+"name": "prism-examples-fix3-tp-mix-2",
+"created_at": "2026-10-27T14:54:50.108524+01:00",
+"started_at": "2026-10-27T14:55:00.938793+01:00",
+"finished_at": "2026-10-27T15:33:20.664800+01:00",
+"status": "succeeded",
+"wait_time": 10.83
+},
+{
+"uuid": "40dade5bce584c7995c1945b77b5e3c5",
+"name": "prism-examples-fix3-tp-phases-2",
+"created_at": "2026-10-27T14:55:56.744208+01:00",
+"started_at": "2026-10-27T14:56:08.785366+01:00",
+"finished_at": "2026-10-27T16:00:03.142420+01:00",
+"status": "succeeded",
+"wait_time": 12.04
+},
+{
+"uuid": "310741dfcf66435092ce13c05a732611",
+"name": "prism-examples-fix3-tp-trace12-2",
+"created_at": "2026-10-27T15:13:17.822480+01:00",
+"started_at": "2026-10-27T15:13:28.422768+01:00",
+"finished_at": "2026-10-27T15:57:47.763300+01:00",
+"status": "succeeded",
+"wait_time": 10.6
+},
+{
+"uuid": "9d88748a61ee4b358b62f9e63aca4e5d",
+"name": "prism-examples-fix3-phases-idle-3",
+"created_at": "2026-10-27T15:32:38.133499+01:00",
+"started_at": "2026-10-27T15:32:45.626674+01:00",
+"finished_at": "2026-10-27T17:02:21.342179+01:00",
+"status": "succeeded",
+"wait_time": 7.49
+},
+{
+"uuid": "5096257420b7492ca7543195278511f8",
+"name": "prism-examples-fix3-mem-idle-3",
+"created_at": "2026-10-27T15:33:45.031898+01:00",
+"started_at": "2026-10-27T15:33:53.268222+01:00",
+"finished_at": "2026-10-27T17:29:16.292354+01:00",
+"status": "succeeded",
+"wait_time": 8.24
+},
+{
+"uuid": "069bca5629044296b9c559febc324959",
+"name": "prism-examples-fix3-trace12-3",
+"created_at": "2026-10-27T15:40:58.777598+01:00",
+"started_at": "2026-10-27T15:41:05.830862+01:00",
+"finished_at": "2026-10-27T17:46:06.922106+01:00",
+"status": "succeeded",
+"wait_time": 7.05
+},
+{
+"uuid": "8426cbcd07a54dd4b353f3cc5dc3b3c0",
+"name": "prism-examples-fix3-strategies-3",
+"created_at": "2026-10-27T15:58:18.025221+01:00",
+"started_at": "2026-10-27T15:58:27.295869+01:00",
+"finished_at": "2026-10-27T17:39:50.847439+01:00",
+"status": "succeeded",
+"wait_time": 9.27
+},
+{
+"uuid": "a8671e08ea1d42dda57dc70f645c6fb1",
+"name": "prism-examples-fix3-tp-mem-3",
+"created_at": "2026-10-27T15:59:24.716906+01:00",
+"started_at": "2026-10-27T15:59:34.995992+01:00",
+"finished_at": "2026-10-27T16:51:29.366120+01:00",
+"status": "succeeded",
+"wait_time": 10.28
+},
+{
+"uuid": "042d72063f20497abeeac50fb0d42d16",
+"name": "prism-examples-fix3-tp-mix-3",
+"created_at": "2026-10-27T16:00:30.912280+01:00",
+"started_at": "2026-10-27T16:00:42.743304+01:00",
+"finished_at": "2026-10-27T16:51:25.575594+01:00",
+"status": "succeeded",
+"wait_time": 11.83
+},
+{
+"uuid": "e249d4312e854c0a8d46e9223454da6e",
+"name": "prism-examples-fix3-tp-phases-3",
+"created_at": "2026-10-27T16:52:17.722259+01:00",
+"started_at": "2026-10-27T16:52:30.860970+01:00",
+"finished_at": "2026-10-27T18:13:20.633457+01:00",
+"status": "succeeded",
+"wait_time": 13.14
+},
+{
+"uuid": "9bdd237c22a7407685e187e61f128f34",
+"name": "prism-examples-fix3-tp-trace12-3",
+"created_at": "2026-10-27T16:53:25.865556+01:00",
+"started_at": "2026-10-27T16:53:31.025158+01:00",
+"finished_at": "2026-10-27T18:05:38.487305+01:00",
+"status": "succeeded",
+"wait_time": 5.16
+},
+{
+"uuid": "4ccb2b35d3544b61b2b657ea4801cbbc",
+"name": "prism-examples-fix4-phases-idle-1",
+"created_at": "2026-10-27T21:41:19.254226+01:00",
+"started_at": "2026-10-27T21:41:23.767489+01:00",
+"finished_at": "2026-10-27T21:44:45.555882+01:00",
+"status": "stopped",
+"wait_time": 4.51
+},
+{
+"uuid": "fafd30b3de4c4b26a51a0da5ed5cc050",
+"name": "prism-examples-fix4-trace12-1",
+"created_at": "2026-10-27T21:42:25.411741+01:00",
+"started_at": "2026-10-27T21:42:30.909979+01:00",
+"finished_at": "2026-10-27T21:44:45.549285+01:00",
+"status": "stopped",
+"wait_time": 5.5
+},
+{
+"uuid": "b14165f326e24250b0dd7c1dd79b6afd",
+"name": "prism-examples-fix4-strategies-1",
+"created_at": "2026-10-27T21:43:31.735001+01:00",
+"started_at": "2026-10-27T21:43:38.242305+01:00",
+"finished_at": "2026-10-27T21:44:45.547406+01:00",
+"status": "stopped",
+"wait_time": 6.51
+},
+{
+"uuid": "d25059eb37cf484c834e3b7c8b3b0bf5",
+"name": "prism-examples-fix5-mem-idle-1",
+"created_at": "2026-10-27T21:45:25.869121+01:00",
+"started_at": "2026-10-27T21:45:36.090820+01:00",
+"finished_at": "2026-10-27T22:14:05.599425+01:00",
+"status": "succeeded",
+"wait_time": 10.22
+},
+{
+"uuid": "8a3c523e2c9e45acabf13c798cb2ff2b",
+"name": "prism-examples-fix5-phases-idle-1",
+"created_at": "2026-10-27T21:46:32.642192+01:00",
+"started_at": "2026-10-27T21:46:43.441034+01:00",
+"finished_at": "2026-10-27T23:27:00.310652+01:00",
+"status": "succeeded",
+"wait_time": 10.8
+},
+{
+"uuid": "09e74c3fd842443bbfde70a4a356b1df",
+"name": "prism-examples-fix5-phases-idle-2",
+"created_at": "2026-10-27T21:47:39.727336+01:00",
+"started_at": "2026-10-27T21:47:50.734024+01:00",
+"finished_at": "2026-10-27T23:51:57.696943+01:00",
+"status": "succeeded",
+"wait_time": 11.01
+},
+{
+"uuid": "7adc95c67ddb407892c413ab948245e7",
+"name": "prism-examples-fix5-strategies-1",
+"created_at": "2026-10-27T21:48:46.282286+01:00",
+"started_at": "2026-10-27T21:48:58.142862+01:00",
+"finished_at": "2026-10-28T00:40:58.386891+01:00",
+"status": "succeeded",
+"wait_time": 11.86
+},
+{
+"uuid": "77fd7bd78e854a54984976b626a49e45",
+"name": "prism-examples-fix5-strategies-2",
+"created_at": "2026-10-27T21:49:52.804525+01:00",
+"started_at": "2026-10-27T21:49:57.021493+01:00",
+"finished_at": "2026-10-28T02:17:41.750616+01:00",
+"status": "succeeded",
+"wait_time": 4.22
+},
+{
+"uuid": "ada87e24df80481abcaa45447162d6c3",
+"name": "prism-examples-fix5-tp-mem-1",
+"created_at": "2026-10-27T21:50:59.679418+01:00",
+"started_at": "2026-10-27T21:51:04.321333+01:00",
+"finished_at": "2026-10-28T02:28:27.554312+01:00",
+"status": "succeeded",
+"wait_time": 4.64
+},
+{
+"uuid": "ba11fedf21d342f5bbf4aa929a9c96fb",
+"name": "prism-examples-fix5-tp-mem-2",
+"created_at": "2026-10-27T22:14:23.499300+01:00",
+"started_at": "2026-10-27T22:14:31.583139+01:00",
+"finished_at": "2026-10-28T02:50:37.388218+01:00",
+"status": "succeeded",
+"wait_time": 8.08
+},
+{
+"uuid": "5a097dd9a6e24f2bbbd58ce9e843ce28",
+"name": "prism-examples-fix5-tp-mix-1",
+"created_at": "2026-10-27T23:28:28.294372+01:00",
+"started_at": "2026-10-27T23:28:39.911797+01:00",
+"finished_at": "2026-10-28T00:09:22.626564+01:00",
+"status": "succeeded",
+"wait_time": 11.62
+},
+{
+"uuid": "79ee4e30287b4492a397bacc9ca09946",
+"name": "prism-examples-fix5-tp-mix-2",
+"created_at": "2026-10-27T23:53:53.930504+01:00",
+"started_at": "2026-10-27T23:54:04.678088+01:00",
+"finished_at": "2026-10-28T11:04:12.137205+01:00",
+"status": "succeeded",
+"wait_time": 10.75
+},
+{
+"uuid": "0418c74ec4fc4913b2f20d30104af7a6",
+"name": "prism-examples-fix5-tp-mix-3",
+"created_at": "2026-10-28T00:11:12.903660+01:00",
+"started_at": "2026-10-28T00:11:21.034719+01:00",
+"finished_at": "2026-10-28T00:48:44.692566+01:00",
+"status": "succeeded",
+"wait_time": 8.13
+},
+{
+"uuid": "434a61e4a1504ab0bd6aee2817df0be2",
+"name": "prism-examples-fix5-tp-phases-1",
+"created_at": "2026-10-28T00:42:45.815710+01:00",
+"started_at": "2026-10-28T00:42:56.010535+01:00",
+"finished_at": "2026-10-28T11:52:51.386569+01:00",
+"status": "succeeded",
+"wait_time": 10.19
+},
+{
+"uuid": "c8bfb90b7d784062a6e5f1d97b638d06",
+"name": "prism-examples-fix5-tp-phases-2",
+"created_at": "2026-10-28T00:49:57.044484+01:00",
+"started_at": "2026-10-28T00:50:05.319445+01:00",
+"finished_at": "2026-10-28T12:08:08.842544+01:00",
+"status": "succeeded",
+"wait_time": 8.27
+},
+{
+"uuid": "4485f1947703404bb36d81cbb507328f",
+"name": "prism-examples-fix5-tp-trace12-1",
+"created_at": "2026-10-28T02:18:19.589228+01:00",
+"started_at": "2026-10-28T02:18:28.577341+01:00",
+"finished_at": "2026-10-28T03:25:19.728532+01:00",
+"status": "succeeded",
+"wait_time": 8.99
+},
+{
+"uuid": "b07f33665d15464198c30c38350dcd55",
+"name": "prism-examples-fix5-tp-trace12-2",
+"created_at": "2026-10-28T02:29:36.230111+01:00",
+"started_at": "2026-10-28T02:29:47.155387+01:00",
+"finished_at": "2026-10-28T12:06:00.603252+01:00",
+"status": "succeeded",
+"wait_time": 10.93
+},
+{
+"uuid": "73a40bb74d9049b189d4b0b594de8d13",
+"name": "prism-examples-fix5-tp-trace12-3",
+"created_at": "2026-10-28T02:50:59.776088+01:00",
+"started_at": "2026-10-28T02:51:07.924319+01:00",
+"finished_at": "2026-10-28T12:19:40.880858+01:00",
+"status": "succeeded",
+"wait_time": 8.15
+},
+{
+"uuid": "9a90b17b66de431cbbe5571fdd5a398d",
+"name": "prism-examples-fix5-trace12-1",
+"created_at": "2026-10-28T03:26:34.358672+01:00",
+"started_at": "2026-10-28T03:26:40.636200+01:00",
+"finished_at": "2026-10-28T06:07:07.418979+01:00",
+"status": "succeeded",
+"wait_time": 6.28
+},
+{
+"uuid": "d8b55e8a9a2e4dbfa47e79b4552d7a10",
+"name": "prism-examples-fix5-trace12-2",
+"created_at": "2026-10-28T06:07:46.579107+01:00",
+"started_at": "2026-10-28T06:07:57.973418+01:00",
+"finished_at": "2026-10-28T12:33:36.102060+01:00",
+"status": "succeeded",
+"wait_time": 11.39
+},
+{
+"uuid": "c8a536fa89d7483abe42c8da42dbc74f",
+"name": "prism-examples-limits-smoke-base",
+"created_at": "2026-10-28T13:17:50.616381+01:00",
+"started_at": "2026-10-28T13:18:03.130599+01:00",
+"finished_at": "2026-10-28T13:23:34.240157+01:00",
+"status": "succeeded",
+"wait_time": 12.51
+},
+{
+"uuid": "f5c511a79e7842c6b41efafe9d71b386",
+"name": "prism-examples-limits-base-r1-A",
+"created_at": "2026-10-28T13:24:34.002129+01:00",
+"started_at": "2026-10-28T13:24:40.702804+01:00",
+"finished_at": "2026-10-28T14:17:37.223356+01:00",
+"status": "succeeded",
+"wait_time": 6.7
+},
+{
+"uuid": "e7298d4f3bb746dda827f899c517714f",
+"name": "prism-examples-limits-base-r1-B",
+"created_at": "2026-10-28T13:25:40.552649+01:00",
+"started_at": "2026-10-28T13:25:48.846708+01:00",
+"finished_at": "2026-10-28T14:14:33.549951+01:00",
+"status": "succeeded",
+"wait_time": 8.29
+},
+{
+"uuid": "08fafa525d844ea3b29185f48ec1ea10",
+"name": "prism-examples-limits-base-r1-C",
+"created_at": "2026-10-28T13:26:46.775299+01:00",
+"started_at": "2026-10-28T13:26:56.437095+01:00",
+"finished_at": "2026-10-28T14:13:35.549837+01:00",
+"status": "succeeded",
+"wait_time": 9.66
+},
+{
+"uuid": "e2c81cf92eb944b5b312abedaf08ebf1",
+"name": "prism-examples-limits-base-r1-D",
+"created_at": "2026-10-28T13:27:54.514178+01:00",
+"started_at": "2026-10-28T13:28:05.644750+01:00",
+"finished_at": "2026-10-28T14:58:10.969330+01:00",
+"status": "succeeded",
+"wait_time": 11.13
+},
+{
+"uuid": "65ba315d294e4b7c941b3a29a11aa43d",
+"name": "prism-examples-limits-fixed-r1-A",
+"created_at": "2026-10-28T13:29:02.111012+01:00",
+"started_at": "2026-10-28T13:29:13.607384+01:00",
+"finished_at": "2026-10-28T15:08:19.491069+01:00",
+"status": "succeeded",
+"wait_time": 11.5
+},
+{
+"uuid": "0cd4900e97cf475ca672e060982f3399",
+"name": "prism-examples-limits-fixed-r1-B",
+"created_at": "2026-10-28T13:30:08.339197+01:00",
+"started_at": "2026-10-28T13:30:13.007912+01:00",
+"finished_at": "2026-10-28T15:06:09.271765+01:00",
+"status": "succeeded",
+"wait_time": 4.67
+},
+{
+"uuid": "2a8dfb2412a948f4b63f6ac2e409a044",
+"name": "prism-examples-limits-fixed-r1-C",
+"created_at": "2026-10-28T14:13:48.829719+01:00",
+"started_at": "2026-10-28T14:14:01.817799+01:00",
+"finished_at": "2026-10-28T15:13:07.330240+01:00",
+"status": "succeeded",
+"wait_time": 12.99
+},
+{
+"uuid": "5edc3a7dea2a47d4b256aa72761a9f52",
+"name": "prism-examples-limits-fixed-r1-D",
+"created_at": "2026-10-28T14:14:56.278690+01:00",
+"started_at": "2026-10-28T14:15:01.309128+01:00",
+"finished_at": "2026-10-28T15:44:28.856906+01:00",
+"status": "succeeded",
+"wait_time": 5.03
+},
+{
+"uuid": "213681a685f149e9985e200bf3fe4972",
+"name": "prism-examples-limits-base-r2-A",
+"created_at": "2026-10-28T14:18:04.421992+01:00",
+"started_at": "2026-10-28T14:18:15.346833+01:00",
+"finished_at": "2026-10-28T15:49:43.628354+01:00",
+"status": "succeeded",
+"wait_time": 10.92
+},
+{
+"uuid": "e254004879924fb2965308eec4b6d717",
+"name": "prism-examples-limits-base-r2-B",
+"created_at": "2026-10-28T14:59:41.976095+01:00",
+"started_at": "2026-10-28T14:59:51.505741+01:00",
+"finished_at": "2026-10-28T16:03:26.795891+01:00",
+"status": "succeeded",
+"wait_time": 9.53
+},
+{
+"uuid": "2920abc285774d08b8ab2f235ae463ca",
+"name": "prism-examples-limits-base-r2-C",
+"created_at": "2026-10-28T15:06:53.125600+01:00",
+"started_at": "2026-10-28T15:07:05.036919+01:00",
+"finished_at": "2026-10-28T15:59:26.235791+01:00",
+"status": "succeeded",
+"wait_time": 11.91
+},
+{
+"uuid": "6cd427163b9144dfa67076db2eb8aebb",
+"name": "prism-examples-limits-base-r2-D",
+"created_at": "2026-10-28T15:10:01.672199+01:00",
+"started_at": "2026-10-28T15:10:12.529762+01:00",
+"finished_at": "2026-10-28T16:26:32.367162+01:00",
+"status": "succeeded",
+"wait_time": 10.86
+},
+{
+"uuid": "d01366c28da5409cad1a5be3501d19e0",
+"name": "prism-examples-fix5-headroom-mix-1",
+"created_at": "2026-10-29T12:52:55.894769+01:00",
+"started_at": "2026-10-29T12:53:01.178492+01:00",
+"finished_at": "2026-10-29T13:02:10.429228+01:00",
+"status": "succeeded",
+"wait_time": 5.28
+},
+{
+"uuid": "28efc23841f747ba879cccaf3fa49818",
+"name": "prism-examples-fix5-headroom-mix-2",
+"created_at": "2026-10-29T12:53:01.892322+01:00",
+"started_at": "2026-10-29T12:53:09.573781+01:00",
+"finished_at": "2026-10-29T13:02:46.367876+01:00",
+"status": "succeeded",
+"wait_time": 7.68
+},
+{
+"uuid": "82b3e0b98cf949e7b5f1c260e464e2dc",
+"name": "prism-examples-fix5-headroom-mix-3",
+"created_at": "2026-10-29T12:53:07.609907+01:00",
+"started_at": "2026-10-29T12:53:18.328883+01:00",
+"finished_at": "2026-10-29T13:02:33.298391+01:00",
+"status": "succeeded",
+"wait_time": 10.72
+},
+{
+"uuid": "3ed09648324941d7afd98087e0a6cc5a",
+"name": "prism-examples-f0-repro-1",
+"created_at": "2026-10-29T21:10:57.807229+01:00",
+"started_at": "2026-10-29T21:11:08.144565+01:00",
+"finished_at": "2026-10-29T21:52:36.708827+01:00",
+"status": "succeeded",
+"wait_time": 10.34
+},
+{
+"uuid": "8ba45f987f094e338d3afe329cd6782b",
+"name": "prism-examples-f0-repro-2",
+"created_at": "2026-10-29T21:11:02.842608+01:00",
+"started_at": "2026-10-29T21:11:08.155151+01:00",
+"finished_at": "2026-10-29T21:52:23.671270+01:00",
+"status": "succeeded",
+"wait_time": 5.31
+},
+{
+"uuid": "08d0f8f54b5c482fa19d4e54278f4379",
+"name": "prism-examples-f0-repro-3",
+"created_at": "2026-10-29T21:11:08.257987+01:00",
+"started_at": "2026-10-29T21:11:16.579723+01:00",
+"finished_at": "2026-10-29T21:51:03.719643+01:00",
+"status": "succeeded",
+"wait_time": 8.32
+},
+{
+"uuid": "97573c2b4ee0481196c1b38ba04d2b89",
+"name": "prism-examples-f1-headroom-mix-4",
+"created_at": "2026-10-30T01:15:56.517243+01:00",
+"started_at": "2026-10-30T01:16:05.707205+01:00",
+"finished_at": "2026-10-30T01:24:44.982989+01:00",
+"status": "succeeded",
+"wait_time": 9.19
+},
+{
+"uuid": "4b133f88de4b48cd893ea4bf30efb1a8",
+"name": "prism-examples-f1-headroom-mix-5",
+"created_at": "2026-10-30T01:16:01.634232+01:00",
+"started_at": "2026-10-30T01:16:05.711896+01:00",
+"finished_at": "2026-10-30T01:24:48.034093+01:00",
+"status": "succeeded",
+"wait_time": 4.08
+},
+{
+"uuid": "09081d585c9c4a6ab10e24084e0ad7a7",
+"name": "prism-examples-f1-trace-1",
+"created_at": "2026-10-30T01:33:14.451032+01:00",
+"started_at": "2026-10-30T01:33:18.418972+01:00",
+"finished_at": "2026-10-30T02:16:05.267239+01:00",
+"status": "succeeded",
+"wait_time": 3.97
+},
+{
+"uuid": "aa9cf3b370c84f5ab8e8a9e47069414a",
+"name": "prism-examples-f1-trace-2",
+"created_at": "2026-10-30T01:33:18.855861+01:00",
+"started_at": "2026-10-30T01:33:26.820577+01:00",
+"finished_at": "2026-10-30T02:10:21.430378+01:00",
+"status": "succeeded",
+"wait_time": 7.96
+},
+{
+"uuid": "4a14245bc4914909bc32a10616c95894",
+"name": "prism-examples-f1-trace-3",
+"created_at": "2026-10-30T01:33:23.590204+01:00",
+"started_at": "2026-10-30T01:33:26.877196+01:00",
+"finished_at": "2026-10-30T02:14:43.058953+01:00",
+"status": "succeeded",
+"wait_time": 3.29
+},
+{
+"uuid": "953946743d634509857b8dac82fd4cdb",
+"name": "prism-examples-f1-freeze-1",
+"created_at": "2026-10-30T01:35:10.398535+01:00",
+"started_at": "2026-10-30T01:35:16.301522+01:00",
+"finished_at": "2026-10-30T02:24:32.806119+01:00",
+"status": "succeeded",
+"wait_time": 5.9
+},
+{
+"uuid": "566bb4f1374748018da988864c65176b",
+"name": "prism-examples-f1-freeze-2",
+"created_at": "2026-10-30T01:35:16.029922+01:00",
+"started_at": "2026-10-30T01:35:24.627969+01:00",
+"finished_at": "2026-10-30T02:24:43.835139+01:00",
+"status": "succeeded",
+"wait_time": 8.6
+},
+{
+"uuid": "6c3ff6b5313b4031bb719ccdc87057f7",
+"name": "prism-examples-f1-ab-1",
+"created_at": "2026-10-30T02:22:56.902592+01:00",
+"started_at": "2026-10-30T02:23:03.151989+01:00",
+"finished_at": "2026-10-30T02:51:47.828756+01:00",
+"status": "succeeded",
+"wait_time": 6.25
+},
+{
+"uuid": "d7d4e7f9320e4b20830b3cac8d8df71f",
+"name": "prism-examples-f1-ab-2",
+"created_at": "2026-10-30T02:23:01.591268+01:00",
+"started_at": "2026-10-30T02:23:11.490701+01:00",
+"finished_at": "2026-10-30T02:51:54.794054+01:00",
+"status": "succeeded",
+"wait_time": 9.9
+},
+{
+"uuid": "41a305c37c84401393fe99e6aeb6a7ba",
+"name": "prism-examples-f1-ab-3",
+"created_at": "2026-10-30T02:23:06.664415+01:00",
+"started_at": "2026-10-30T02:23:11.500011+01:00",
+"finished_at": "2026-10-30T03:42:53.558188+01:00",
+"status": "succeeded",
+"wait_time": 4.84
+},
+{
+"uuid": "883ec25a22994521941c199311bd8317",
+"name": "prism-examples-f1-freeze-3",
+"created_at": "2026-10-30T02:27:54.830520+01:00",
+"started_at": "2026-10-30T02:28:05.696272+01:00",
+"finished_at": "2026-10-30T03:17:19.237614+01:00",
+"status": "succeeded",
+"wait_time": 10.87
+},
+{
+"uuid": "1e22020edf8c46ab98321d1c6dc74e55",
+"name": "prism-examples-f1-freeze-4",
+"created_at": "2026-10-30T02:27:59.915864+01:00",
+"started_at": "2026-10-30T02:28:05.682850+01:00",
+"finished_at": "2026-10-30T03:17:33.203564+01:00",
+"status": "succeeded",
+"wait_time": 5.77
+},
+{
+"uuid": "8997f0a25b254b038a728a554f4e6467",
+"name": "prism-examples-f1-loss-1",
+"created_at": "2026-10-30T03:45:17.206230+01:00",
+"started_at": "2026-10-30T03:45:24.364732+01:00",
+"finished_at": "2026-10-30T04:21:37.435412+01:00",
+"status": "succeeded",
+"wait_time": 7.16
+},
+{
+"uuid": "af079260a3a94578954d210d683be35e",
+"name": "prism-examples-f1-loss-2",
+"created_at": "2026-10-30T03:45:23.220670+01:00",
+"started_at": "2026-10-30T03:45:32.768432+01:00",
+"finished_at": "2026-10-30T04:22:05.399880+01:00",
+"status": "succeeded",
+"wait_time": 9.55
+},
+{
+"uuid": "5104cd7ac8924c90826b1b3cb1ee1e01",
+"name": "prism-examples-f1-loss-3",
+"created_at": "2026-10-30T03:45:27.956374+01:00",
+"started_at": "2026-10-30T03:45:32.914502+01:00",
+"finished_at": "2026-10-30T04:36:57.153162+01:00",
+"status": "succeeded",
+"wait_time": 4.96
+},
+{
+"uuid": "96652434cab54daabaef9bad8ecd0460",
+"name": "prism-examples-f1-loss-4",
+"created_at": "2026-10-30T03:45:32.724668+01:00",
+"started_at": "2026-10-30T03:45:41.256479+01:00",
+"finished_at": "2026-10-30T04:55:41.303583+01:00",
+"status": "succeeded",
+"wait_time": 8.53
+},
+{
+"uuid": "9213b523a51d447ea0faf0a68dd15456",
+"name": "prism-examples-f1-loss-5",
+"created_at": "2026-10-30T03:45:37.325690+01:00",
+"started_at": "2026-10-30T03:45:41.270317+01:00",
+"finished_at": "2026-10-30T04:55:51.208060+01:00",
+"status": "succeeded",
+"wait_time": 3.94
+},
+{
+"uuid": "3247ebf0c7de4f04afa4a89115ec087f",
+"name": "prism-examples-f1-repro-1",
+"created_at": "2026-10-30T05:00:02.275889+01:00",
+"started_at": "2026-10-30T05:00:14.350416+01:00",
+"finished_at": "2026-10-30T05:41:41.233319+01:00",
+"status": "succeeded",
+"wait_time": 12.07
+},
+{
+"uuid": "1c2449f826fe4101bd213b7f6c887343",
+"name": "prism-examples-f1-repro-2",
+"created_at": "2026-10-30T05:00:07.329629+01:00",
+"started_at": "2026-10-30T05:00:14.372610+01:00",
+"finished_at": "2026-10-30T05:40:07.975441+01:00",
+"status": "succeeded",
+"wait_time": 7.04
+},
+{
+"uuid": "8e766a8737424eefa021570baf52961b",
+"name": "prism-examples-f1-repro-3",
+"created_at": "2026-10-30T05:00:12.244343+01:00",
+"started_at": "2026-10-30T05:00:22.829028+01:00",
+"finished_at": "2026-10-30T05:57:04.960727+01:00",
+"status": "succeeded",
+"wait_time": 10.58
+},
+{
+"uuid": "fb5d05f5298d4bddb006a1dccbcfc657",
+"name": "prism-examples-f1-repro-4",
+"created_at": "2026-10-30T05:00:18.742987+01:00",
+"started_at": "2026-10-30T05:00:23.011323+01:00",
+"finished_at": "2026-10-30T06:20:46.252477+01:00",
+"status": "succeeded",
+"wait_time": 4.27
+},
+{
+"uuid": "254fc4c43dc54d49b9c2f66ae2f0c639",
+"name": "prism-examples-f1-repro-5",
+"created_at": "2026-10-30T05:00:23.696584+01:00",
+"started_at": "2026-10-30T05:00:31.385997+01:00",
+"finished_at": "2026-10-30T06:21:58.335018+01:00",
+"status": "succeeded",
+"wait_time": 7.69
+},
+{
+"uuid": "69110ed2dc05452f9035d5274e8fa166",
+"name": "prism-examples-f1-code-old-1",
+"created_at": "2026-10-30T06:27:24.634991+01:00",
+"started_at": "2026-10-30T06:27:31.280698+01:00",
+"finished_at": "2026-10-30T06:40:43.738265+01:00",
+"status": "succeeded",
+"wait_time": 6.65
+},
+{
+"uuid": "f310620e41144c5298867d17a59ddb9a",
+"name": "prism-examples-f1-code-new-1",
+"created_at": "2026-10-30T06:27:30.260152+01:00",
+"started_at": "2026-10-30T06:27:39.707787+01:00",
+"finished_at": "2026-10-30T06:40:52.815584+01:00",
+"status": "succeeded",
+"wait_time": 9.45
+},
+{
+"uuid": "79a8d2e95a684539baab498123e2af2e",
+"name": "prism-examples-f1-code-old-2",
+"created_at": "2026-10-30T06:27:34.802231+01:00",
+"started_at": "2026-10-30T06:27:39.752664+01:00",
+"finished_at": "2026-10-30T06:45:04.375402+01:00",
+"status": "succeeded",
+"wait_time": 4.95
+},
+{
+"uuid": "1dbf837b42b34b44a141b486a434b7aa",
+"name": "prism-examples-f1-code-new-2",
+"created_at": "2026-10-30T06:27:39.873733+01:00",
+"started_at": "2026-10-30T06:27:48.175157+01:00",
+"finished_at": "2026-10-30T06:54:21.031702+01:00",
+"status": "succeeded",
+"wait_time": 8.3
+},
+{
+"uuid": "83935abb7a224ee3a0b90a8c33269f91",
+"name": "prism-examples-f1-code-old-3",
+"created_at": "2026-10-30T06:27:44.510481+01:00",
+"started_at": "2026-10-30T06:27:56.613136+01:00",
+"finished_at": "2026-10-30T06:54:40.925354+01:00",
+"status": "succeeded",
+"wait_time": 12.1
+},
+{
+"uuid": "1b771bbaf6364e0083d163f91309daa9",
+"name": "prism-examples-f1-code-new-3",
+"created_at": "2026-10-30T06:27:49.444388+01:00",
+"started_at": "2026-10-30T06:27:56.895308+01:00",
+"finished_at": "2026-10-30T06:56:41.274945+01:00",
+"status": "succeeded",
+"wait_time": 7.45
+}
+]

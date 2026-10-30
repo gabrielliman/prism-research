@@ -11,6 +11,7 @@ import multiprocessing as mp
 
 import zmq
 
+from sglang.multi_model.memory_arbiter import model_service_alive
 from sglang.multi_model.multi_model_server_args import MultiModelServerArgs
 from sglang.multi_model.scheduling.constants import controller_events_key
 from sglang.multi_model.scheduling.gpu.request_queue import RequestQueue
@@ -29,6 +30,7 @@ from sglang.srt.utils import configure_logger, kill_parent_process
 from sglang.utils import cleanup_zmq_ipc, get_exception_traceback
 
 logger = logging.getLogger(__name__)
+TRACE_RIDS = os.environ.get("PRISM_TRACE_RIDS", "0") == "1"  # F1.2: log every request hop by rid
 
 
 class GPUScheduler:
@@ -184,6 +186,7 @@ class GPUScheduler:
     def _recv_requests_loop(self):
         """Background thread that receives requests and adds them to priority queue."""
         last_liveness_check = 0.0
+        model_service_lost_reported = False
         while not self._shutdown_event.is_set():
             try:
                 reqs = self._recv_from_frontend_queue()
@@ -200,6 +203,19 @@ class GPUScheduler:
                         logger.error(f"Worker {worker_id} on GPU {self.gpu_id} died (serving {model_name})")
                         if model_name is not None:
                             self._on_model_lost(model_name, f"worker {worker_id} died", release_worker=False)
+                    # P12: without the model service no model can be loaded; tell the controller once, so it stops
+                    # evicting models for activations that can only fail
+                    if (
+                        not model_service_lost_reported
+                        and os.environ.get("PRISM_DETECT_DEAD_MODEL_SERVICE", "1") == "1"
+                        and model_service_alive(0) is False
+                    ):
+                        model_service_lost_reported = True
+                        logger.error(f"Model service 0 died (seen by the GPU scheduler of GPU {self.gpu_id})")
+                        self.redis_client.send_pyobj(
+                            key=controller_events_key(self.server_args),
+                            obj={"event": "model_service_lost", "gpu_id": self.gpu_id},
+                        )
             except Exception as e:
                 if self._shutdown_event.is_set():
                     break
@@ -219,6 +235,8 @@ class GPUScheduler:
             reqs = self.redis_client.pop_all(
                 key=f"{self.server_args.frontend_generate_request_key_prefix}:{model_name}",
             )
+            if TRACE_RIDS and reqs:
+                logger.info(f"RID frontend_to_gpu_queue {model_name} {[r.rid for r in reqs]}")
             recv_reqs.extend(reqs)
         return recv_reqs
 
@@ -331,6 +349,8 @@ class GPUScheduler:
         backend_reqs = self.redis_client.pop_all(
             key=f"{self.server_args.backend_generate_request_key_prefix}:{model_name}"
         )
+        if TRACE_RIDS and backend_reqs:
+            logger.info(f"RID backend_to_frontend {model_name} {[r.rid for r in backend_reqs]}")
         for req in backend_reqs or []:
             self.redis_client.send_pyobj(
                 key=f"{self.server_args.frontend_generate_request_key_prefix}:{model_name}",
@@ -375,6 +395,8 @@ class GPUScheduler:
                 f"back to frontend queue"
             )
 
+            if TRACE_RIDS:
+                logger.info(f"RID gpu_queue_to_frontend {model_name} {[r.rid for r in reqs]}")
             for req in reqs:
                 # Consider adding waiting request information to the request object
                 self.redis_client.send_pyobj(
@@ -389,6 +411,8 @@ class GPUScheduler:
     def _send_to_backend_queue(self, reqs: Dict[str, List[GenerateReqInput]]):
         """Send requests to backend queue."""
         for model_name, reqs in reqs.items():
+            if TRACE_RIDS and reqs:
+                logger.info(f"RID gpu_queue_to_backend {model_name} {[r.rid for r in reqs]}")
             for req in reqs:
                 self.redis_client.send_pyobj(
                     key=f"{self.server_args.backend_generate_request_key_prefix}:{model_name}",
@@ -504,6 +528,9 @@ def run_gpu_scheduler_process(
         log_file_suffix="gpu_scheduler",
     )
     logger.info(f"starting GPU scheduler for GPU {gpu_id}")
+    from sglang.multi_model.stack_dump import enable_stack_dumps
+
+    enable_stack_dumps(f"gpu_scheduler {gpu_id}")
 
     try:
         gpu_scheduler = GPUScheduler(

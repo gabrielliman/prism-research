@@ -10,7 +10,7 @@ A level is clean when its server never hit a kvcached driver abort (cuMem* in se
 SGLang pretty_print crash or a dead worker. In a ":lossless" round (one that ran before the prefill and
 deactivation-race fixes, whose losses may come from them) a level must also lose no request, except Prism's
 original policy in ovl_mix, which freezes by itself. Rounds listed first are preferred. Each (scenario, config, level)
-keeps up to 3 clean levels; Prism's original policy (idle50 of the threshold suites, base* of the others: the
+keeps up to PRISM_REPS (default 3) clean levels; Prism's original policy (idle50 of the threshold suites, base* of the others: the
 same configuration) keeps every clean level it has.
 
 Writes <dest>/<scenario>/<config>/r<k>/<level>/ (extract_ovl.extract_level), r<k>/config.json, and
@@ -29,7 +29,7 @@ import extract_ovl  # noqa: E402
 
 STRATEGY = {"pressure_phases": "pressure", "adaptive_trace12": "adaptive", "headroom_mem": "headroom", "headroom_mix": "headroom",
             "fair_mem": "fair"}
-REPS = 3
+REPS = int(os.environ.get("PRISM_REPS", 3))  # clean levels kept per configuration (F1.3 keeps 5)
 
 
 def canonical(cfg):

@@ -155,7 +155,7 @@ Cada verificação produz `OK`, `FALHA` ou `N/A`, com o valor medido.
 
 - C-V1. Número de repetições válidas por configuração ≥ mínimo da fase (padrão: 5).
 - C-V2. Coeficiente de variação das métricas principais entre repetições abaixo de um limite (padrão: 15% para fração de SLO; registrar exceções e investigar se acima).
-- C-V3. Linha de base reproduzida: a política original e a melhor política sem prazo, rodadas na mesma campanha, ficam dentro do intervalo de confiança dos valores de referência de F5. Critério (decisão D2 de 2026-10-30): o IC 95% por bootstrap da diferença de médias (nova − referência) contém 0 no SLO, no TTFT p90 e na pior espera pelo 1º token (`polyaxon/compare_reference.py`).
+- C-V3. Linha de base reproduzida: a política original e a melhor política sem prazo, rodadas na mesma campanha, ficam dentro do intervalo de confiança dos valores de referência de F5. Critério (decisão D2 de 2026-10-30): o IC 95% por bootstrap da diferença de médias (nova − referência) contém 0 no SLO, no TTFT p90 e na pior espera pelo 1º token (`polyaxon/compare_reference.py`). A referência roda no mesmo período, pareada com a nova (decisão D8 de 2026-10-30: a velocidade do cluster varia entre dias, 7–9 pontos de SLO entre 29/10 e 30/10).
 
 ### 3.3 Colunas de `reports/registro/execucoes.csv`
 

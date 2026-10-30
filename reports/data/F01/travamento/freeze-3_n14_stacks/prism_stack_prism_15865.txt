@@ -1,0 +1,135 @@
+# gpu_scheduler 0 pid 15865
+Thread 0x00007fc89ac12700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/socket.py", line 64 in _read_from_socket
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/socket.py", line 117 in readline
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/resp3.py", line 65 in _read_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/resp3.py", line 40 in read_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/connection.py", line 1407 in read_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 935 in parse_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 819 in _send_command_parse_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 890 in <lambda>
+  File "/usr/local/lib/python3.10/dist-packages/redis/retry.py", line 120 in call_with_retry
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 889 in _execute_command
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 867 in execute_command
+  File "/usr/local/lib/python3.10/dist-packages/redis/commands/core.py", line 5059 in llen
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/srt/redis_utils.py", line 86 in pop_all
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 220 in _recv_from_frontend_queue
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 190 in _recv_requests_loop
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007fcb31617700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 57 in _recv_msg
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 123 in _read_thread
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Current thread 0x00007fccc4fbd740 (most recent call first):
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 172 in run_scheduling_loop
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 538 in run_gpu_scheduler_process
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108 in run
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314 in _bootstrap
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 129 in _main
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 116 in spawn_main
+  File "<string>", line 1 in <module>
+Thread 0x00007fc89ac12700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/socket.py", line 64 in _read_from_socket
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/socket.py", line 120 in readline
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/resp3.py", line 94 in _read_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/resp3.py", line 57 in read_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/connection.py", line 1407 in read_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 935 in parse_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 819 in _send_command_parse_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 890 in <lambda>
+  File "/usr/local/lib/python3.10/dist-packages/redis/retry.py", line 120 in call_with_retry
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 889 in _execute_command
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 867 in execute_command
+  File "/usr/local/lib/python3.10/dist-packages/redis/commands/core.py", line 5059 in llen
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/srt/redis_utils.py", line 86 in pop_all
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 220 in _recv_from_frontend_queue
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 190 in _recv_requests_loop
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007fcb31617700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 57 in _recv_msg
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 123 in _read_thread
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Current thread 0x00007fccc4fbd740 (most recent call first):
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 172 in run_scheduling_loop
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 538 in run_gpu_scheduler_process
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108 in run
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314 in _bootstrap
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 129 in _main
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 116 in spawn_main
+  File "<string>", line 1 in <module>
+Thread 0x00007fc89ac12700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/socket.py", line 94 in _read_from_socket
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/socket.py", line 97 in can_read
+  File "/usr/local/lib/python3.10/dist-packages/redis/_parsers/base.py", line 169 in can_read
+  File "/usr/local/lib/python3.10/dist-packages/redis/connection.py", line 1387 in can_read
+  File "/usr/local/lib/python3.10/dist-packages/redis/connection.py", line 3306 in get_connection
+  File "/usr/local/lib/python3.10/dist-packages/redis/utils.py", line 258 in wrapper
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 889 in _execute_command
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 867 in execute_command
+  File "/usr/local/lib/python3.10/dist-packages/redis/commands/core.py", line 5059 in llen
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/srt/redis_utils.py", line 86 in pop_all
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 220 in _recv_from_frontend_queue
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 190 in _recv_requests_loop
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007fcb31617700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 57 in _recv_msg
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 123 in _read_thread
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Current thread 0x00007fccc4fbd740 (most recent call first):
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 172 in run_scheduling_loop
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 538 in run_gpu_scheduler_process
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108 in run
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314 in _bootstrap
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 129 in _main
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 116 in spawn_main
+  File "<string>", line 1 in <module>
+Thread 0x00007fc89ac12700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 819 in _send_command_parse_response
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 890 in <lambda>
+  File "/usr/local/lib/python3.10/dist-packages/redis/retry.py", line 120 in call_with_retry
+  File "/usr/local/lib/python3.10/dist-packages/redis/connection.py", line 1028 in connect
+  File "/usr/local/lib/python3.10/dist-packages/redis/connection.py", line 3306 in get_connection
+  File "/usr/local/lib/python3.10/dist-packages/redis/utils.py", line 258 in wrapper
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 873 in _execute_command
+  File "/usr/local/lib/python3.10/dist-packages/redis/client.py", line 867 in execute_command
+  File "/usr/local/lib/python3.10/dist-packages/redis/commands/core.py", line 5059 in llen
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/srt/redis_utils.py", line 86 in pop_all
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 220 in _recv_from_frontend_queue
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 190 in _recv_requests_loop
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Thread 0x00007fcb31617700 (most recent call first):
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 57 in _recv_msg
+  File "/usr/local/lib/python3.10/dist-packages/torch/_inductor/compile_worker/subproc_pool.py", line 123 in _read_thread
+  File "/usr/lib/python3.10/threading.py", line 953 in run
+  File "/usr/lib/python3.10/threading.py", line 1016 in _bootstrap_inner
+  File "/usr/lib/python3.10/threading.py", line 973 in _bootstrap
+
+Current thread 0x00007fccc4fbd740 (most recent call first):
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 172 in run_scheduling_loop
+  File "/plx-context/artifacts/883ec25a22994521941c199311bd8317/uploads/python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py", line 538 in run_gpu_scheduler_process
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 108 in run
+  File "/usr/lib/python3.10/multiprocessing/process.py", line 314 in _bootstrap
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 129 in _main
+  File "/usr/lib/python3.10/multiprocessing/spawn.py", line 116 in spawn_main
+  File "<string>", line 1 in <module>

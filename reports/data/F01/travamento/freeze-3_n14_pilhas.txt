@@ -1,0 +1,75 @@
+worker 9 GPU=0 TP0 pid 10034
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size
+worker 12 GPU=0 TP0 pid 10048
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 8 GPU=0 TP0 pid 10049
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 10 GPU=0 TP0 pid 10050
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size
+worker 11 GPU=0 TP0 pid 10069
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 5 GPU=0 TP0 pid 10080
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    _ops.py:1061 __call__ <- _custom_ops.py:190 rotary_embedding <- _custom_ops.py:45 wrapper <- rotary_embedding.py:170 forward_cuda
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size
+worker 13 GPU=0 TP0 pid 10081
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+gpu_scheduler 0 pid 15865
+    gpu_scheduler.py:172 run_scheduling_loop <- gpu_scheduler.py:538 run_gpu_scheduler_process <- process.py:108 run <- process.py:314 _bootstrap
+    gpu_scheduler.py:172 run_scheduling_loop <- gpu_scheduler.py:538 run_gpu_scheduler_process <- process.py:108 run <- process.py:314 _bootstrap
+    gpu_scheduler.py:172 run_scheduling_loop <- gpu_scheduler.py:538 run_gpu_scheduler_process <- process.py:108 run <- process.py:314 _bootstrap
+    gpu_scheduler.py:172 run_scheduling_loop <- gpu_scheduler.py:538 run_gpu_scheduler_process <- process.py:108 run <- process.py:314 _bootstrap
+worker 2 GPU=0 TP0 pid 9684
+    sampler.py:81 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- slab_allocator.py:533 alloc
+    sampler.py:81 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size
+worker 1 GPU=0 TP0 pid 9686
+    sampler.py:81 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 3 GPU=0 TP0 pid 9688
+    memory_pool.py:363 alloc <- schedule_batch.py:553 alloc_token_slots <- schedule_batch.py:959 prepare_for_decode <- scheduler.py:1200 update_running_batch
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- slab_allocator.py:533 alloc
+    linear.py:135 apply <- linear.py:1143 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size
+worker 0 GPU=0 TP0 pid 9689
+    sampler.py:44 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size
+    norm.py:71 fused_add_rmsnorm <- layernorm.py:56 forward_cuda <- custom_op.py:16 forward <- module.py:1562 _call_impl
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 4 GPU=0 TP0 pid 9691
+    sampler.py:81 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size
+    sampler.py:44 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+worker 6 GPU=0 TP0 pid 9821
+    linear.py:135 apply <- linear.py:380 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size
+    sampler.py:44 forward <- module.py:1562 _call_impl <- module.py:1553 _wrapped_call_impl <- model_runner.py:711 sample
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size
+worker 7 GPU=0 TP0 pid 9948
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:494 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    scheduler.py:488 event_loop_normal <- _contextlib.py:116 decorate_context <- scheduler.py:2206 run_scheduler_process <- process.py:108 run
+    memory.py:685 mem_get_info <- slab_allocator.py:677 _physical_free_size <- slab_allocator.py:655 available_size <- memory_pool.py:406 available_size

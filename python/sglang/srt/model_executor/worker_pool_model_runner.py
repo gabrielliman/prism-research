@@ -17,6 +17,7 @@ limitations under the License.
 
 import copy
 import dataclasses
+import faulthandler
 import gc
 import getpass
 import importlib
@@ -27,6 +28,7 @@ import os
 import pkgutil
 import time
 from functools import lru_cache
+from queue import Empty
 from typing import Dict, List, Optional, Type, Union
 
 import torch
@@ -47,7 +49,13 @@ from vllm.model_executor.model_loader import get_model
 from vllm.model_executor.models import ModelRegistry
 
 from sglang.multi_model import kvcached_patches
-from sglang.multi_model.memory_arbiter import ActivationOutOfMemory, get_arbiter_or_none, write_worker_pid
+from sglang.multi_model.memory_arbiter import (
+    ActivationOutOfMemory,
+    ModelServiceUnavailable,
+    get_arbiter_or_none,
+    model_service_alive,
+    write_worker_pid,
+)
 from sglang.srt.configs.model_config import AttentionArch, ModelConfig
 from sglang.srt.constrained import disable_cache
 from sglang.srt.layers.attention.double_sparsity_backend import DoubleSparseAttnBackend
@@ -340,6 +348,9 @@ class WorkerPoolModelRunner(BaseModelRunner):
         except (torch.OutOfMemoryError, ActivationOutOfMemory) as e:
             self._rollback_activation()
             raise ActivationOutOfMemory(f"Activation of {model_name} ran out of GPU memory: {e}") from e
+        except ModelServiceUnavailable:
+            self._rollback_activation()
+            raise
         finally:
             if self.arbiter is not None:
                 self.arbiter.release()
@@ -385,6 +396,22 @@ class WorkerPoolModelRunner(BaseModelRunner):
             f"Current available memory: {get_available_gpu_memory(self.device, self.gpu_id):.2f} GB"
         )
 
+    def _wait_model_service(self, timeout: float):
+        """P12: wait for the model service's answer in 1 s slices, failing the activation (rolled back by the
+        caller) as soon as the service is found dead, or after `timeout` s, instead of killing this engine."""
+        deadline = time.time() + timeout
+        while True:
+            try:
+                return self.output_queue.get(timeout=1.0)
+            except Empty:
+                pass
+            if model_service_alive(0) is False:
+                logger.error(f"Model service 0 died; activation of {self.model_name} failed")
+                raise ModelServiceUnavailable("model service 0 died")
+            if time.time() >= deadline:
+                logger.error(f"Model service did not answer in {timeout:.0f} s; activation of {self.model_name} failed")
+                raise ModelServiceUnavailable(f"no answer from the model service in {timeout:.0f} s")
+
     def load_gpu_model(self, check_mem=True, use_model_service=False):
         # check whether the available memory is enough for the model
         memory_before_load = torch.cuda.memory_allocated() / (1 << 30)
@@ -409,13 +436,24 @@ class WorkerPoolModelRunner(BaseModelRunner):
             self.model = create_empty_gpu_model_from_cpu_model(cpu_model_ref, self.gpu_id)
             retry = 3
             while not success and retry > 0:
+                if os.environ.get("PRISM_DETECT_DEAD_MODEL_SERVICE", "1") == "1":
+                    # P12: drop a late answer to an earlier request that timed out (one request in flight per engine)
+                    while True:
+                        try:
+                            stale = self.output_queue.get_nowait()
+                            logger.warning(f"Dropped a late model service message: {stale!r}"[:200])
+                        except Empty:
+                            break
                 self.input_queue.put((model_key, self.engine_id, self.gpu_id, self.model))
                 timeout = 300
-                try:
-                    msg = self.output_queue.get(timeout=timeout)
-                except Exception as e:
-                    logger.error(f"Timeout. Failed to load model from model service. Error: {e}")
-                    raise RuntimeError(f"Timeout. Failed to load model from model service. Error: {e}")
+                if os.environ.get("PRISM_DETECT_DEAD_MODEL_SERVICE", "1") == "1":
+                    msg = self._wait_model_service(timeout)
+                else:
+                    try:
+                        msg = self.output_queue.get(timeout=timeout)
+                    except Exception as e:
+                        logger.error(f"Timeout. Failed to load model from model service. Error: {e}")
+                        raise RuntimeError(f"Timeout. Failed to load model from model service. Error: {e}")
                 if msg is None:
                     logger.error(f"Returned None. Failed to load model from model service. Error: {self.output_queue.get()}")
                     continue
@@ -454,11 +492,20 @@ class WorkerPoolModelRunner(BaseModelRunner):
         """Deactivate this model runner to free up memory."""
         tic = time.time()
         if self.is_active:
+            # P11 (F1.7): with PRISM_DEACTIVATE_DUMP_S > 0, time each step and dump every thread's stack to stderr
+            # if deactivation is still running after that many seconds. Off by default.
+            dump_s = float(os.environ.get("PRISM_DEACTIVATE_DUMP_S", 0))
+            if dump_s > 0:
+                faulthandler.dump_traceback_later(dump_s, repeat=False)
+            steps = []
+
             # Free memory pools
             self.token_to_kv_pool.release()
+            steps.append(("release", time.time()))
 
             # Delete GPU model
             self.delete_gpu_model()
+            steps.append(("delete_model", time.time()))
 
             # Reset state
             self.attn_backend = None
@@ -466,11 +513,19 @@ class WorkerPoolModelRunner(BaseModelRunner):
 
             # Force garbage collection
             gc.collect()
+            steps.append(("gc", time.time()))
             torch.cuda.empty_cache()
+            steps.append(("empty_cache", time.time()))
 
             self.is_active = False
+            if dump_s > 0:
+                faulthandler.cancel_dump_traceback_later()
+            prev, parts = tic, []
+            for name, t in steps:
+                parts.append(f"{name}={t - prev:.3f}")
+                prev = t
             logger.info(
-                f"Deactivate time cost: {time.time() - tic:.4f}s. Current available memory: {get_available_gpu_memory(self.device, self.gpu_id):.2f} GB"
+                f"Deactivate time cost: {time.time() - tic:.4f}s ({' '.join(parts)}). Current available memory: {get_available_gpu_memory(self.device, self.gpu_id):.2f} GB"
             )
         else:
             logger.warning(

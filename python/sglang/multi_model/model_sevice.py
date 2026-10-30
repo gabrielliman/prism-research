@@ -264,6 +264,16 @@ class ModelService:
                 gc.collect()
                 torch.cuda.empty_cache()
                 continue
+            except Exception as e:
+                # P12: rebuilding the engine's CUDA tensors can fail (e.g. CUDA out of memory with the GPU full),
+                # which used to kill the service and every later activation with it. The request is lost (its
+                # engine times out and rolls back); the service keeps serving the others.
+                if os.environ.get("PRISM_DETECT_DEAD_MODEL_SERVICE", "1") != "1":
+                    raise
+                logging.error(f"Model service {self.service_id} could not receive a load request, dropped it: {e}")
+                gc.collect()
+                torch.cuda.empty_cache()
+                continue
             logging.info(f"Model key: {model_key}, engine id: {engine_id}, target gpu id: {target_gpu_id}")
             try:
                 # gpu_model = create_empty_gpu_model(self.model_dict_serialized[model_key], target_gpu_id)
@@ -338,6 +348,9 @@ def run_model_service(
         prefix=f" Model_Service_{instance}",
         log_file_suffix="model_service",
     )
+    from sglang.multi_model.memory_arbiter import write_model_service_pid
+
+    write_model_service_pid(instance)
     model_service = ModelService(
         cpu_model_dict, input_queue, output_queues, max_threads, gpu_ids, num_shards
     )

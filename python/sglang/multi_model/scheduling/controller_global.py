@@ -70,6 +70,7 @@ class GlobalController:
         self.recv_from_schedulers.bind(f"ipc://{recv_from_schedulers_ipc_name}")
 
         self._shutdown_event = threading.Event()
+        self.model_service_lost = False  # P12, set by a model_service_lost event
 
         self.models = model_names_to_model_paths.keys()
         self.model_names_to_model_paths = model_names_to_model_paths
@@ -296,6 +297,9 @@ class GlobalController:
                 # Deep copy is not thread-safe, so we do it within the lock
                 model_queues_cpy = copy.deepcopy(self.model_queues)
 
+            if self.model_service_lost:
+                time.sleep(SCHEDULE_INTERVAL)
+                continue
             actions = self.policy.gen_actions(
                 model_queues_cpy, self.model_instance_state_dict
             )
@@ -312,6 +316,12 @@ class GlobalController:
         """Mark inactive the instances GPU schedulers lost (failed activation, dead worker), so the policy sees
         them as inactive with requests and can activate them again."""
         for event in self.redis_client.pop_all(key=controller_events_key(self.server_args)) or []:
+            if event.get("event") == "model_service_lost" and not self.model_service_lost:
+                # P12: no model can be loaded any more; keep the active models serving instead of evicting them
+                # for activations that can only fail
+                self.model_service_lost = True
+                logger.error("Model service lost: no more activations or evictions until the server restarts")
+                continue
             if event.get("event") in ("model_activated", "model_lost") and hasattr(self.policy, "activation_done"):
                 self.policy.activation_done(event["model_name"], event["gpu_id"])
             if event.get("event") != "model_lost":
