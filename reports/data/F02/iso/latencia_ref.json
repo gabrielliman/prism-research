@@ -1,0 +1,32 @@
+{
+ "meta-llama/Llama-3.1-8B-Instruct": {
+  "ttft_a": 0.014727905735531776,
+  "ttft_b": 2.7023524834274502e-05,
+  "tpot_iso": 0.010907780844718218,
+  "tpot_iso_b8": 0.01261746883392334,
+  "prefill_a": 0.011252840409591807,
+  "prefill_b": 3.1535621161030634e-05,
+  "reps": 5,
+  "failed_requests": 0,
+  "ttft_err_median": 0.08510465485568985,
+  "ttft_err_p90": 0.24892579907377183,
+  "prefill_err_median": 0.13031635396547459,
+  "prefill_err_p90": 0.30068446926951836,
+  "tpot_iso_cv_between_reps": 0.48206429181365024
+ },
+ "meta-llama/Llama-3.2-3B-Instruct": {
+  "ttft_a": 0.017741734632249945,
+  "ttft_b": 1.4654560165799333e-05,
+  "tpot_iso": 0.012357502710074186,
+  "tpot_iso_b8": 0.012891778722405434,
+  "prefill_a": 0.014503393369759697,
+  "prefill_b": 1.9884999963010962e-05,
+  "reps": 5,
+  "failed_requests": 0,
+  "ttft_err_median": 0.21514799369387747,
+  "ttft_err_p90": 0.564264793218865,
+  "prefill_err_median": 0.23414456960400976,
+  "prefill_err_p90": 0.5891949903444164,
+  "tpot_iso_cv_between_reps": 0.13862140746689833
+ }
+}

@@ -5,6 +5,7 @@ from itertools import chain
 from typing import Dict, List, Set, Tuple, Optional, DefaultDict
 from collections import defaultdict, deque
 
+from sglang.multi_model.scheduling.decision_log import DecisionLog
 from sglang.multi_model.scheduling.action import (
     ActivateAction,
     BaseAction,
@@ -235,6 +236,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
         self.MEMORY_PER_REQUEST_RATIO_THRESHOLD = 15
 
         self.migrate_policy = "memory_per_request"
+        self.dlog = DecisionLog()  # F2.1: JSON line per cycle with PRISM_DECISION_LOG=<path>; off by default
         assert self.migrate_policy in ["violation", "memory_per_request"]
 
     def _update_req_remaining_time_budget(
@@ -1010,6 +1012,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
     ) -> List[BaseAction]:
 
         start_total = time.time()
+        self.dlog.begin(start_total)
         model_instance_to_action_dict: Dict[Tuple[str, int], List[BaseAction]] = {}
 
         # Pre-compute commonly used data structures to avoid redundant calculation
@@ -1026,6 +1029,9 @@ class SimpleGlobalPolicy(GlobalPolicy):
             self.active_since.setdefault(model_name, time.time())
         if self.EVICTION == "throughput":
             self._update_tput(model_queues, active_models)
+        if self.dlog.enabled:
+            self.dlog.models(time.time(), model_queues, model_instance_state_dict, self.model_weights_info,
+                             self.active_since)
         end_precompute = time.time()
         logger.info(f"Time for preprocessing data structures: {end_precompute - start_precompute:.4f}s")
 
@@ -1058,6 +1064,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                     )
                 )
                 logger.info(f"ACTION: deactivate {model_instance.model_name}:{model_instance.instance_idx} on GPU {gpu_id}. Reason: idle instance eviction")
+                self.dlog.action("deactivate", model_instance.model_name, gpu_id, "idle instance eviction", preempt=False)
         end_idle_check = time.time()
         logger.info(f"Time for idle instance eviction: {end_idle_check - start_idle_check:.4f}s")
 
@@ -1065,7 +1072,10 @@ class SimpleGlobalPolicy(GlobalPolicy):
         gpu_available_memory = {}
         pending_gb = self._pending_activation_gb()
         for gpu_id in range(self.num_gpus):
-            gpu_available_memory[gpu_id] = get_available_gpu_memory("cuda", gpu_id) - pending_gb.get(gpu_id, 0.0)
+            free_gb = get_available_gpu_memory("cuda", gpu_id)
+            gpu_available_memory[gpu_id] = free_gb - pending_gb.get(gpu_id, 0.0)
+            self.dlog.gpu(gpu_id, free_gb, pending_gb.get(gpu_id, 0.0), gpu_available_memory[gpu_id],
+                          [m for (m, g) in self.pending_activations if g == gpu_id])
             logger.info(f"GPU {gpu_id}, mem {gpu_available_memory[gpu_id]}")
             if pending_gb.get(gpu_id):
                 logger.info(f"GPU {gpu_id}: {pending_gb[gpu_id]:.1f} GB promised to pending activations "
@@ -1131,6 +1141,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                 activation_plan[(model_name, target_gpu)] = target_gpu
             else:
                 logger.warning(f"No suitable GPU found for inactive model {model_name}")
+                self.dlog.note("no_fit", model_name, need_gb=model_memory_required)
                 unplaced_models.append(model_name)
 
         # 3b. Alternative eviction strategies (PRISM_EVICTION): free room for the models that did not fit
@@ -1162,6 +1173,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                 )
             )
             logger.info(f"ACTION: deactivate {victim.model_name}:{victim.instance_idx} on GPU {gpu_id}. Reason: {reason}")
+            self.dlog.action("deactivate", victim.model_name, gpu_id, reason, preempt=preempt, drain_timeout=drain_timeout)
 
         end_inactive = time.time()
 
@@ -1199,6 +1211,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                 )
                 self._add_pending_activation(model_name, target_gpu_id)
                 logger.info(f"ACTION: deactivate {model_name} on GPU {source_gpu_id} and activate {model_name} on GPU {target_gpu_id}. Reason: migrate model")
+                self.dlog.action("migrate", model_name, target_gpu_id, "migrate model", source_gpu=source_gpu_id)
 
         # 5. Activate inactive models
         for (model_name, instance_idx), gpu_id in activation_plan.items():
@@ -1213,6 +1226,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
             )
             self._add_pending_activation(model_name, gpu_id)
             logger.info(f"ACTION: activate inactive model {model_name} on GPU {gpu_id}. Reason: inactive models but with requests")
+            self.dlog.action("activate", model_name, gpu_id, "inactive models but with requests")
         end_apply_actions = time.time()
         logger.info(f"Time for creating action list: {end_apply_actions - start_apply_actions:.4f}s")
         
@@ -1224,5 +1238,6 @@ class SimpleGlobalPolicy(GlobalPolicy):
         for actions in model_instance_to_action_dict.values():
             sorted_actions = sorted(actions, key=lambda action: 0 if isinstance(action, DeactivateAction) else 1)
             all_actions.extend(sorted_actions)
+        self.dlog.end()
 
         return all_actions

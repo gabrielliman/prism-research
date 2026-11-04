@@ -50,6 +50,7 @@ class RequestFuncOutput:
 
     slo_ttft: float = 0.0
     slo_tpot: float = 0.0
+    client_ttft: float = 0.0  # first streamed token seen by the client (ttft above is the server's prefill finish)
 
 
 async def send_generate_request(
@@ -109,6 +110,7 @@ async def send_generate_request(
                             if ttft == 0.0:
                                 ttft = time.perf_counter() - st
                                 output.ttft = ttft
+                                output.client_ttft = ttft
 
                             # Decoding phase
                             else:

@@ -24,8 +24,14 @@ Workload knobs:
   --trace-adapters N             with --real-trace: instead of the e2e benchmark's 8 adapters, the N most
                                  requested adapters of the whole trace, one per model (most requested ->
                                  --models[0]), with their prompts and lengths; SLO sent = --slo-ttft.
+  --only-model M --send-as N     build the whole workload as above (same --models, seed and level, so the same
+                                 requests), then send only model M's requests, to model N (F2.10: the model's own
+                                 workload on a dedicated GPU, the Prism paper's SLO base, run_examples.sh
+                                 PRISM_OVL_DEDICATED); rows keep M in "workload_model"
 
-Writes <out>/requests.json (one row per request) and <out>/summary.json.
+Writes <out>/requests.json (one row per request: workload, status, TTFT/TPOT/latency, and since F2.1 the send time,
+the SLO, deadline and class, the client-side first-token time and the server's wall-clock timestamps) and
+<out>/summary.json (load_start_wall: wall clock of the load start).
 """
 import argparse
 import asyncio
@@ -107,6 +113,7 @@ def build_requests(a):
 async def run(a, reqs):
     server = a.base_url
     start = time.perf_counter()
+    start_wall = time.time()  # wall clock of the load start (same clock as the server's timestamps: same container)
     tasks = []
     sent_at = {}
 
@@ -125,17 +132,26 @@ async def run(a, reqs):
     elapsed = time.perf_counter() - start
     rows = []
     for r, t in zip(reqs, tasks):
+        # F2.1: send time (s from the load start, V11), the request's SLO and deadline, and for answered requests the
+        # client-side first-token time (V9) and the server's wall-clock timestamps (V10, load start alignment).
         row = {"id": r.req_id, "model": r.model, "arrival": round(r.arrival_time, 3),
-               "prompt_len": r.prompt_len, "output_len": r.output_len}
+               "prompt_len": r.prompt_len, "output_len": r.output_len,
+               "sent": round(sent_at[r.req_id], 4) if r.req_id in sent_at else None,
+               "slo_ttft": r.slo_ttft, "slo_tpot": r.slo_tpot, "deadline": round(r.arrival_time + r.slo_ttft, 3) if r.slo_ttft is not None else None,
+               "slo_class": getattr(r, "slo_class", "interactive")}
+        if a.only_model:
+            row["workload_model"] = a.only_model
         if t in pending or t.cancelled():
             row.update(status="unserved")
         else:
             o = t.result()
             row.update(status="ok" if o.success else "failed", ttft=o.ttft, tpot=o.tpot,
                        latency=o.latency, generated=o.output_len,
-                       error=(o.error or "").strip().splitlines()[-1][:300] if o.error else "")
+                       error=(o.error or "").strip().splitlines()[-1][:300] if o.error else "",
+                       client_ttft=o.client_ttft or None, server_arrival=o.arrival_time or None,
+                       server_prefill_finish=o.prefill_finish_time or None, server_finish=o.finish_time or None)
         rows.append(row)
-    return rows, elapsed
+    return rows, elapsed, start_wall
 
 
 def summarize(a, rows, elapsed):
@@ -144,7 +160,7 @@ def summarize(a, rows, elapsed):
     tpot = np.array([r["tpot"] for r in ok if r["tpot"] > 0]) if ok else np.array([np.nan])
     att = [r["status"] == "ok" and r["ttft"] < a.slo_ttft and r["tpot"] < a.slo_tpot for r in rows]
     per_model = {}
-    for m in a.models:
+    for m in ([a.send_as or a.only_model] if a.only_model else a.models):
         mr = [r for r in rows if r["model"] == m]
         mok = [r for r in mr if r["status"] == "ok"]
         per_model[m] = {"sent": len(mr), "ok": len(mok),
@@ -186,6 +202,8 @@ def main():
     p.add_argument("--real-trace")
     p.add_argument("--time-scale", type=float, default=1.0)
     p.add_argument("--trace-adapters", type=int, default=0)
+    p.add_argument("--only-model")
+    p.add_argument("--send-as")
     p.add_argument("--out", required=True)
     a = p.parse_args()
     if a.real_trace:
@@ -194,10 +212,15 @@ def main():
         p.error("--rate and --duration are required without --real-trace")
     set_ulimit()  # as benchmark.py does: one socket per in-flight request
     reqs = build_requests(a)
+    if a.only_model:
+        reqs = [r for r in reqs if r.model == a.only_model]
+        for r in reqs:
+            r.model = a.send_as or a.only_model
     print(f"{len(reqs)} requests over {a.duration:.0f}s for {len(a.models)} models "
           f"(offered {len(reqs) / a.duration:.2f} req/s), deadline +{a.drain:.0f}s", flush=True)
-    rows, elapsed = asyncio.run(run(a, reqs))
+    rows, elapsed, start_wall = asyncio.run(run(a, reqs))
     s = summarize(a, rows, elapsed)
+    s["load_start_wall"] = start_wall
     os.makedirs(a.out, exist_ok=True)
     json.dump(rows, open(os.path.join(a.out, "requests.json"), "w"))
     json.dump(s, open(os.path.join(a.out, "summary.json"), "w"), indent=1)

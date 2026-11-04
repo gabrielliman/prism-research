@@ -25,9 +25,11 @@ For each level <outputs>/<step>/rate<r>/ (ts<s>/ for ovl_trace) writes <dest>/<N
                                worker_exit (a worker exited after an exception, the others kept running)
 and copies configs/<step>.json to <dest>/<NAME or step>/config.json.
 
-Times are seconds from the load start. The logs use wall clock, so the load start is placed with the
-GPU scheduler: an active model's request is admitted within ~10 ms of its arrival, so t0 is the
-offset that lines up the most of the first 100 arrivals with an "Admitted ... for <model>" line.
+Times are seconds from the load start. Since F2.1 the generator records the load start's wall clock
+(summary.json load_start_wall), converted to the logs' local clock with utc_offset_h. For older runs the load start
+is placed with the GPU scheduler: an active model's request is admitted within ~10 ms of its arrival, so t0 is the
+offset that lines up the most of the first 100 arrivals with an "Admitted ... for <model>" line (this can be off by
+seconds under compute overload, where admission lags the arrival).
 No numpy needed.
 """
 import bisect
@@ -67,7 +69,39 @@ def admitted_within(ts_sorted, t, window):
     return i < len(ts_sorted) and ts_sorted[i] - t < window
 
 
+def utc_offset_h(d):
+    """Hours to add to the server logs' wall clock to get UTC. The logs use the container's local time (UTC−7 in
+    October 2026, Pacific daylight time; UTC−8 from November) while environment.txt (or, in older jobs, run.log) is
+    written in UTC when the suite line starts, a few minutes before its first server log line: the offset is the whole
+    hours of that gap, rounded down. None when the job left neither."""
+    import math
+    cfg_dir = os.path.dirname(os.path.dirname(d))
+    first = [next(iter(log_lines(p)), (None,))[0]
+             for p in glob.glob(os.path.join(cfg_dir, "ovl_*", "*", "server_file.log.gpu_scheduler.log"))]
+    first = [t for t in first if t is not None]
+    m = None
+    for name, rx in (("environment.txt", r"(\d{4}-\d\d-\d\d)T(\d\d:\d\d:\d\d)Z"),
+                     ("run.log", r"^start (\d{4}-\d\d-\d\d)T(\d\d:\d\d:\d\d)Z")):
+        p = os.path.join(cfg_dir, name)
+        if os.path.exists(p) and (m := re.search(rx, open(p, errors="replace").read(), re.M)):
+            break
+    if not m or not first:
+        return None
+    return -math.floor((min(first) - parse_ts(f"{m.group(1)} {m.group(2)}")) / 3600 + 1e-6)
+
+
 def load_start(level_dir, requests):
+    """Load start on the logs' clock: the generator's wall-clock start (summary.json load_start_wall, from F2.1)
+    shifted by utc_offset_h; for older runs, load_start_heuristic."""
+    summ = os.path.join(level_dir, "summary.json")
+    lsw = json.load(open(summ)).get("load_start_wall") if os.path.exists(summ) else None
+    off = utc_offset_h(level_dir) if lsw is not None else None
+    if lsw is not None and off is not None:
+        return lsw - 3600 * off
+    return load_start_heuristic(level_dir, requests)
+
+
+def load_start_heuristic(level_dir, requests):
     admits = {}  # model -> admission timestamps
     for ts, line in log_lines(os.path.join(level_dir, "server_file.log.gpu_scheduler.log")):
         if m := re.search(r"Admitted \d+ requests for (\S+)", line):

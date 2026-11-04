@@ -7,6 +7,7 @@
 #   prism2  - README example 3 on 2 GPUs: 8_gpu_18_model_our.json limited to GPUs 0-1 (6 models)
 #   overload - example 3 on 1 GPU, 8 models over the memory budget, trace at PRISM_TIME_SCALES
 #   ovl_mem / ovl_phases / ovl_kv / ovl_compute / ovl_trace / ovl_mix - real overload scenarios (see the step below)
+#   iso_lat - reference latencies of one model alone on the GPU (F2.10, polyaxon/iso_latency.py)
 # PRISM_MEMORY_ARBITER=1 turns on the GPU memory arbiter, kvcached fixes and activation reservation
 # (multi_model/memory_arbiter.py, kvcached_patches.py); off by default, as they change how memory is shared.
 # PRISM_DETECT_DEAD_WORKERS=0 turns off dead-worker detection (on by default: it only acts on a dead worker).
@@ -237,6 +238,18 @@ health_gate() {
   done
 }
 
+# V14 (F2.2): one node health check right after a level (no waiting), in health_after.log; PRISM_HEALTH_AFTER=0 skips.
+health_after() {
+  local step=$1
+  [ "${PRISM_HEALTH_AFTER:-1}" = 1 ] && [ "${PRISM_HEALTH_PROCS:-10}" -gt 0 ] || return 0
+  if python3 polyaxon/kvcached_probe.py --parallel "${PRISM_HEALTH_PROCS:-10}" >> "$RESULTS/$step/health_after.log" 2>&1; then
+    echo "[$step] node healthy after the level"
+  else
+    { echo "== unhealthy after the level $(date -u +%FT%TZ)"; host_diag; } >> "$RESULTS/$step/health_after.log" 2>&1
+    echo "[$step] NODE UNHEALTHY after the level"
+  fi
+}
+
 start_server() {
   local step=$1 k
   health_gate "$step" || return 1
@@ -256,6 +269,8 @@ start_server_once() {
   local n_on; n_on=$(python3 -c "import json;print(sum(any(p['on'] for p in m['init_placements']) for m in json.load(open('$cfg'))))")
   mkdir -p "$RESULTS/$step"
   wait_ports_free "$port" 8 || return 1
+  # F2.1: the controller's decision log, one JSON line per cycle (PRISM_DECISION_LOG= empty turns it off, F2.8)
+  PRISM_DECISION_LOG="${PRISM_DECISION_LOG-$RESULTS/$step/decisions.jsonl}" \
   setsid python3 -m sglang.launch_multi_model_server --model-config-file "$cfg" \
     --host 127.0.0.1 --port "$port" "$@" --log-file "$RESULTS/$step/server_file.log" \
     > "$RESULTS/$step/server.log" 2>&1 &
@@ -411,6 +426,44 @@ PY2
       done
       [ $rc = 0 ]
       ;;
+    iso_lat)
+      # F2.10/F2.4: reference latencies of PRISM_OVL_MODEL alone and resident on the GPU, with the ovl_* server flags
+      # (polyaxon/iso_latency.py: TTFT by prompt length, batched prefill bursts, TPOT with 1 and 8 streams).
+      # PRISM_ISO_REPS levels (r1, r2, ...), each with a fresh server.
+      M="${PRISM_OVL_MODEL:-meta-llama/Llama-3.1-8B-Instruct}"
+      python3 - "$CFG_DIR/$step.json" "$M" "${PRISM_OVL_POOL:-10}" <<'PY3'
+import json, sys
+out, path, pool = sys.argv[1], sys.argv[2], float(sys.argv[3])
+json.dump([{"model_name": "model_1", "model_path": path, "tokenizer_path": path, "tp_size": 1,
+            "init_placements": [{"gpu_ids": [0], "on": True, "max_memory_pool_size": pool}]}], open(out, "w"), indent=2)
+PY3
+      profile_missing "$CFG_DIR/$step.json" || { echo "[$step] PROFILING FAILED"; STATUS[$step]=1; continue; }
+      rc=0
+      for k in $(seq 1 "${PRISM_ISO_REPS:-5}"); do
+        lvl="$step/r$k"
+        echo "---- $lvl $(date -u +%T)"
+        mkdir -p "$RESULTS/$lvl"
+        if start_server "$lvl" 30002 "$CFG_DIR/$step.json" \
+            --disable-cuda-graph --disable-radix-cache --enable-cpu-share-memory \
+            --enable-elastic-memory --use-kvcached-v0 --max-mem-usage "${PRISM_OVL_MAX_MEM:-67.28}" \
+            --enable-gpu-scheduler --enable-controller --policy simple-global \
+            --enable-model-service --enable-worker-pool --workers-per-gpu 1 \
+            --num-model-service-workers 4 --num-gpus 1; then
+          nvidia-smi --query-gpu=timestamp,memory.used,memory.total,utilization.gpu --format=csv,nounits -lms 1000 \
+            > "$RESULTS/$lvl/gpu.csv" 2>/dev/null &
+          SMI_PID=$!
+          timeout -k 30 1800 python3 polyaxon/iso_latency.py --base-url http://127.0.0.1:30002 --model model_1 \
+            --out "$RESULTS/$lvl" > "$RESULTS/$lvl/load.log" 2>&1 || rc=1
+          kill $SMI_PID 2>/dev/null
+          tail -n 2 "$RESULTS/$lvl/load.log"
+        else
+          rc=1
+        fi
+        stop_server
+        health_after "$lvl"
+      done
+      [ $rc = 0 ]
+      ;;
     ovl_mem|ovl_phases|ovl_kv|ovl_compute|ovl_trace|ovl_trace_big|ovl_mix)
       # Real overload scenarios on 1 GPU (README example 3 flags, workers-per-gpu = number of models).
       # Load: polyaxon/overload_load.py (open loop, uniform popularity, deadline = duration + drain;
@@ -470,20 +523,39 @@ PY2
       profile_missing "$CFG_DIR/$step.json" || { echo "[$step] PROFILING FAILED"; STATUS[$step]=1; continue; }
       n=$((n + n2))
       models=$(seq -f "model_%g" 1 "$n" | tr '\n' ' ')
+      # PRISM_OVL_DEDICATED=all (or a list, e.g. "model_1 model_3"): instead of the scenario, each model's own requests
+      # of the level, alone on the GPU: a server with only that model, resident from the start, 1 worker, the
+      # scenario's pool (F2.10, the Prism paper's SLO base: P95 TTFT/TPOT of the model's workload on a dedicated GPU,
+      # polyaxon/iso_dedicated.py). One level per model, <level>_ded_<model>. Pair with a large PRISM_IDLE_THRESHOLD so
+      # the only model is never evicted between arrivals.
+      targets=("")
+      if [ -n "${PRISM_OVL_DEDICATED:-}" ]; then
+        if [ "$PRISM_OVL_DEDICATED" = all ]; then targets=($models); else targets=($PRISM_OVL_DEDICATED); fi
+      fi
       rc=0
       for rate in $rates; do
+      for tgt in "${targets[@]}"; do
         if [ "$step" = ovl_trace ] || [ "$step" = ovl_trace_big ]; then  # level = time scale; the window is the trace span x scale
           lvl="$step/ts$rate"; dur=$(python3 -c "print(600 * $rate)"); level=(--time-scale "$rate")
         else
           lvl="$step/rate$rate"; level=(--rate "$rate" --duration "$dur")
         fi
+        cfg="$CFG_DIR/$step.json"; workers="${PRISM_OVL_WORKERS:-$n}"; ded=()
+        if [ -n "$tgt" ]; then
+          i=${tgt#model_}; p=$M; [ "$i" -gt $((n - n2)) ] && p=$M2
+          cfg="$CFG_DIR/${step}_ded.json"; workers=1; ded=(--only-model "$tgt" --send-as model_1); lvl="${lvl}_ded_$tgt"
+          python3 -c 'import json, sys; p = sys.argv[2]; json.dump([{"model_name": "model_1", "model_path": p, "tokenizer_path": p,
+"tp_size": 1, "init_placements": [{"gpu_ids": [0], "on": True, "max_memory_pool_size": float(sys.argv[3])}]}], open(sys.argv[1], "w"), indent=2)' \
+            "$cfg" "$p" "$pool"
+          profile_missing "$cfg" || { echo "[$lvl] PROFILING FAILED"; rc=1; continue; }
+        fi
         echo "---- $lvl $(date -u +%T)"
         mkdir -p "$RESULTS/$lvl"
-        if start_server "$lvl" 30002 "$CFG_DIR/$step.json" \
+        if start_server "$lvl" 30002 "$cfg" \
             --disable-cuda-graph --disable-radix-cache --enable-cpu-share-memory \
             --enable-elastic-memory --use-kvcached-v0 --max-mem-usage "${PRISM_OVL_MAX_MEM:-67.28}" \
             --enable-gpu-scheduler --enable-controller --policy simple-global \
-            --enable-model-service --enable-worker-pool --workers-per-gpu "${PRISM_OVL_WORKERS:-$n}" \
+            --enable-model-service --enable-worker-pool --workers-per-gpu "$workers" \
             --num-model-service-workers 4 --num-gpus 1; then
           FAULT_PID=; [ -n "${PRISM_FAULT:-}" ] && { fault_inject "$lvl" & FAULT_PID=$!; }
           STACK_PID=; [ -n "${PRISM_STACK_DUMP_AT:-}" ] && { stack_dumps & STACK_PID=$!; }
@@ -491,7 +563,7 @@ PY2
             > "$RESULTS/$lvl/gpu.csv" 2>/dev/null &
           SMI_PID=$!
           timeout -k 30 $((${dur%.*} + ${drain%.*} + 120)) python3 polyaxon/overload_load.py \
-            --base-url http://127.0.0.1:30002 --models $models "${level[@]}" --drain "$drain" \
+            --base-url http://127.0.0.1:30002 --models $models "${level[@]}" --drain "$drain" "${ded[@]}" \
             $load --slo-ttft "${PRISM_OVL_SLO_TTFT:-1.0}" --slo-tpot "${PRISM_OVL_SLO_TPOT:-0.1}" \
             --out "$RESULTS/$lvl" > "$RESULTS/$lvl/load.log" 2>&1 || rc=1
           kill $SMI_PID 2>/dev/null
@@ -503,6 +575,8 @@ PY2
         fi
         stop_server
         collect_stacks "$lvl"
+        health_after "$lvl"
+      done
       done
       [ $rc = 0 ]
       ;;

@@ -24,19 +24,21 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F1.8 P12: detecção da morte do model service (2026-10-30, decisoes.md D9; verificado em `f1-p12b-on/off`; tests/robustness/test_model_service_alive.py)
 
 ## F2 — Instrumentação, validador e estimadores · gate [HUMANO]
-- [ ] F2.1 Logs estruturados do controlador (retrato de estado + ações + motivo) e das requisições (prazo, classe, estado final)
-- [ ] F2.2 `validate_run.py` (V1–V15) e `validate_campaign.py` (C-V1–C-V3)
-- [ ] F2.2a Teste retroativo do validador nos dados de 28/10 (falhas conhecidas detectadas; execuções limpas aprovadas)
-- [ ] F2.3 Estimador `Ĉ_at(m)` (tamanho + memória livre + ativações concorrentes), erro registrado
-- [ ] F2.4 Estimador de prefill `p̂_r`, erro registrado
-- [ ] F2.5 Estimadores `q̂_r` e `λ̂_m` (EWMA duas janelas), erro de previsão no horizonte `H`
-- [ ] F2.6 Confirmar/refutar a observação 4.0 (SLO de 1 s × custo de ativação) com dados
-- [ ] F2.7 Criar `execucoes.csv`, `decisoes.md`, `cargas.md`
-- [ ] F2.8 Medir sobrecusto da instrumentação (≤ 2%)
-- [ ] F2.10 Latência de referência por modelo: `TTFT_iso(m, L)` e `TPOT_iso(m)` (seção 5.4)
-- [ ] F2.11 Métricas com SLO parametrizado (família + nível) e três vistas (combinada, só TTFT, só TPOT) + decomposição das violações; regressão: S1 reproduz os números de 28/10
-- [ ] F2.12 Curvas S2 (`k_T` × `k_D`) e S3 retroativas nos dados de 28/10, nas três vistas
-- [ ] F2.9 Relatório F02 com opções de família principal de SLO, níveis `k_T`/`k_D`/`k_A` e SLOs por classe, para decisão do Gabriel
+- [x] F2.1 Logs estruturados do controlador (retrato de estado + ações + motivo) e das requisições (prazo, classe, estado final) (2026-11-04, `decision_log.py` + `PRISM_DECISION_LOG`, `overload_load.py`; tests/controller/test_decision_log.py; reports/fases/F02_instrumentacao.md)
+- [x] F2.2 `validate_run.py` (V1–V15) e `validate_campaign.py` (C-V1–C-V3) (2026-11-04, polyaxon/; V6 N/A até a F7; decisões D10, D11, D16)
+- [x] F2.2a Teste retroativo do validador nos dados de 28/10 (falhas conhecidas detectadas; execuções limpas aprovadas) (2026-11-04, reports/data/F02/validador/retro.csv: 17/17 e 37/37)
+- [x] F2.3 Estimador `Ĉ_at(m)` (tamanho + memória livre + ativações concorrentes), erro registrado (2026-11-04, reports/data/F02/cat/: erro mediano 11,8%; D12)
+- [x] F2.4 Estimador de prefill `p̂_r`, erro registrado (2026-11-04, reports/data/F02/iso2/iso_fit.md: 12,4% / 18,0%; D18)
+- [x] F2.5 Estimadores `q̂_r` e `λ̂_m` (EWMA duas janelas), erro de previsão no horizonte `H` (2026-11-04, estimators.py, reports/data/F02/estimadores/; D15, D17)
+- [x] F2.6 Confirmar/refutar a observação 4.0 (SLO de 1 s × custo de ativação) com dados (2026-11-04, confirmada: 0 de 36.064; reports/data/F02/observacao_4_0.md)
+- [x] F2.7 Criar `execucoes.csv`, `decisoes.md`, `cargas.md` (2026-11-04, reports/registro/; register_runs.py, workload_stats.py)
+- [x] F2.8 Medir sobrecusto da instrumentação (≤ 2%) (2026-11-04, medida direta 0,0017%; vazão ponta a ponta inconclusiva, decisão no gate; reports/data/F02/sobrecusto/)
+- [x] F2.10 Latência de referência por modelo: `TTFT_iso(m, L)` e `TPOT_iso(m)` (seção 5.4) (2026-11-04, reports/registro/latencia_ref.json, job f2-iso2)
+  - base do S2 refeita pelo artigo do Prism (D20) e agregada juntando modelos idênticos, S2 = P95 e S2M = P50 (D21): reports/registro/latencia_ded.json, jobs f2-ded-{a,b,c}
+  - [x] [HUMANO] novos níveis de `k_T`/`k_D` sobre as curvas refeitas (2026-11-04, D23: S2 k_T {2,5,10,25} k_D {1,5,2,3,5}; S2M k_T {5,10,25,50} k_D {3,5,10,20}) (C5 fica como está, D21/O2; CUDA graphs desligados, D22/O1)
+- [x] F2.11 Métricas com SLO parametrizado (família + nível) e três vistas (combinada, só TTFT, só TPOT) + decomposição das violações; regressão: S1 reproduz os números de 28/10 (2026-11-04, slo_metrics.py; 182 níveis idênticos; D13, D14)
+- [x] F2.12 Curvas S2 (`k_T` × `k_D`) e S3 retroativas nos dados de 28/10, nas três vistas (2026-11-04, reports/data/F02/curvas/; refeitas com S2/S2M da D21)
+- [x] F2.9 Relatório F02 com opções de família principal de SLO, níveis `k_T`/`k_D`/`k_A` e SLOs por classe, para decisão do Gabriel (2026-11-04, reports/fases/F02_instrumentacao.md; gate APROVADO em 2026-11-04, D19)
 
 ## F3 — Catálogo de cargas · gate [HUMANO]
 - [ ] F3.1 `overload_load.py`: leitura de trace, classes de SLO, recusa como estado final, sementes
@@ -92,6 +94,7 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [ ] F7.6 Campanha em C1, C4, C5, C7, C9, T1, com resultados nas três vistas; relatório F07
 
 ## F8 — Classes e pesos (A7) · gate automático
+- [ ] F8.0 Antes de começar: reapresentar ao Gabriel os SLOs das classes (provisórios na D19: interativa S2 `k_T`=10, `k_D`=5; lote TTFT 60 s, sem TPOT) com os dados da F5–F7, e esperar a confirmação
 - [ ] F8.1 Classes e pesos em A2, A3, A5
 - [ ] F8.2 Campanha em C9 e C6 com proporções de classe variadas
 - [ ] F8.3 Curvas SLO agregado × pior modelo para cada política, nas três vistas e por classe

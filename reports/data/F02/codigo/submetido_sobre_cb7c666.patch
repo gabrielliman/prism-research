@@ -1,0 +1,286 @@
+diff --git a/benchmark/multi-model/benchmark.py b/benchmark/multi-model/benchmark.py
+index d429d5b..f9e3582 100644
+--- a/benchmark/multi-model/benchmark.py
++++ b/benchmark/multi-model/benchmark.py
+@@ -50,6 +50,7 @@ class RequestFuncOutput:
+ 
+     slo_ttft: float = 0.0
+     slo_tpot: float = 0.0
++    client_ttft: float = 0.0  # first streamed token seen by the client (ttft above is the server's prefill finish)
+ 
+ 
+ async def send_generate_request(
+@@ -109,6 +110,7 @@ async def send_generate_request(
+                             if ttft == 0.0:
+                                 ttft = time.perf_counter() - st
+                                 output.ttft = ttft
++                                output.client_ttft = ttft
+ 
+                             # Decoding phase
+                             else:
+diff --git a/polyaxon/overload_load.py b/polyaxon/overload_load.py
+index cee7e38..8aad0f8 100644
+--- a/polyaxon/overload_load.py
++++ b/polyaxon/overload_load.py
+@@ -25,7 +25,9 @@ Workload knobs:
+                                  requested adapters of the whole trace, one per model (most requested ->
+                                  --models[0]), with their prompts and lengths; SLO sent = --slo-ttft.
+ 
+-Writes <out>/requests.json (one row per request) and <out>/summary.json.
++Writes <out>/requests.json (one row per request: workload, status, TTFT/TPOT/latency, and since F2.1 the send time,
++the SLO, deadline and class, the client-side first-token time and the server's wall-clock timestamps) and
++<out>/summary.json (load_start_wall: wall clock of the load start).
+ """
+ import argparse
+ import asyncio
+@@ -107,6 +109,7 @@ def build_requests(a):
+ async def run(a, reqs):
+     server = a.base_url
+     start = time.perf_counter()
++    start_wall = time.time()  # wall clock of the load start (same clock as the server's timestamps: same container)
+     tasks = []
+     sent_at = {}
+ 
+@@ -125,17 +128,24 @@ async def run(a, reqs):
+     elapsed = time.perf_counter() - start
+     rows = []
+     for r, t in zip(reqs, tasks):
++        # F2.1: send time (s from the load start, V11), the request's SLO and deadline, and for answered requests the
++        # client-side first-token time (V9) and the server's wall-clock timestamps (V10, load start alignment).
+         row = {"id": r.req_id, "model": r.model, "arrival": round(r.arrival_time, 3),
+-               "prompt_len": r.prompt_len, "output_len": r.output_len}
++               "prompt_len": r.prompt_len, "output_len": r.output_len,
++               "sent": round(sent_at[r.req_id], 4) if r.req_id in sent_at else None,
++               "slo_ttft": r.slo_ttft, "slo_tpot": r.slo_tpot, "deadline": round(r.arrival_time + r.slo_ttft, 3) if r.slo_ttft is not None else None,
++               "slo_class": getattr(r, "slo_class", "interactive")}
+         if t in pending or t.cancelled():
+             row.update(status="unserved")
+         else:
+             o = t.result()
+             row.update(status="ok" if o.success else "failed", ttft=o.ttft, tpot=o.tpot,
+                        latency=o.latency, generated=o.output_len,
+-                       error=(o.error or "").strip().splitlines()[-1][:300] if o.error else "")
++                       error=(o.error or "").strip().splitlines()[-1][:300] if o.error else "",
++                       client_ttft=o.client_ttft or None, server_arrival=o.arrival_time or None,
++                       server_prefill_finish=o.prefill_finish_time or None, server_finish=o.finish_time or None)
+         rows.append(row)
+-    return rows, elapsed
++    return rows, elapsed, start_wall
+ 
+ 
+ def summarize(a, rows, elapsed):
+@@ -196,8 +206,9 @@ def main():
+     reqs = build_requests(a)
+     print(f"{len(reqs)} requests over {a.duration:.0f}s for {len(a.models)} models "
+           f"(offered {len(reqs) / a.duration:.2f} req/s), deadline +{a.drain:.0f}s", flush=True)
+-    rows, elapsed = asyncio.run(run(a, reqs))
++    rows, elapsed, start_wall = asyncio.run(run(a, reqs))
+     s = summarize(a, rows, elapsed)
++    s["load_start_wall"] = start_wall
+     os.makedirs(a.out, exist_ok=True)
+     json.dump(rows, open(os.path.join(a.out, "requests.json"), "w"))
+     json.dump(s, open(os.path.join(a.out, "summary.json"), "w"), indent=1)
+diff --git a/polyaxon/run_examples.sh b/polyaxon/run_examples.sh
+index c18642f..7ee3e5a 100755
+--- a/polyaxon/run_examples.sh
++++ b/polyaxon/run_examples.sh
+@@ -7,6 +7,7 @@
+ #   prism2  - README example 3 on 2 GPUs: 8_gpu_18_model_our.json limited to GPUs 0-1 (6 models)
+ #   overload - example 3 on 1 GPU, 8 models over the memory budget, trace at PRISM_TIME_SCALES
+ #   ovl_mem / ovl_phases / ovl_kv / ovl_compute / ovl_trace / ovl_mix - real overload scenarios (see the step below)
++#   iso_lat - reference latencies of one model alone on the GPU (F2.10, polyaxon/iso_latency.py)
+ # PRISM_MEMORY_ARBITER=1 turns on the GPU memory arbiter, kvcached fixes and activation reservation
+ # (multi_model/memory_arbiter.py, kvcached_patches.py); off by default, as they change how memory is shared.
+ # PRISM_DETECT_DEAD_WORKERS=0 turns off dead-worker detection (on by default: it only acts on a dead worker).
+@@ -237,6 +238,18 @@ health_gate() {
+   done
+ }
+ 
++# V14 (F2.2): one node health check right after a level (no waiting), in health_after.log; PRISM_HEALTH_AFTER=0 skips.
++health_after() {
++  local step=$1
++  [ "${PRISM_HEALTH_AFTER:-1}" = 1 ] && [ "${PRISM_HEALTH_PROCS:-10}" -gt 0 ] || return 0
++  if python3 polyaxon/kvcached_probe.py --parallel "${PRISM_HEALTH_PROCS:-10}" >> "$RESULTS/$step/health_after.log" 2>&1; then
++    echo "[$step] node healthy after the level"
++  else
++    { echo "== unhealthy after the level $(date -u +%FT%TZ)"; host_diag; } >> "$RESULTS/$step/health_after.log" 2>&1
++    echo "[$step] NODE UNHEALTHY after the level"
++  fi
++}
++
+ start_server() {
+   local step=$1 k
+   health_gate "$step" || return 1
+@@ -256,6 +269,8 @@ start_server_once() {
+   local n_on; n_on=$(python3 -c "import json;print(sum(any(p['on'] for p in m['init_placements']) for m in json.load(open('$cfg'))))")
+   mkdir -p "$RESULTS/$step"
+   wait_ports_free "$port" 8 || return 1
++  # F2.1: the controller's decision log, one JSON line per cycle (PRISM_DECISION_LOG= empty turns it off, F2.8)
++  PRISM_DECISION_LOG="${PRISM_DECISION_LOG-$RESULTS/$step/decisions.jsonl}" \
+   setsid python3 -m sglang.launch_multi_model_server --model-config-file "$cfg" \
+     --host 127.0.0.1 --port "$port" "$@" --log-file "$RESULTS/$step/server_file.log" \
+     > "$RESULTS/$step/server.log" 2>&1 &
+@@ -411,6 +426,44 @@ PY2
+       done
+       [ $rc = 0 ]
+       ;;
++    iso_lat)
++      # F2.10/F2.4: reference latencies of PRISM_OVL_MODEL alone and resident on the GPU, with the ovl_* server flags
++      # (polyaxon/iso_latency.py: TTFT by prompt length, batched prefill bursts, TPOT with 1 and 8 streams).
++      # PRISM_ISO_REPS levels (r1, r2, ...), each with a fresh server.
++      M="${PRISM_OVL_MODEL:-meta-llama/Llama-3.1-8B-Instruct}"
++      python3 - "$CFG_DIR/$step.json" "$M" "${PRISM_OVL_POOL:-10}" <<'PY3'
++import json, sys
++out, path, pool = sys.argv[1], sys.argv[2], float(sys.argv[3])
++json.dump([{"model_name": "model_1", "model_path": path, "tokenizer_path": path, "tp_size": 1,
++            "init_placements": [{"gpu_ids": [0], "on": True, "max_memory_pool_size": pool}]}], open(out, "w"), indent=2)
++PY3
++      profile_missing "$CFG_DIR/$step.json" || { echo "[$step] PROFILING FAILED"; STATUS[$step]=1; continue; }
++      rc=0
++      for k in $(seq 1 "${PRISM_ISO_REPS:-5}"); do
++        lvl="$step/r$k"
++        echo "---- $lvl $(date -u +%T)"
++        mkdir -p "$RESULTS/$lvl"
++        if start_server "$lvl" 30002 "$CFG_DIR/$step.json" \
++            --disable-cuda-graph --disable-radix-cache --enable-cpu-share-memory \
++            --enable-elastic-memory --use-kvcached-v0 --max-mem-usage "${PRISM_OVL_MAX_MEM:-67.28}" \
++            --enable-gpu-scheduler --enable-controller --policy simple-global \
++            --enable-model-service --enable-worker-pool --workers-per-gpu 1 \
++            --num-model-service-workers 4 --num-gpus 1; then
++          nvidia-smi --query-gpu=timestamp,memory.used,memory.total,utilization.gpu --format=csv,nounits -lms 1000 \
++            > "$RESULTS/$lvl/gpu.csv" 2>/dev/null &
++          SMI_PID=$!
++          timeout -k 30 1800 python3 polyaxon/iso_latency.py --base-url http://127.0.0.1:30002 --model model_1 \
++            --out "$RESULTS/$lvl" > "$RESULTS/$lvl/load.log" 2>&1 || rc=1
++          kill $SMI_PID 2>/dev/null
++          tail -n 2 "$RESULTS/$lvl/load.log"
++        else
++          rc=1
++        fi
++        stop_server
++        health_after "$lvl"
++      done
++      [ $rc = 0 ]
++      ;;
+     ovl_mem|ovl_phases|ovl_kv|ovl_compute|ovl_trace|ovl_trace_big|ovl_mix)
+       # Real overload scenarios on 1 GPU (README example 3 flags, workers-per-gpu = number of models).
+       # Load: polyaxon/overload_load.py (open loop, uniform popularity, deadline = duration + drain;
+@@ -503,6 +556,7 @@ PY2
+         fi
+         stop_server
+         collect_stacks "$lvl"
++        health_after "$lvl"
+       done
+       [ $rc = 0 ]
+       ;;
+diff --git a/polyaxon/submit.sh b/polyaxon/submit.sh
+index dddcf2e..5331a4b 100755
+--- a/polyaxon/submit.sh
++++ b/polyaxon/submit.sh
+@@ -21,7 +21,7 @@ rsync -a --exclude __pycache__ --exclude '*.egg-info' "${PY_SRC%/}/" "$STAGE/pyt
+ mkdir -p "$STAGE/benchmark/multi-model" "$STAGE/polyaxon"
+ rsync -a "$REPO/benchmark/multi-model/"{benchmark.py,trace.py,utils.py,model_configs,real_trace.pkl,model_lst.yml,model_lst_18.yml} \
+   "$STAGE/benchmark/multi-model/"
+-cp "$HERE/run_examples.sh" "$HERE/cluster_probe.sh" "$HERE/cluster_probe.py" "$HERE/overload_load.py" "$HERE/kvcached_probe.py" "$HERE/test_switching.py" "$HERE/test_worker_pool.py" "$STAGE/polyaxon/"
++cp "$HERE/run_examples.sh" "$HERE/cluster_probe.sh" "$HERE/cluster_probe.py" "$HERE/overload_load.py" "$HERE/iso_latency.py" "$HERE/kvcached_probe.py" "$HERE/test_switching.py" "$HERE/test_worker_pool.py" "$STAGE/polyaxon/"
+ rsync -a "$HERE/compare" "$STAGE/polyaxon/"
+ rsync -a "$HERE/configs" "$STAGE/polyaxon/"
+ cp "$HERE/$JOB.yaml" "$STAGE/"
+diff --git a/python/sglang/multi_model/scheduling/policy/simple_global.py b/python/sglang/multi_model/scheduling/policy/simple_global.py
+index 16e93b7..a4d45ff 100644
+--- a/python/sglang/multi_model/scheduling/policy/simple_global.py
++++ b/python/sglang/multi_model/scheduling/policy/simple_global.py
+@@ -5,6 +5,7 @@ from itertools import chain
+ from typing import Dict, List, Set, Tuple, Optional, DefaultDict
+ from collections import defaultdict, deque
+ 
++from sglang.multi_model.scheduling.decision_log import DecisionLog
+ from sglang.multi_model.scheduling.action import (
+     ActivateAction,
+     BaseAction,
+@@ -235,6 +236,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+         self.MEMORY_PER_REQUEST_RATIO_THRESHOLD = 15
+ 
+         self.migrate_policy = "memory_per_request"
++        self.dlog = DecisionLog()  # F2.1: JSON line per cycle with PRISM_DECISION_LOG=<path>; off by default
+         assert self.migrate_policy in ["violation", "memory_per_request"]
+ 
+     def _update_req_remaining_time_budget(
+@@ -1010,6 +1012,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+     ) -> List[BaseAction]:
+ 
+         start_total = time.time()
++        self.dlog.begin(start_total)
+         model_instance_to_action_dict: Dict[Tuple[str, int], List[BaseAction]] = {}
+ 
+         # Pre-compute commonly used data structures to avoid redundant calculation
+@@ -1026,6 +1029,9 @@ class SimpleGlobalPolicy(GlobalPolicy):
+             self.active_since.setdefault(model_name, time.time())
+         if self.EVICTION == "throughput":
+             self._update_tput(model_queues, active_models)
++        if self.dlog.enabled:
++            self.dlog.models(time.time(), model_queues, model_instance_state_dict, self.model_weights_info,
++                             self.active_since)
+         end_precompute = time.time()
+         logger.info(f"Time for preprocessing data structures: {end_precompute - start_precompute:.4f}s")
+ 
+@@ -1058,6 +1064,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+                     )
+                 )
+                 logger.info(f"ACTION: deactivate {model_instance.model_name}:{model_instance.instance_idx} on GPU {gpu_id}. Reason: idle instance eviction")
++                self.dlog.action("deactivate", model_instance.model_name, gpu_id, "idle instance eviction", preempt=False)
+         end_idle_check = time.time()
+         logger.info(f"Time for idle instance eviction: {end_idle_check - start_idle_check:.4f}s")
+ 
+@@ -1065,7 +1072,10 @@ class SimpleGlobalPolicy(GlobalPolicy):
+         gpu_available_memory = {}
+         pending_gb = self._pending_activation_gb()
+         for gpu_id in range(self.num_gpus):
+-            gpu_available_memory[gpu_id] = get_available_gpu_memory("cuda", gpu_id) - pending_gb.get(gpu_id, 0.0)
++            free_gb = get_available_gpu_memory("cuda", gpu_id)
++            gpu_available_memory[gpu_id] = free_gb - pending_gb.get(gpu_id, 0.0)
++            self.dlog.gpu(gpu_id, free_gb, pending_gb.get(gpu_id, 0.0), gpu_available_memory[gpu_id],
++                          [m for (m, g) in self.pending_activations if g == gpu_id])
+             logger.info(f"GPU {gpu_id}, mem {gpu_available_memory[gpu_id]}")
+             if pending_gb.get(gpu_id):
+                 logger.info(f"GPU {gpu_id}: {pending_gb[gpu_id]:.1f} GB promised to pending activations "
+@@ -1131,6 +1141,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+                 activation_plan[(model_name, target_gpu)] = target_gpu
+             else:
+                 logger.warning(f"No suitable GPU found for inactive model {model_name}")
++                self.dlog.note("no_fit", model_name, need_gb=model_memory_required)
+                 unplaced_models.append(model_name)
+ 
+         # 3b. Alternative eviction strategies (PRISM_EVICTION): free room for the models that did not fit
+@@ -1162,6 +1173,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+                 )
+             )
+             logger.info(f"ACTION: deactivate {victim.model_name}:{victim.instance_idx} on GPU {gpu_id}. Reason: {reason}")
++            self.dlog.action("deactivate", victim.model_name, gpu_id, reason, preempt=preempt, drain_timeout=drain_timeout)
+ 
+         end_inactive = time.time()
+ 
+@@ -1199,6 +1211,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+                 )
+                 self._add_pending_activation(model_name, target_gpu_id)
+                 logger.info(f"ACTION: deactivate {model_name} on GPU {source_gpu_id} and activate {model_name} on GPU {target_gpu_id}. Reason: migrate model")
++                self.dlog.action("migrate", model_name, target_gpu_id, "migrate model", source_gpu=source_gpu_id)
+ 
+         # 5. Activate inactive models
+         for (model_name, instance_idx), gpu_id in activation_plan.items():
+@@ -1213,6 +1226,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+             )
+             self._add_pending_activation(model_name, gpu_id)
+             logger.info(f"ACTION: activate inactive model {model_name} on GPU {gpu_id}. Reason: inactive models but with requests")
++            self.dlog.action("activate", model_name, gpu_id, "inactive models but with requests")
+         end_apply_actions = time.time()
+         logger.info(f"Time for creating action list: {end_apply_actions - start_apply_actions:.4f}s")
+         
+@@ -1224,5 +1238,6 @@ class SimpleGlobalPolicy(GlobalPolicy):
+         for actions in model_instance_to_action_dict.values():
+             sorted_actions = sorted(actions, key=lambda action: 0 if isinstance(action, DeactivateAction) else 1)
+             all_actions.extend(sorted_actions)
++        self.dlog.end()
+ 
+         return all_actions
+\ No newline at end of file
