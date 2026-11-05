@@ -40,6 +40,17 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F2.12 Curvas S2 (`k_T` × `k_D`) e S3 retroativas nos dados de 28/10, nas três vistas (2026-11-04, reports/data/F02/curvas/; refeitas com S2/S2M da D21)
 - [x] F2.9 Relatório F02 com opções de família principal de SLO, níveis `k_T`/`k_D`/`k_A` e SLOs por classe, para decisão do Gabriel (2026-11-04, reports/fases/F02_instrumentacao.md; gate APROVADO em 2026-11-04, D19)
 
+## F6a — Primeira rodada das políticas por prazo (A2.1, A9.1), adiantada · gate [HUMANO] · PRIORIDADE ATUAL (D24)
+- [x] F6a.1 (2026-11-04, `overload_load.py --slo-spec`, `PRISM_OVL_SLO_SPEC`; D25) `overload_load.py --slo-spec`: prazo por requisição (S2/S2M/S3 com `latencia_ded.json`) enviado ao servidor; métricas com a mesma especificação
+- [x] F6a.2 (2026-11-04, `policy/deadline.py`; D25) `scheduling/policy/deadline.py`: `edf_select` (A2.1) e `lvf_select` (A9.1), funções puras; `simple_global.py` monta o retrato; `PRISM_EVICTION=edf|lvf`, A1.1 (`PRISM_KV_RESERVE_REQS`) e A1.3 (`PRISM_MIN_RESIDENCY`), padrões inalterados
+- [x] F6a.3 (2026-11-04, `tests/policy/test_deadline.py`, 28 testes; 45 no total com controller/robustness) Testes em `tests/policy/` (tudo cabe, fome C1, troca C2, impasse C3, fila inviável, rotativo com α, orçamento, `T_min`, memória no limite)
+- [x] F6a.4 (2026-11-04, campo `policy` do `decisions.jsonl`) Decisões das duas políticas no log de decisões (folga / VLT por modelo)
+- [x] F6a.5 (2026-11-04, job `d8eed798`, 2/2 VALIDA, `reports/data/F06a/validador/smoke.csv`; 15 rotações EDF, 16 LVF) Smoke test: A2.1 e A9.1 no C1, validados
+- [x] F6a.6 (2026-11-05: 74 níveis, 73 VALIDA; P13 corrigida, D26; `reports/data/F06a/triagem/`) Triagem: C1 0,2 e T1 ts1, 2 rep., ≤ 3 jobs; A0.1, A0.2, A0.3, `fair` (de novo, pareadas) + A2.1 e A9.1 × {S2 kT=10, S2 kT=25, S3 kA=5} + ciclo 1 s no melhor nível (48 níveis)
+- [x] F6a.7 [HUMANO] (2026-11-05, D27: opção 1, sem confirmação) Gabriel escolhe o que vai para a confirmação
+- [-] F6a.8 (não executada, D27: nada passou na triagem) Confirmação: 5 rep. pareadas contra A0.1 e a melhor linha de base, + C2 como controle; IC 95% nas três vistas
+- [x] F6a.9 (2026-11-05, `reports/fases/F06a_prazo_primeira_rodada.md`, APROVADO) Relatório F06a; gate [HUMANO]
+
 ## F3 — Catálogo de cargas · gate [HUMANO]
 - [ ] F3.1 `overload_load.py`: leitura de trace, classes de SLO, recusa como estado final, sementes
 - [ ] F3.2 C6 `zipf_drift`

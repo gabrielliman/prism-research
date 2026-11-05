@@ -46,3 +46,9 @@ Um teste separado, que não muda a configuração principal, pode medir o custo 
 - por isso, o S2/S2M quase não discrimina as políticas pelo TTFT;
 - os resultados do C5 devem ser lidos pelo S1, que é sempre reportado junto, e pela vista só TPOT;
 - todo relatório que use o C5 com S2/S2M declara essa limitação.
+
+## O3 — As linhas de base usam o SLO enviado, só na ordem de ativação (2026-11-04)
+
+**O que é:** a política padrão (`simple_global.py`, passo 3) ordena os modelos inativos com fila pela proporção de requisições com orçamento de tempo esgotado (`remaining_time_budget = slo − espera`) nos últimos 3 s; a fila do GPU scheduler (`request_queue.py`) ordena por `chegada + slo − prefill`. Com `--slo-spec` (F6a.1), o SLO enviado muda por família e nível.
+
+**Efeito:** com modelos idênticos (C1, T1: todos Llama-3.1-8B, base junta, D21) o SLO é o mesmo para todos os modelos, então a fila do GPU scheduler não muda de ordem. A ordem de ativação da A0.x pode mudar um pouco (a proporção de violadas depende do SLO). Por isso as linhas de base rodam com o S1 (1 s) enviado, como até aqui, e as curvas de outras famílias são calculadas depois (seção 5.4); a diferença de comportamento que um SLO enviado diferente causaria na A0.x não é medida. O abort por SLO (`--abort-exceed-slos`) está desligado em todas as execuções.

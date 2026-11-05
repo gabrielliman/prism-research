@@ -188,3 +188,72 @@ Opções e dados em `reports/fases/F02_instrumentacao.md` (seção "Decisão do 
   - `polyaxon/slo_curves.py` marca esses níveis em cinza (`APPROVED`);
   - a grade calculada continua mais larga, para mostrar onde as curvas ficam planas;
   - os SLOs das classes da F8 continuam provisórios (D19, TODO F8.0). O interativo (S2, `k_T = 10`, `k_D = 5`) está dentro dos níveis do S2.
+
+## D24 — Primeira rodada das políticas por prazo antes da F3 (F6a) (2026-11-04, Gabriel)
+
+- **Decisão:** antes da F3, uma fase nova, a F6a (`PLANO_AGENTE.md`, seção 6), com as duas políticas por prazo mais simples:
+  - A2.1, EDF entre modelos;
+  - A9.1, LVF/Virtual Lag Time.
+
+  Ela tem prioridade sobre as outras tarefas. É um desvio da ordem F3 → F4 → F5 → F6, pedido pelo Gabriel.
+- **Escolhas do Gabriel:**
+  1. Começar pelo mais simples, A2.1 e A9.1. A2.2, A2.3, A3, A4 e A9.2 ficam para a F6.
+  2. A1.1 (reserva de KV) e A1.3 (`T_min`) entram junto, como opções. A A1.2 fica para a F4.
+  3. Níveis de SLO das execuções das políticas novas: S2 `k_T` = 10, S2 `k_T` = 25 e S3 `k_A` = 5.
+  4. Ciclo do controlador: 5 s e 1 s.
+  5. A5 e A6 ficam fora.
+- **Cargas (agente; o Gabriel pediu critério):**
+  - **triagem:** só C1 e T1, porque têm disputa por residência;
+  - **confirmação:** C2, como controle;
+  - **fora:** C3 (impasse; é A1.1/F4), C4 e C5 (zero ativações).
+
+  Nova regra do plano (seção 0.9): antes de submeter, justificar por que cada carga exercita a mudança.
+- **Linhas de base:**
+  - já existiam execuções de 28/10 e da F1 para C1 e T1, mas o Gabriel aprovou rodá-las de novo na triagem, pareadas na mesma janela;
+  - motivos: deriva do nó, código posterior à F1, e falta de `fair` no T1;
+  - a triagem tem 2 repetições, e a confirmação, 5.
+- **Concorrência:**
+  - o Gabriel chegou a propor 8 jobs simultâneos;
+  - com os dados de 30/10 (≥ 5 jobs → 71–79% dos níveis com erro do driver), voltou para **3**;
+  - a seção 0.8 do plano, que dizia "hoje 6", foi corrigida para 3.
+
+## D25 — Desenho e parâmetros da A2.1 e da A9.1 na F6a (2026-11-04, agente; para revisão do Gabriel no gate da triagem)
+
+- **Código:** `python/sglang/multi_model/scheduling/policy/deadline.py` (`edf_select`, `lvf_select`, funções puras); `simple_global.py` monta o retrato (`_deadline_snapshot`) e substitui os passos 3/3b só com `PRISM_EVICTION=edf|lvf`. O despejo por ociosidade (passo 1, `PRISM_IDLE_THRESHOLD`) continua rodando. Testes: `tests/policy/test_deadline.py`.
+- **Escolhas de desenho que o plano deixava em aberto:**
+  1. **A2.1 também escolhe vítimas.** O plano descreve só "quem entra"; sem despejo, no C1 (sem ociosidade) a A2.1 seria idêntica à A0.1. Regra EDF entre modelos: um modelo inativo com requisição viável pode tirar um ativo cuja urgência é mais tardia (modelos sem requisição viável na fila contam como +∞). Um modelo só com requisições perdidas só pode tirar um modelo sem nenhuma requisição (nem na fila, nem rodando). Ordem das vítimas: sem requisição viável primeiro (entre elas, sem trabalho rodando, depois o ativo há mais tempo), depois o prazo mais tardio.
+  2. **Ordem de entrada da A2.1:** viáveis por folga crescente; depois os só com filas perdidas, pela requisição mais antiga (evita fome entre filas perdidas).
+  3. **`ê_r`** = `Ĉ_at(m)` (se inativo; F2.3, com as ativações pendentes como `ahead`) + prefill das requisições à frente + o próprio prefill (`p̂` do 8B, F2.10). Coeficientes por variável de ambiente (`PRISM_CAT_A/B/C`, `PRISM_PREFILL_A/B`), padrões = `cat_model.json` e `latencia_ref.json`.
+  4. **Orçamento de rotação** (`PRISM_EDF_BUDGET`, `PRISM_LVF_BUDGET` = 1): conta rotações **em andamento** (vítimas despejadas, modelo que entra ainda não ativo), não por ciclo. Com o ciclo de 1 s, "por ciclo" deixaria iniciar várias rotações antes de a primeira terminar. Ativações em memória já livre não contam (como no artigo: `B_xfer` é o que se libera além da memória livre).
+  5. **Ativação em dois ciclos**, como `pressure`/`fair`/`throughput`: a vítima sai no ciclo `t`, o modelo que entra é ativado num ciclo seguinte, quando a memória é medida livre; ele tem prioridade na memória liberada (reserva de 15 s + o tempo de drenagem). Custo: até um ciclo a mais por rotação (por isso o fator ciclo de 1 s).
+  6. **A9.1:** `S_TPOT` não é conhecido pelo controlador; com `β_B = 0` (artigo) o termo não depende dele.
+- **Parâmetros da triagem:**
+  - vítimas drenadas, sem preempção (`PRISM_SWAP_PREEMPT=0 PRISM_SWAP_DRAIN=1`, 15 s), e folga de ativação de 3 GB, iguais à A0.3 (P0D1) e ao `fair`, para que a diferença seja só o critério de escolha;
+  - **A1.3** `T_min` = 10 s (`PRISM_MIN_RESIDENCY`): ~7× o `Ĉ_at` mediano do 8B (1,4 s) e acima do p99 (8,3 s);
+  - **A1.1 desligada** (`PRISM_KV_RESERVE_REQS=0`): C1 e T1 não têm impasse; com `b ≤ 8` a reserva (≤ 0,94 GB para o 8B) nem passaria do 1 GB de KV que a R2.1 já exige. Fica para a F4 (C3);
+  - A2.1: piso de folga 0 s; A9.1: `α = 3`, `β_F = 0,5`, `β_B = 0` (artigo).
+- **Prazos efetivos (F6a.1, `overload_load.py --slo-spec`):** C1: S2 `k_T=10` → 0,70 s, `k_T=25` → 1,75 s, S3 `k_A=5` → 7,0 s; T1: 0,64 s / 1,61 s / 7,0 s. Com `Ĉ_at ≈ 1,4 s`, no S2 `k_T=25` a folga de uma requisição de modelo inativo é de 0,2–0,35 s na chegada: na prática, só o S3 `k_A=5` deixa folga para a A2.1 agir sobre modelos inativos (observação 4.0).
+
+## D26 — Duas correções no meio da triagem da F6a e reexecução pareada da A2.1 (2026-11-05, agente)
+
+- **Achado (investigação do nível INVALIDA_SISTEMA `edf_S3k5`, C1 r2, job `1390b57c`; seção 0.3):**
+  1. **P13** (nova, `reports/erros.md`): uma desativação sem preempção girava para sempre quando a última requisição era retraída por *decode OOM* e não cabia de novo. Corrigida em `scheduler.py` (padrão ligado, `PRISM_DEACTIVATE_EVICT_STUCK=0` desliga).
+  2. **Desvio da A2.1 em relação à D25 (item 5):** a reserva só punha o modelo reservado na frente dentro da sua classe (viáveis / perdidos). Um modelo só com filas perdidas, para o qual uma vítima tinha sido despejada, perdia a memória liberada para um modelo com requisição viável, às vezes a própria vítima (o `model_5` esperou ~300 s; o `model_3` foi despejado e reativado). Corrigido em `deadline.py`: os reservados entram primeiro, sem olhar a classe (teste `test_reserved_lost_model_beats_viable_victim`).
+- **Efeito sobre os dados:** a A9.1 (LVF) e as linhas de base não passam pelo código da reserva da A2.1; a P13 só muda o caminho que antes travava. Todos os níveis EDF da etapa 1 ficam como **EDF v1**, só para diagnóstico.
+- **Decisão:**
+  - o job `t1-2` (`2376c727`), recém-iniciado, foi parado;
+  - a A2.1 corrigida (**EDF v2**) roda de novo no C1 em 2 jobs (`f6a_tri_c1_edf2_suite.tsv`: A0.1, A0.2 e os 3 níveis EDF; jobs `940e60ed`, `f9c41c00`), pareada com A0.1 e A0.2 (melhor linha de base do C1 na etapa 1);
+  - o T1 r2 roda a suíte completa com o código corrigido. O T1 r1 (`1460d2fb`, código v1) é completado por um job com A0.1, a melhor linha de base do T1 e os 3 níveis EDF v2;
+  - os diffs de código ficam em `reports/data/F06a/codigo/` (v1 = v2 sem as duas correções).
+- **Custo:** +10 níveis no C1 e +5 no T1 em relação aos 48 da matriz da D24.
+
+## D27 — Gate da F6a: fechada com resultado negativo, sem confirmação (2026-11-05, Gabriel)
+
+- **Contexto:** na triagem (`reports/fases/F06a_prazo_primeira_rodada.md`), nenhuma configuração da A2.1 ou da A9.1 superou a melhor linha de base do mesmo job por mais de ~8 pontos (sinal da D24). A melhor, a EDF v2 com S2 no T1, empatou no combinado (−1,3 e −2,9 pontos) e melhorou o pior modelo (+8,6 e +20,5). A LVF e o ciclo de 1 s perderam em todos os casos.
+- **Alternativas apresentadas:** (1) fechar sem confirmação; (2) confirmar a EDF v2 com S2 `k_T` = 10 e 25 no T1, 5 repetições, mais o C2; (3) a opção 2 só com `k_T` = 25.
+- **Decisão (Gabriel, seguindo a recomendação do agente):** opção 1. A F6a.8 não é executada. A próxima fase é a F3. O item de regressão que falhou em parte (deriva do A0.1 entre jobs) é aceito como deriva do nó.
+- **Para a F6:**
+  - A3 (perda esperada da vítima), porque a A2.1 com prazo folgado despeja modelos ocupados;
+  - A9.2 (LVF com custo de ativação e vítima pelo valor), porque a A9.1 escolhe vítimas só pela residência;
+  - o ciclo de 1 s só com histerese maior;
+  - a justiça (pior modelo) como objetivo possível da A7/F8.
