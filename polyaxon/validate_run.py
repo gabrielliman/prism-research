@@ -11,7 +11,8 @@ gpu.csv, health.log, server.log, server_file.log*). Each check gives OK, FALHA o
       deaths and tracebacks inside the load window (shutdown tracebacks and "Error during cleanup" excluded)
   V3  no activation/deactivation longer than STUCK_FACTOR × the longest activation measured in F2.3, finished or not
   V4  no worker assigned to two models at once (the GPU scheduler's model_to_worker map)
-  V5  sent = served + refused + expired: every request ends ok or unserved (expired at the deadline); none failed
+  V5  sent = served + refused + expired: every request ends ok, refused (overload_load.py REFUSED_MARK, F3.1) or
+      unserved (expired at the deadline); none failed
   V6  N/A until F7 (refusals with a reason)
   V7  retracted requests reappear and finish: OK when nothing was retracted or nothing went unserved; with
       PRISM_TRACE_RIDS logs, every unserved retracted request must sit in a queue (explained); otherwise N/A
@@ -23,7 +24,7 @@ gpu.csv, health.log, server.log, server_file.log*). Each check gives OK, FALHA o
       load start must be found by aligning arrivals with the GPU scheduler admissions
   V11 with the send times of F2.1 (requests.json "sent"): p99 send lag ≤ 1 s and total rate within ±5% of the
       target; N/A for older runs (decision pending, reports/registro/decisoes.md D10)
-  V12 memory scenarios (ovl_mem, ovl_phases, ovl_mix, ovl_trace, ovl_trace_big) with models that start off the GPU
+  V12 memory scenarios (ovl_mem, ovl_phases, ovl_mix, ovl_trace, ovl_trace_big and the F3 ones, MEMORY_STEPS) with models that start off the GPU
       (configs/<step>.json): overload evidence, at least one "No suitable GPU found" or GPU ≥ 95% used for
       ≥ OVERLOAD_FRAC of the window; N/A when every model starts resident (control levels such as n06, and the
       dedicated levels <level>_ded_<model> of D20, one model alone, configs/<step>_ded.json)
@@ -56,7 +57,10 @@ import extract_ovl as ex  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WINDOWS = os.path.join(ROOT, "reports", "registro", "janelas_degradadas.csv")
 CAT = os.path.join(ROOT, "reports", "data", "F02", "cat", "cat_model.json")
-MEMORY_STEPS = {"ovl_mem", "ovl_phases", "ovl_mix", "ovl_trace", "ovl_trace_big"}
+MEMORY_STEPS = {"ovl_mem", "ovl_phases", "ovl_mix", "ovl_trace", "ovl_trace_big",
+                # F3 (C6-C10, T2-T5): memory overload by construction (more weights than the GPU holds)
+                "ovl_zipf", "ovl_bursty", "ovl_diurnal", "ovl_classes", "ovl_sizes",
+                "ovl_tr_lmsys", "ovl_tr_azfn", "ovl_tr_azllm", "ovl_tr_burst"}
 STUCK_FACTOR = 3
 OVERLOAD_FRAC = 0.10
 FREE_TOL_GB = 2.0
@@ -230,7 +234,7 @@ def validate(d):
     st = {}
     for r in reqs:
         st[r["status"]] = st.get(r["status"], 0) + 1
-    v5ok = len(reqs) == s["sent"] and set(st) <= {"ok", "unserved"}
+    v5ok = len(reqs) == s["sent"] and set(st) <= {"ok", "unserved", "refused"}
     c["V5"] = chk("OK" if v5ok else "FALHA", st)
     c["V6"] = chk("N/A", None, "refusals start in F7")
     # V7

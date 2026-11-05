@@ -1,0 +1,179 @@
+{
+ "meta": {
+  "id": "T3",
+  "source": "Azure Functions 2019 (AzurePublicDataset), day 1, HTTP trigger",
+  "license": "CC-BY-4.0 (cite Shahrad et al., USENIX ATC 2020)",
+  "rule": "azfn: ranks [823, 899, 981, 1072, 1170, 1278, 1396, 1524, 1664, 1817, 1984, 2167] of 15933 HTTP functions by invocations in minutes 600-660; 1 min -> 10 s; uniform within minute; lengths from L_azllm_conv.csv.gz",
+  "time_scale": 0.16666666666666666,
+  "source_sha256": "f9613ae91224d87b201ce8c7c618e80c94d6bf041992effb34c5aa710b3c20fa",
+  "source_file": "invocations_per_function_md.anon.d01.csv",
+  "seed": 0,
+  "requests": 1200,
+  "span_s": 600
+ },
+ "before": {
+  "fn01_17014e45": {
+   "requests": 231,
+   "cv": 0.7313199078078486,
+   "cv_kind": "per-minute counts",
+   "share": 0.1925
+  },
+  "fn02_118ea4e0": {
+   "requests": 187,
+   "cv": 0.6229659629390539,
+   "cv_kind": "per-minute counts",
+   "share": 0.15583333333333332
+  },
+  "fn03_9561bf5c": {
+   "requests": 154,
+   "cv": 0.3048492102417013,
+   "cv_kind": "per-minute counts",
+   "share": 0.12833333333333333
+  },
+  "fn04_c428eba5": {
+   "requests": 127,
+   "cv": 1.8012574743930914,
+   "cv_kind": "per-minute counts",
+   "share": 0.10583333333333333
+  },
+  "fn05_56b35a03": {
+   "requests": 112,
+   "cv": 2.1572433751414875,
+   "cv_kind": "per-minute counts",
+   "share": 0.09333333333333334
+  },
+  "fn06_4470be1d": {
+   "requests": 86,
+   "cv": 7.681145747868606,
+   "cv_kind": "per-minute counts",
+   "share": 0.07166666666666667
+  },
+  "fn07_84f63505": {
+   "requests": 70,
+   "cv": 1.558387444947959,
+   "cv_kind": "per-minute counts",
+   "share": 0.058333333333333334
+  },
+  "fn08_16e69030": {
+   "requests": 60,
+   "cv": 0.8944271909999159,
+   "cv_kind": "per-minute counts",
+   "share": 0.05
+  },
+  "fn09_7054025e": {
+   "requests": 60,
+   "cv": 0.8944271909999159,
+   "cv_kind": "per-minute counts",
+   "share": 0.05
+  },
+  "fn10_9dae2e99": {
+   "requests": 48,
+   "cv": 0.5,
+   "cv_kind": "per-minute counts",
+   "share": 0.04
+  },
+  "fn11_17285e69": {
+   "requests": 36,
+   "cv": 2.0000000000000004,
+   "cv_kind": "per-minute counts",
+   "share": 0.03
+  },
+  "fn12_f7f3c993": {
+   "requests": 29,
+   "cv": 1.791444856256626,
+   "cv_kind": "per-minute counts",
+   "share": 0.024166666666666666
+  }
+ },
+ "after": {
+  "fn01_17014e45": {
+   "requests": 231,
+   "cv": 0.7313199078078486,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 2.301752001624525,
+   "share": 0.1925
+  },
+  "fn02_118ea4e0": {
+   "requests": 187,
+   "cv": 0.6229659629390539,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 1.1841342087390412,
+   "share": 0.15583333333333332
+  },
+  "fn03_9561bf5c": {
+   "requests": 154,
+   "cv": 0.3048492102417013,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 0.759383837515344,
+   "share": 0.12833333333333333
+  },
+  "fn04_c428eba5": {
+   "requests": 127,
+   "cv": 1.8012574743930914,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 2.3388331302402836,
+   "share": 0.10583333333333333
+  },
+  "fn05_56b35a03": {
+   "requests": 112,
+   "cv": 2.1572433751414875,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 2.762309172036703,
+   "share": 0.09333333333333334
+  },
+  "fn06_4470be1d": {
+   "requests": 86,
+   "cv": 7.681145747868606,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 1.0083104768671123,
+   "share": 0.07166666666666667
+  },
+  "fn07_84f63505": {
+   "requests": 70,
+   "cv": 1.558387444947959,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 1.5111517184203513,
+   "share": 0.058333333333333334
+  },
+  "fn08_16e69030": {
+   "requests": 60,
+   "cv": 0.8944271909999159,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 0.7973126832176503,
+   "share": 0.05
+  },
+  "fn09_7054025e": {
+   "requests": 60,
+   "cv": 0.8944271909999159,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 0.7641760823409547,
+   "share": 0.05
+  },
+  "fn10_9dae2e99": {
+   "requests": 48,
+   "cv": 0.5,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 0.5048608554542853,
+   "share": 0.04
+  },
+  "fn11_17285e69": {
+   "requests": 36,
+   "cv": 2.0000000000000004,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 1.2480568220627375,
+   "share": 0.03
+  },
+  "fn12_f7f3c993": {
+   "requests": 29,
+   "cv": 1.791444856256626,
+   "cv_kind": "per-minute counts (re-binned)",
+   "cv_interarrival": 1.7170546087329484,
+   "share": 0.024166666666666666
+  }
+ },
+ "checks": {
+  "cv_change_max": 0.0,
+  "cv_ok": true,
+  "popularity_order_ok": true
+ }
+}

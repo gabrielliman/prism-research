@@ -206,7 +206,7 @@ def extract_level(d, lvl):
     shutil.copy(os.path.join(d, "summary.json"), lvl)
     reqs = json.load(open(os.path.join(d, "requests.json")))
     cols = ["id", "model", "arrival", "prompt_len", "output_len", "status", "ttft", "tpot", "latency",
-            "generated", "error"]
+            "generated", "error", "slo_class"]
     write_csv(os.path.join(lvl, "requests.csv"), cols,
               [[(r.get(c) or "")[:120] if c == "error" else r.get(c, "") for c in cols] for r in reqs])
     t0 = load_start(d, reqs)

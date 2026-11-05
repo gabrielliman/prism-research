@@ -1,0 +1,40 @@
+
+outputs/C6/ovl_zipf/rate2: served 245/1193, out tok 54046, frozen T1 580 s, GPU util 16.7%
+  completions/min: [np.int64(39), np.int64(80), np.int64(43), np.int64(34), np.int64(49), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0)]
+  prompt p50 served 1036.0, unserved 1018.5; events {'act_ok': 8, 'free_mem': 177, 'activate': 2, 'act_req': 2, 'no_fit': 523, 'retract': 7, 'evict': 1, 'deact_ok': 1}
+  server log: {'retract': 7, 'PrefillKVFull': 0, 'decode_oom': 7, 'no_fit': 523, 'evict': 180}
+
+outputs/C7/ovl_bursty/rate0.2: served 200/1219, out tok 43200, frozen T1 629 s, GPU util 14.6%
+  completions/min: [np.int64(63), np.int64(51), np.int64(51), np.int64(34), np.int64(1), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0)]
+  prompt p50 served 1015.0, unserved 1022.0; events {'act_ok': 11, 'free_mem': 176, 'activate': 5, 'act_req': 5, 'no_fit': 510, 'prefill_postponed': 12, 'evict': 4, 'deact_ok': 4, 'retract': 2}
+  server log: {'retract': 2, 'PrefillKVFull': 0, 'decode_oom': 2, 'no_fit': 510, 'evict': 185}
+
+outputs/C8/ovl_diurnal/rate2: served 292/2351, out tok 64689, frozen T1 1120 s, GPU util 15.8%
+  completions/min: [np.int64(18), np.int64(23), np.int64(49), np.int64(68), np.int64(70), np.int64(55), np.int64(9), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0)]
+  prompt p50 served 1027.5, unserved 1023.0; events {'act_ok': 15, 'free_mem': 298, 'evict': 8, 'deact_ok': 8, 'activate': 9, 'act_req': 9, 'no_fit': 794, 'retract': 2}
+  server log: {'retract': 6, 'PrefillKVFull': 0, 'decode_oom': 2, 'no_fit': 794, 'evict': 314}
+
+outputs/C9_C1/ovl_classes/rate0.2: served 599/599, out tok 193777, frozen T1 0 s, GPU util 54.1%
+  completions/min: [np.int64(15), np.int64(98), np.int64(68), np.int64(74), np.int64(88), np.int64(53), np.int64(203), np.int64(0), np.int64(0), np.int64(0)]
+  prompt p50 served 631.0, unserved None; events {'act_ok': 10, 'free_mem': 77, 'activate': 4, 'act_req': 4, 'no_fit': 205, 'retract': 4, 'evict': 7, 'deact_ok': 7}
+  server log: {'retract': 4, 'PrefillKVFull': 0, 'decode_oom': 4, 'no_fit': 205, 'evict': 91}
+
+outputs/C9_C6/ovl_classes/rate2: served 230/1193, out tok 51249, frozen T1 433 s, GPU util 18.9%
+  completions/min: [np.int64(46), np.int64(81), np.int64(30), np.int64(32), np.int64(24), np.int64(8), np.int64(6), np.int64(3), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0)]
+  prompt p50 served 1036.5, unserved 1019.0; events {'act_ok': 7, 'free_mem': 178, 'activate': 1, 'act_req': 1, 'no_fit': 524, 'retract': 5}
+  server log: {'retract': 17, 'PrefillKVFull': 0, 'decode_oom': 5, 'no_fit': 524, 'evict': 178}
+
+outputs/T3/ovl_tr_azfn/ts1: served 261/1200, out tok 54938, frozen T1 650 s, GPU util 13.6%
+  completions/min: [np.int64(107), np.int64(57), np.int64(52), np.int64(45), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0)]
+  prompt p50 served 989.0, unserved 1017.0; events {'act_ok': 8, 'free_mem': 178, 'activate': 2, 'no_fit': 712, 'act_req': 2, 'retract': 7, 'evict': 1, 'deact_ok': 1, 'prefill_postponed': 36}
+  server log: {'retract': 19, 'PrefillKVFull': 0, 'decode_oom': 7, 'no_fit': 712, 'evict': 180}
+
+outputs/T4/ovl_tr_azllm/ts1: served 121/1138, out tok 28802, frozen T1 670 s, GPU util 10.7%
+  completions/min: [np.int64(35), np.int64(44), np.int64(34), np.int64(8), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0), np.int64(0)]
+  prompt p50 served 957.0, unserved 1001.0; events {'act_ok': 8, 'free_mem': 176, 'activate': 2, 'act_req': 2, 'no_fit': 866, 'retract': 2, 'evict': 1, 'deact_ok': 1}
+  server log: {'retract': 2, 'PrefillKVFull': 0, 'decode_oom': 2, 'no_fit': 866, 'evict': 180}
+
+outputs/T5/ovl_tr_burst/ts1: served 1194/1194, out tok 76391, frozen T1 0 s, GPU util 42.6%
+  completions/min: [np.int64(72), np.int64(69), np.int64(89), np.int64(83), np.int64(78), np.int64(53), np.int64(100), np.int64(76), np.int64(42), np.int64(151), np.int64(198), np.int64(183), np.int64(0), np.int64(0), np.int64(0)]
+  prompt p50 served 90.0, unserved None; events {'act_ok': 15, 'free_mem': 131, 'activate': 9, 'no_fit': 615, 'act_req': 9, 'evict': 13, 'deact_ok': 13}
+  server log: {'retract': 0, 'PrefillKVFull': 0, 'decode_oom': 0, 'no_fit': 615, 'evict': 158}

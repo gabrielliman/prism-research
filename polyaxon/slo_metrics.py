@@ -53,7 +53,8 @@ DEFAULT_SLO = "S1:ttft=1,tpot=0.1"
 def parse_slo(spec):
     fam, _, rest = spec.partition(":")
     params = {k: float(v) for k, v in (kv.split("=") for kv in rest.split(",") if kv)}
-    need = {"S1": {"ttft", "tpot"}, "S2": {"kT", "kD"}, "S2M": {"kT", "kD"}, "S2L": {"kT", "kD"}, "S3": {"kA", "kD"}}[fam]
+    need = {"S1": {"ttft", "tpot"}, "S2": {"kT", "kD"}, "S2M": {"kT", "kD"}, "S2L": {"kT", "kD"}, "S3": {"kA", "kD"},
+            "S4": {"kT", "kD", "bT"}}[fam]
     if set(params) != need:
         raise ValueError(f"{spec}: {fam} takes {sorted(need)}")
     return fam, params
@@ -97,6 +98,10 @@ def slo_of(req, path, fam, p, refs, base=None):
         return p["kT"] * (iso["ttft_a"] + iso["ttft_b"] * req["prompt_len"]), p["kD"] * iso["tpot_iso"]
     if base is None:
         raise FileNotFoundError(f"TTFT_base/TPOT_base of {req['model']} not in {DED} (D20, polyaxon/iso_dedicated.py)")
+    if fam == "S4":  # F3.1, C9 classes (D19, provisional): interactive = S2 (kT, kD); batch = TTFT bT s, no TPOT limit
+        if req.get("slo_class") == "batch":
+            return p["bT"], math.inf
+        return p["kT"] * base[0], p["kD"] * base[1]
     if fam in ("S2", "S2M"):
         return p["kT"] * base[0], p["kD"] * base[1]
     return p["kA"] * refs.c_at(path), p["kD"] * base[1]
@@ -115,7 +120,8 @@ def load_level(d):
         num = lambda k: float(r[k]) if r.get(k) not in (None, "") else math.nan
         reqs.append({"id": r["id"], "model": r["model"], "arrival": float(r["arrival"]),
                      "prompt_len": int(r["prompt_len"]), "output_len": int(r["output_len"]), "status": r["status"],
-                     "ttft": num("ttft"), "tpot": num("tpot"), "generated": num("generated")})
+                     "ttft": num("ttft"), "tpot": num("tpot"), "generated": num("generated"),
+                     "slo_class": r.get("slo_class") or "interactive"})
     ev = list(csv.DictReader(open(d / "events.csv"))) if (d / "events.csv").exists() else []
     cfg = json.load(open(d.parent / "config.json"))
     return reqs, ev, cfg

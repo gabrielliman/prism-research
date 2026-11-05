@@ -184,3 +184,5 @@ tmp*.txt
 work_dirs/
 *.csv
 *.tsv
+# T2 (LMSYS-Chat-1M): license forbids redistribution; the derived trace stays on disk only (F3, D29)
+polyaxon/traces/T2_*

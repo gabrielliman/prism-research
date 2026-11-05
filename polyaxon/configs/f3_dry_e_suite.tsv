@@ -1,0 +1,2 @@
+# F3.12 dry run E (2026-11-05): C10 again after the open-files fix (ulimit -Sn 65535 in run_examples.sh); fd trace kept
+C10	PRISM_STEPS=ovl_sizes PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50 PRISM_FD_TRACE=1

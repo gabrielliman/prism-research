@@ -1,0 +1,4 @@
+# F3.4 dry run A (2026-11-05): A0.1 only, one level per workload, S1 sent; validator V8/V11/V12 + workload_check.py
+C6	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50
+C7	PRISM_STEPS=ovl_bursty PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50
+C8	PRISM_STEPS=ovl_diurnal PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50

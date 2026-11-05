@@ -1,0 +1,21 @@
+/mnt/scratch/scheduler/prism-raw/F3-dry/dry-a/outputs/C6/ovl_zipf/rate2 [zipf_drift]
+  realized: rate 1.988 / target 2.000, cv 1.035 / 1.000  -> {'rate': True, 'cv': True, 'popularity': False}
+  process : rate 1.986, cv 1.004, rank shares [np.float64(0.341), np.float64(0.168), np.float64(0.111), np.float64(0.086), np.float64(0.072), np.float64(0.06), np.float64(0.048), np.float64(0.044), np.float64(0.037), np.float64(0.034)]  -> {'rate': True, 'cv': True, 'popularity': True}
+/mnt/scratch/scheduler/prism-raw/F3-dry/dry-a/outputs/C7/ovl_bursty/rate0.2 [bursty]
+  realized: rate 2.032 / target 2.000, cv 2.281 / 2.517  -> {'rate': True, 'cv': True}
+  process : rate 1.967, cv 2.339  -> {'rate': True, 'cv': True}
+/mnt/scratch/scheduler/prism-raw/F3-dry/dry-a/outputs/C8/ovl_diurnal/rate2 [diurnal]
+  realized: rate 1.959 / target 2.000, cv - / -, peak/trough 10.976 / 8.380  -> {'rate': True, 'diurnal_swing': np.False_}
+  process : rate 1.980, cv -, peak/trough 8.944  -> {'rate': True, 'diurnal_swing': True}
+/mnt/scratch/scheduler/prism-raw/F3-dry/dry-b/outputs/C9_C1/ovl_classes/rate0.2 [constant]
+  realized: rate 1.997 / target 2.000, cv 0.984 / 1.000, batch 0.279  -> {'rate': True, 'cv': True, 'classes': False}
+  process : rate 2.002, cv 0.961  -> {'rate': True, 'cv': True, 'classes': True}
+/mnt/scratch/scheduler/prism-raw/F3-dry/dry-b/outputs/C9_C6/ovl_classes/rate2 [zipf_drift]
+  realized: rate 1.988 / target 2.000, cv 1.035 / 1.000, batch 0.283  -> {'rate': True, 'cv': True, 'popularity': False, 'classes': True}
+  process : rate 1.986, cv 1.004, rank shares [np.float64(0.341), np.float64(0.168), np.float64(0.111), np.float64(0.086), np.float64(0.072), np.float64(0.06), np.float64(0.048), np.float64(0.044), np.float64(0.037), np.float64(0.034)]  -> {'rate': True, 'cv': True, 'popularity': True, 'classes': True}
+/mnt/scratch/scheduler/prism-raw/F3-dry/dry-b/outputs/T3/ovl_tr_azfn/ts1 [trace]
+  realized: rate 2.003 / target 2.003, cv - / -  -> {'rate': True, 'trace': True}
+/mnt/scratch/scheduler/prism-raw/F3-dry/dry-c/outputs/T4/ovl_tr_azllm/ts1 [trace]
+  realized: rate 1.897 / target 1.897, cv - / -  -> {'rate': True, 'trace': True}
+/mnt/scratch/scheduler/prism-raw/F3-dry/dry-c/outputs/T5/ovl_tr_burst/ts1 [trace]
+  realized: rate 1.990 / target 1.990, cv - / -  -> {'rate': True, 'trace': True}

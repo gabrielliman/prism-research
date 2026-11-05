@@ -54,12 +54,18 @@ pip install -q -e python --no-deps
 # The shared cache has no transformers `version.txt`, so transformers 4.46 runs its cache "migration"
 # on import. Its tqdm bar creates a multiprocessing lock, which fixes the start method before
 # launch_multi_model_server calls set_start_method("spawn") -> "context has already been set".
+# Open-files soft limit: the container gives 1024 (hard 524288), and SGLang's set_ulimit() (65535) does not reach the
+# multi-model launcher. With 4 distinct models in CPU shared memory (C10: 3B/8B/14B/32B), the launcher passes 1024 open
+# descriptors at start-up and dies with EMFILE (F3, job 629687b2: 1011 fds vs 612 for C3). Only matters above 1024.
+ulimit -Sn 65535 2>/dev/null || ulimit -Sn "$(ulimit -Hn)" 2>/dev/null || true
+echo "open files: soft $(ulimit -Sn) hard $(ulimit -Hn)"
 # Use a private HF_HOME of symlinks to the shared models (read-only use) plus that marker file.
 SHARED_HUB="${HF_HOME:-/scratch/hpc4ai/hf_cache}/hub"
 export HF_HOME=/tmp/hf_home
 mkdir -p "$HF_HOME/hub" && echo 1 > "$HF_HOME/hub/version.txt"
 for d in "$SHARED_HUB"/models--*; do ln -sfn "$d" "$HF_HOME/hub/$(basename "$d")"; done
 echo "HF_HOME=$HF_HOME -> $(ls "$HF_HOME/hub" | grep -c models--) models linked from $SHARED_HUB"
+echo "models: $(ls "$HF_HOME/hub" | grep models-- | sed 's/^models--//; s/--/\//' | tr '\n' ' ')"
 # host_diag: the node and its memory (kvcached start-up failures depend on load on the node, not on the GPU).
 host_diag() {
   echo "host: $(hostname)  $(date -u +%FT%TZ)"
@@ -275,7 +281,16 @@ start_server_once() {
     --host 127.0.0.1 --port "$port" "$@" --log-file "$RESULTS/$step/server_file.log" \
     > "$RESULTS/$step/server.log" 2>&1 &
   SERVER_PID=$!
+  # PRISM_FD_TRACE=1 (F3, C10 start-up EMFILE): every 5 s of start-up, open file descriptors of the launcher and of each
+  # child (fd_trace.log), plus the shell's and the launcher's RLIMIT_NOFILE. Diagnostic only.
+  [ "${PRISM_FD_TRACE:-0}" = 1 ] && { echo "shell nofile soft $(ulimit -Sn) hard $(ulimit -Hn)"; sleep 2;
+    grep -i 'open files' /proc/$SERVER_PID/limits; } >> "$RESULTS/$step/fd_trace.log" 2>&1
   for i in $(seq 1 $((STARTUP_TIMEOUT / 5))); do
+    if [ "${PRISM_FD_TRACE:-0}" = 1 ]; then
+      { printf 't=%ss' $((i * 5)); for p in $SERVER_PID $(pgrep -P $SERVER_PID) $(pgrep -f 'sglang' | head -40); do
+          printf ' %s:%s' "$p" "$(ls /proc/$p/fd 2>/dev/null | wc -l)"; done | tr ' ' '\n' | sort -u | tr '\n' ' '; echo;
+        grep -i 'open files' /proc/$SERVER_PID/limits 2>/dev/null | head -1; } >> "$RESULTS/$step/fd_trace.log" 2>&1
+    fi
     kill -0 $SERVER_PID 2>/dev/null || { echo "[$step] SERVER DIED"; tail -60 "$RESULTS/$step/server.log"; stop_server; return 1; }
     # kvcached aborts a worker at start-up (cuMem* out of memory): the server never becomes ready, fail fast
     if grep -q "cuMem.*out of memory" "$RESULTS/$step/server.log" 2>/dev/null; then
@@ -464,7 +479,7 @@ PY3
       done
       [ $rc = 0 ]
       ;;
-    ovl_mem|ovl_phases|ovl_kv|ovl_compute|ovl_trace|ovl_trace_big|ovl_mix)
+    ovl_mem|ovl_phases|ovl_kv|ovl_compute|ovl_trace|ovl_trace_big|ovl_mix|ovl_zipf|ovl_bursty|ovl_diurnal|ovl_classes|ovl_sizes|ovl_tr_azfn|ovl_tr_azllm|ovl_tr_burst|ovl_tr_lmsys)
       # Real overload scenarios on 1 GPU (README example 3 flags, workers-per-gpu = number of models).
       # Load: polyaxon/overload_load.py (open loop, uniform popularity, deadline = duration + drain;
       # requests still pending at the deadline are recorded as unserved). Each level: fresh server and
@@ -481,8 +496,27 @@ PY3
       #   ovl_mix     two model sizes: 8 x PRISM_OVL_MODEL at the level's rate + 2 x PRISM_OVL_MODEL2 (smaller)
       #               at PRISM_OVL_RATE2 (fewer tokens/s than an 8B, more per GB), 5 + 2 on, ~132 GB of weights.
       #               At most 10 models: 14 workers hang at start-up (kvcached cuMemSetAccess out of memory).
+      # F3 catalogue (PLANO_AGENTE.md section 5, polyaxon/workloads.py; lengths: the Azure LLM 2023 conversation
+      # trace, polyaxon/traces/L_azllm_conv.csv.gz, capped at 4096/1024 tokens, unless PRISM_OVL_LOAD overrides):
+      #   ovl_zipf    C6: 10 x 8B (6 on), Zipf(1) popularity whose ranks rotate (one adjacent swap every
+      #               PRISM_OVL_DRIFT s, default 60); level = TOTAL rate (rate<R>), 600 s
+      #   ovl_bursty  C7: 10 x 8B (6 on), per model on/off MMPP (IPP: mean on 10 s, off 20 s, CV 2.5); level = mean
+      #               rate per model, 600 s
+      #   ovl_diurnal C8: 10 x 8B (6 on), total rate R (1 - 0.8 cos(2 pi t / 1200)), Zipf(1) fixed popularity; one
+      #               compressed day of 1200 s; level = mean TOTAL rate
+      #   ovl_classes C9: C1 (PRISM_OVL_CLASS_BASE=mem, default) or C6 (=zipf) with a fraction
+      #               PRISM_OVL_BATCH_FRAC (default 0.3) of batch requests: TTFT SLO PRISM_OVL_BATCH_TTFT (60 s), no
+      #               TPOT limit (D19); interactive requests keep the step's SLO (S1, or PRISM_OVL_SLO_SPEC)
+      #   ovl_sizes   C10: PRISM_OVL_GROUPS="path:count:on ..." (default 2 x 3B, 3 x 8B, 2 x Qwen2.5-14B,
+      #               1 x Qwen2.5-32B; ~181 GB of weights), all models at the level's rate, Poisson, 600 s
+      #   ovl_tr_*    T3 azfn / T4 azllm / T5 burst / T2 lmsys: 12 x 8B (6 on), normalized trace
+      #               polyaxon/traces/<T>.csv.gz (polyaxon/trace_adapt.py), entity rank i -> model_i; level = time
+      #               scale (ts<s>, window 600 s x s)
       M="${PRISM_OVL_MODEL:-meta-llama/Llama-3.1-8B-Instruct}"
       M2="${PRISM_OVL_MODEL2:-meta-llama/Llama-3.2-3B-Instruct}"; n2=0; on2=0
+      kind=per_model; groups_spec=
+      LEN="--lengths empirical:polyaxon/traces/L_azllm_conv.csv.gz --max-prompt 4096 --max-output 1024"
+      TRACES=polyaxon/traces
       case $step in
         ovl_mem)     n=${PRISM_OVL_N:-10}; on=${PRISM_OVL_ON:-6}; pool=${PRISM_OVL_POOL:-10}
                      rates=${PRISM_OVL_RATES:-0.2 0.5}; dur=${PRISM_OVL_DURATION:-300}; drain=${PRISM_OVL_DRAIN:-300}
@@ -506,16 +540,50 @@ PY3
                      pool=${PRISM_OVL_POOL:-10}
                      rates=${PRISM_OVL_RATES:-0.2}; dur=${PRISM_OVL_DURATION:-300}; drain=${PRISM_OVL_DRAIN:-300}
                      load="--input-range 256 1024 --output-range 128 512 --model-rates $(for i in $(seq $((n + 1)) $((n + n2))); do printf 'model_%s=%s ' "$i" "${PRISM_OVL_RATE2:-0.12}"; done)" ;;
+        ovl_zipf)    n=${PRISM_OVL_N:-10}; on=${PRISM_OVL_ON:-6}; pool=${PRISM_OVL_POOL:-10}; kind=total
+                     rates=${PRISM_OVL_RATES:-2}; dur=${PRISM_OVL_DURATION:-600}; drain=${PRISM_OVL_DRAIN:-300}
+                     load="--pattern zipf_drift --zipf-alpha ${PRISM_OVL_ALPHA:-1} --drift-period ${PRISM_OVL_DRIFT:-60} $LEN" ;;
+        ovl_bursty)  n=${PRISM_OVL_N:-10}; on=${PRISM_OVL_ON:-6}; pool=${PRISM_OVL_POOL:-10}
+                     rates=${PRISM_OVL_RATES:-0.2}; dur=${PRISM_OVL_DURATION:-600}; drain=${PRISM_OVL_DRAIN:-300}
+                     load="--pattern bursty --burst-on ${PRISM_OVL_BURST_ON:-10} --burst-off ${PRISM_OVL_BURST_OFF:-20} $LEN" ;;
+        ovl_diurnal) n=${PRISM_OVL_N:-10}; on=${PRISM_OVL_ON:-6}; pool=${PRISM_OVL_POOL:-10}; kind=total
+                     rates=${PRISM_OVL_RATES:-2}; dur=${PRISM_OVL_DURATION:-1200}; drain=${PRISM_OVL_DRAIN:-300}
+                     load="--pattern diurnal --zipf-alpha ${PRISM_OVL_ALPHA:-1} --diurnal-amp ${PRISM_OVL_AMP:-0.8} --diurnal-period ${PRISM_OVL_DAY:-1200} $LEN" ;;
+        ovl_classes) n=${PRISM_OVL_N:-10}; on=${PRISM_OVL_ON:-6}; pool=${PRISM_OVL_POOL:-10}
+                     dur=${PRISM_OVL_DURATION:-300}; drain=${PRISM_OVL_DRAIN:-300}
+                     cls="--batch-frac ${PRISM_OVL_BATCH_FRAC:-0.3} --batch-slo-ttft ${PRISM_OVL_BATCH_TTFT:-60}"
+                     if [ "${PRISM_OVL_CLASS_BASE:-mem}" = zipf ]; then
+                       kind=total; rates=${PRISM_OVL_RATES:-2}; dur=${PRISM_OVL_DURATION:-600}
+                       load="--pattern zipf_drift --zipf-alpha ${PRISM_OVL_ALPHA:-1} --drift-period ${PRISM_OVL_DRIFT:-60} $LEN $cls"
+                     else
+                       rates=${PRISM_OVL_RATES:-0.2}; load="--input-range 256 1024 --output-range 128 512 $cls"
+                     fi ;;
+        ovl_sizes)   pool=${PRISM_OVL_POOL:-10}
+                     groups_spec="${PRISM_OVL_GROUPS:-meta-llama/Llama-3.2-3B-Instruct:2:2 meta-llama/Llama-3.1-8B-Instruct:3:2 Qwen/Qwen2.5-14B-Instruct:2:1 Qwen/Qwen2.5-32B-Instruct:1:0}"
+                     n=0; on=0; for g in $groups_spec; do IFS=: read -r _ c o <<< "$g"; n=$((n + c)); on=$((on + o)); done
+                     rates=${PRISM_OVL_RATES:-0.2}; dur=${PRISM_OVL_DURATION:-600}; drain=${PRISM_OVL_DRAIN:-300}
+                     load="$LEN" ;;
+        ovl_tr_*)    n=${PRISM_OVL_N:-12}; on=${PRISM_OVL_ON:-6}; pool=${PRISM_OVL_POOL:-10}; kind=ts
+                     rates=${PRISM_OVL_RATES:-1}; dur=; drain=${PRISM_OVL_DRAIN:-300}
+                     tr=$(case $step in ovl_tr_azfn) echo T3_azfn;; ovl_tr_azllm) echo T4_azllm;; ovl_tr_burst) echo T5_burst;; ovl_tr_lmsys) echo T2_lmsys;; esac)
+                     load="--pattern trace --trace $TRACES/$tr.csv.gz --max-prompt 4096 --max-output 1024" ;;
       esac
+      case $step in ovl_trace|ovl_trace_big) kind=ts;; esac
       # PRISM_OVL_SLO_SPEC=<family:k=v,...> (F6a.1, e.g. S2:kT=10,kD=5): per-request SLO sent to the server instead of
       # PRISM_OVL_SLO_TTFT/_TPOT (overload_load.py --slo-spec; same rule and bases as slo_metrics.py).
       # PRISM_OVL_LOAD replaces the step's load arguments (lengths, --cv, --groups) to vary the workload.
       load="${PRISM_OVL_LOAD:-$load}"
-      python3 - "$CFG_DIR/$step.json" "$M" "$n" "$on" "$pool" "$M2" "$n2" "$on2" <<'PY2'
+      python3 - "$CFG_DIR/$step.json" "$M" "$n" "$on" "$pool" "$M2" "$n2" "$on2" "$groups_spec" <<'PY2'
 import json, sys
 out, path, n, on, pool = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4]), float(sys.argv[5])
 path2, n2, on2 = sys.argv[6], int(sys.argv[7]), int(sys.argv[8])  # ovl_mix: a second, smaller model
 models = [(path, i <= on) for i in range(1, n + 1)] + [(path2, i <= on2) for i in range(1, n2 + 1)]
+if sys.argv[9]:  # ovl_sizes (C10): "path:count:on ..." groups, in order
+    models = []
+    for g in sys.argv[9].split():
+        p, c, o = g.rsplit(":", 2)
+        models += [(p, i <= int(o)) for i in range(1, int(c) + 1)]
+    n, on, path = len(models), sum(o for _, o in models), "mixed"
 cfg = [{"model_name": f"model_{i}", "model_path": p, "tokenizer_path": p, "tp_size": 1,
         "init_placements": [{"gpu_ids": [0], "on": o, "max_memory_pool_size": pool}]}
        for i, (p, o) in enumerate(models, 1)]
@@ -537,14 +605,16 @@ PY2
       rc=0
       for rate in $rates; do
       for tgt in "${targets[@]}"; do
-        if [ "$step" = ovl_trace ] || [ "$step" = ovl_trace_big ]; then  # level = time scale; the window is the trace span x scale
+        if [ "$kind" = ts ]; then  # level = time scale; the window is the trace span (600 s) x scale
           lvl="$step/ts$rate"; dur=$(python3 -c "print(600 * $rate)"); level=(--time-scale "$rate")
+        elif [ "$kind" = total ]; then  # level = total rate over all models (C6, C8)
+          lvl="$step/rate$rate"; level=(--total-rate "$rate" --duration "$dur")
         else
           lvl="$step/rate$rate"; level=(--rate "$rate" --duration "$dur")
         fi
         cfg="$CFG_DIR/$step.json"; workers="${PRISM_OVL_WORKERS:-$n}"; ded=()
         if [ -n "$tgt" ]; then
-          i=${tgt#model_}; p=$M; [ "$i" -gt $((n - n2)) ] && p=$M2
+          p=$(python3 -c 'import json, sys; print({m["model_name"]: m["model_path"] for m in json.load(open(sys.argv[1]))}[sys.argv[2]])' "$CFG_DIR/$step.json" "$tgt")
           cfg="$CFG_DIR/${step}_ded.json"; workers=1; ded=(--only-model "$tgt" --send-as model_1); lvl="${lvl}_ded_$tgt"
           python3 -c 'import json, sys; p = sys.argv[2]; json.dump([{"model_name": "model_1", "model_path": p, "tokenizer_path": p,
 "tp_size": 1, "init_placements": [{"gpu_ids": [0], "on": True, "max_memory_pool_size": float(sys.argv[3])}]}], open(sys.argv[1], "w"), indent=2)' \

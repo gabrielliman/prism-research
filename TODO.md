@@ -52,19 +52,19 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F6a.9 (2026-11-05, `reports/fases/F06a_prazo_primeira_rodada.md`, APROVADO) Relatório F06a; gate [HUMANO]
 
 ## F3 — Catálogo de cargas · gate [HUMANO]
-- [ ] F3.1 `overload_load.py`: leitura de trace, classes de SLO, recusa como estado final, sementes
-- [ ] F3.2 C6 `zipf_drift`
-- [ ] F3.3 C7 `bursty`
-- [ ] F3.4 C8 `diurnal`
-- [ ] F3.5 C9 `slo_classes`
-- [ ] F3.6 C10 `sizes_mix` (verificar suporte dos modelos no SGLang 0.3.4)
-- [ ] F3.7 C11 `slo_sweep` (famílias S2 e S3 da seção 5.4)
-- [ ] F3.8 T2 LMSYS-Chat-1M (licença, popularidade real, chegadas sintéticas)
-- [ ] F3.9 T3 Azure Functions (licença, mapeamento função → modelo)
-- [ ] F3.10 T4 Azure LLM inference e T5 BurstGPT (se houver tempo)
-- [ ] F3.11 Estatísticas antes/depois de cada transformação no `cargas.md`
-- [ ] F3.12 Dry run de cada carga validado (V8, V11, V12)
-- [ ] F3.13 Relatório F03 com a proposta de conjunto de cargas
+- [x] F3.1 `overload_load.py`: leitura de trace, classes de SLO, recusa como estado final, sementes (2026-11-05, `polyaxon/workloads.py`, `tests/workloads/`; C1–C5 com o mesmo hash)
+- [x] F3.2 C6 `zipf_drift` (2026-11-05, `ovl_zipf`; dry run VALIDA, com T1)
+- [x] F3.3 C7 `bursty` (2026-11-05, `ovl_bursty`, IPP 10/20 s, CV 2,5, D28; dry run VALIDA, com T1)
+- [x] F3.4 C8 `diurnal` (2026-11-05, `ovl_diurnal`; dry run VALIDA, com T1)
+- [x] F3.5 C9 `slo_classes` (2026-11-05, `ovl_classes` sobre C1 e C6, S4 em `slo_metrics.py`; dry runs VALIDA)
+- [x] F3.6 C10 `sizes_mix` (verificar suporte dos modelos no SGLang 0.3.4) (2026-11-05, Qwen2.5-14B/32B no cache do cluster, job `1f15aae8`, D29; P14 `Too many open files` corrigida no harness; dry run `f722128d` VALIDA, com T1)
+- [x] F3.7 C11 `slo_sweep` (famílias S2 e S3 da seção 5.4) (2026-11-05, definição em `cargas.md`; falta a base dedicada das cargas novas)
+- [x] F3.8 T2 LMSYS-Chat-1M (licença, popularidade real, chegadas sintéticas) (2026-11-05, termos aceitos pelo Gabriel, D29; `trace_adapt.py lmsys`, trace fora do git; dry run `2cfa2343` VALIDA, 1201/1201)
+- [x] F3.9 T3 Azure Functions (licença, mapeamento função → modelo) (2026-11-05, CC-BY-4.0, `trace_adapt.py azfn`; dry run VALIDA, com T1)
+- [x] F3.10 T4 Azure LLM inference e T5 BurstGPT (se houver tempo) (2026-11-05, CC-BY-4.0; T4 VALIDA com T1; T5 VALIDA, mas sem rajadas na taxa alvo: proposto fora)
+- [x] F3.11 Estatísticas antes/depois de cada transformação no `cargas.md` (2026-11-05, `polyaxon/traces/*.stats.json`, `workload_check.py`; leitura do critério: dúvida da D28)
+- [x] F3.12 Dry run de cada carga validado (V8, V11, V12) (2026-11-05, jobs `9d3f7e73`, `e40d0408`, `e24c4752`: 8/8 VALIDA; depois `2cfa2343` (T2) e `f722128d` (C10): 10 de 10 cargas VALIDA; T1 em 7 de 10, reports/fases/F03_cargas.md)
+- [x] F3.13 Relatório F03 com a proposta de conjunto de cargas (2026-11-05, reports/fases/F03_cargas.md; gate APROVADO em 2026-11-05, D29)
 
 ## F4 — Restrições estruturais (A1) · gate automático
 - [ ] F4.1 A1.1 reserva mínima de KV na ativação + testes unitários

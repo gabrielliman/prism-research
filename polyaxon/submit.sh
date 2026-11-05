@@ -21,9 +21,11 @@ rsync -a --exclude __pycache__ --exclude '*.egg-info' "${PY_SRC%/}/" "$STAGE/pyt
 mkdir -p "$STAGE/benchmark/multi-model" "$STAGE/polyaxon"
 rsync -a "$REPO/benchmark/multi-model/"{benchmark.py,trace.py,utils.py,model_configs,real_trace.pkl,model_lst.yml,model_lst_18.yml} \
   "$STAGE/benchmark/multi-model/"
-cp "$HERE/run_examples.sh" "$HERE/cluster_probe.sh" "$HERE/cluster_probe.py" "$HERE/overload_load.py" "$HERE/slo_metrics.py" "$HERE/iso_latency.py" "$HERE/kvcached_probe.py" "$HERE/test_switching.py" "$HERE/test_worker_pool.py" "$STAGE/polyaxon/"
+cp "$HERE/run_examples.sh" "$HERE/cluster_probe.sh" "$HERE/cluster_probe.py" "$HERE/overload_load.py" "$HERE/workloads.py" "$HERE/slo_metrics.py" "$HERE/iso_latency.py" "$HERE/kvcached_probe.py" "$HERE/test_switching.py" "$HERE/test_worker_pool.py" "$HERE/hf_download.sh" "$STAGE/polyaxon/"
 rsync -a "$HERE/compare" "$STAGE/polyaxon/"
 rsync -a "$HERE/configs" "$STAGE/polyaxon/"
+# F3: normalized traces and length tables (polyaxon/trace_adapt.py). T2 (LMSYS, no redistribution) stays out of the repo.
+[ -d "$HERE/traces" ] && rsync -a --include '*.csv.gz' --exclude '*' "$HERE/traces/" "$STAGE/polyaxon/traces/"
 # SLO bases for overload_load.py --slo-spec (F6a.1, slo_metrics.py reads them at these paths)
 mkdir -p "$STAGE/reports/registro" "$STAGE/reports/data/F02/cat"
 cp "$REPO/reports/registro/"{latencia_ded.json,latencia_ref.json} "$STAGE/reports/registro/"

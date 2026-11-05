@@ -1,0 +1,4 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/C9_C1/ovl_classes/rate0.2,/mnt/scratch/scheduler/prism-raw/F3-dry/dry-b,e40d0408a6a54cf489e6c39b0f39657f,dry-b/outputs/C9_C1/ovl_classes/rate0.2,VALIDA,,,2026-11-05 08:57:28,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/C9_C6/ovl_classes/rate2,/mnt/scratch/scheduler/prism-raw/F3-dry/dry-b,e40d0408a6a54cf489e6c39b0f39657f,dry-b/outputs/C9_C6/ovl_classes/rate2,VALIDA,,,2026-11-05 09:07:48,,433,OK,OK,OK,OK,OK,N/A,N/A,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/T3/ovl_tr_azfn/ts1,/mnt/scratch/scheduler/prism-raw/F3-dry/dry-b,e40d0408a6a54cf489e6c39b0f39657f,dry-b/outputs/T3/ovl_tr_azfn/ts1,VALIDA,,,2026-11-05 09:27:44,,650,OK,OK,OK,OK,OK,N/A,N/A,OK,OK,OK,OK,OK,OK,OK,OK

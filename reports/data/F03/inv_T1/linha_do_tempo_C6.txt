@@ -1,0 +1,35 @@
+  t=  -25.7 gpu_sched act_ok ('model_5', '')
+  t=  -25.6 gpu_sched act_ok ('model_4', '')
+  t=  -18.5 gpu_sched act_ok ('model_1', '')
+  t=  -13.7 gpu_sched act_ok ('model_3', '')
+  t=   -9.0 gpu_sched act_ok ('model_2', '')
+  t=   -7.0 gpu_sched act_ok ('model_6', '')
+  t=    6.3 controller activate ('model_8', '')
+  t=    6.3 gpu_sched act_req ('model_8', '')
+  t=   13.4 gpu_sched act_ok ('model_8', '')
+  t=   39.0    worker retract ('model_1', '1')
+  t=   55.3    worker retract ('model_2', '1')
+  t=  239.5 controller evict ('model_8', '')
+  t=  240.0 gpu_sched deact_ok ('model_8', '')
+  t=  244.7 controller activate ('model_7', '')
+  t=  244.7 gpu_sched act_req ('model_7', '')
+  t=  247.2    worker retract ('model_3', '1')
+  t=  247.9 gpu_sched act_ok ('model_7', '')
+  t=  249.1    worker retract ('model_6', '1')
+  t=  250.5    worker retract ('model_3', '1')
+  t=  255.4    worker retract ('model_6', '1')
+  t=  272.0    worker retract ('model_6', '1')
+last completion t=294
+  model_1: ok 62, unserved 61, last done 270.6517889280319
+  model_2: ok 53, unserved 330, last done 293.3598598059714
+  model_3: ok 32, unserved 158, last done 285.84831026932596
+  model_4: ok 17, unserved 125, last done 266.97458774322274
+  model_5: ok 39, unserved 51, last done 273.4942271341681
+  model_6: ok 19, unserved 54, last done 293.5170125094652
+  model_7: ok 0, unserved 51, last done None
+  model_8: ok 23, unserved 28, last done 205.2024106040299
+  model_9: ok 0, unserved 49, last done None
+  model_10: ok 0, unserved 41, last done None
+  gpu t=353: used 133.0/140.4 GB util 0.0%
+  gpu t=354: used 133.0/140.4 GB util 0.0%
+  gpu t=493: used 133.0/140.4 GB util 0.0%

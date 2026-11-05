@@ -257,3 +257,43 @@ Opções e dados em `reports/fases/F02_instrumentacao.md` (seção "Decisão do 
   - A9.2 (LVF com custo de ativação e vítima pelo valor), porque a A9.1 escolhe vítimas só pela residência;
   - o ciclo de 1 s só com histerese maior;
   - a justiça (pior modelo) como objetivo possível da A7/F8.
+
+## D28 — Construção das cargas da F3 e registros pendentes da F6a (2026-11-05, agente; para revisão do Gabriel no gate da F3)
+
+- **Registros da F6a:**
+  - os CSVs do validador da F6a (`reports/data/F06a/validador/*.csv`) e os `niveis.csv`/`pareado.csv` da triagem não existiam mais em lugar nenhum: são gitignored e ficaram no worktree da F6a. Foram refeitos a partir dos dados brutos (`prism-raw/F6a*`) com o mesmo `validate_run.py` e o mesmo `f6a_triage.py`. O `resumo.md` refeito é idêntico, byte a byte, ao do commit `9d1768d`;
+  - total refeito: **73 níveis, 72 VALIDA, 1 INVALIDA_SISTEMA** (`1390b57c/edf_S3k5`, V3, P13). A tabela de execuções do relatório F06a soma o mesmo (73). O texto do relatório diz "74 níveis, 73 VALIDA": é um erro de contagem do texto, não de dados;
+  - `execucoes.csv`: 73 linhas da F6a. Commit `f290003` para os jobs v2 (o diff salvo `v2_e04db5e.diff` está contido em `e04db5e..f290003`); `f290003-D26` para os jobs v1 (smoke, `tri_c1-1`, `tri_c1-2`, `tri_t1-1`), que rodaram o `f290003` **sem** as duas correções da D26 (código nunca commitado);
+  - `register_runs.py` passa a marcar `politica_usa_slo` = 1 e a família/nível do `PRISM_OVL_SLO_SPEC` para `PRISM_EVICTION=edf|lvf`. Antes estava fixo em 0, o que valia só até a F5;
+  - `collect_reps.py` passa a descartar os níveis que o validador não marca como VALIDA (seção 0.2), com a lista em `descartados.csv`. `PRISM_COLLECT_CRITERION=legacy` reproduz o critério antigo, para os relatórios de antes da F2;
+  - **para não perder de novo:** o script de commit força (`git add -f`) os CSVs de registro e do validador.
+- **Tamanhos das cargas sintéticas novas:** pares (prompt, saída) do trace de conversas do Azure LLM 2023 (CC-BY-4.0), sorteados juntos, com teto de 4096/1024 tokens. Alternativas: T1 (prompts curtos demais, p50 40; adaptadores de LoRA), ShareGPT/LMSYS (licença, acesso condicionado), uniformes como C1 (a seção 5.2 pede não inventar tamanhos). O C9 sobre C1 mantém os uniformes, para comparar com o C1.
+- **Parâmetros das sintéticas:** C6 Zipf α = 1, deriva de 60 s por troca adjacente; C7 ligado 10 s / desligado 20 s (CV 2,5; com 20/40 s o CV numa janela de 600 s fica 10% abaixo do teórico, ver `cargas.md`); C8 amplitude 0,8, "dia" de 1200 s, Zipf(1) fixo; C9 fração de lote 0,3, TTFT de lote 60 s, sem TPOT (D19, provisório); C10 2 × 3B, 3 × 8B, 2 × 14B, 1 × 32B, 0,2 req/s cada.
+- **Regras de entidade dos traces (seção 5.3, item 3):** T3 = 12 funções HTTP em ranks espaçados em log com razão 8 entre a mais e a menos popular, sem afinamento; T4/T5 = janelas consecutivas do serviço único como entidades, escala de tempo para a taxa alvo. Alternativa rejeitada para T4/T5: repartir o fluxo único por sorteio entre os modelos, o que afina o processo e puxa o CV para 1.
+- **Dúvida sobre o critério de aceitação (não resolvida pelo agente; seção 0.1, item 4):**
+  - a F3 pede "taxas ±5%, CV ±10%, popularidade preservada";
+  - num único nível curto, o ruído de amostragem já passa disso. Exemplos: C1 tem fração por modelo de 7,8% a 11,7% contra 10%, e CV por modelo de 0,84 a 1,19; no C9, a fração de lote ficou 0,279 contra 0,3;
+  - o agente reporta as duas leituras: **realizado** (o nível, uma semente) e **processo** (média de 20 sementes, o que o gerador promete). Todas as cargas passam na leitura de processo; a leitura realizada falha em C6 (ordem de ranks vizinhos da cauda), C8 (razão pico/vale) e C9 (fração de lote) por ruído;
+  - o Gabriel decide qual leitura o critério usa.
+
+## D29 — Respostas do Gabriel às decisões do gate da F3 (2026-11-05, Gabriel; gate APROVADO)
+
+1. **Conjunto de cargas:** aceita a proposta do relatório F03:
+   - núcleo: C1, C2, C3, T1, C6, C7, C8, C9 (sobre C1 e sobre C6), T3;
+   - controles: C4, C5;
+   - análise: C11;
+   - T4 com baixa prioridade; T5 fora como carga de memória.
+2. **C10:** baixar Qwen2.5-14B-Instruct e Qwen2.5-32B-Instruct para o cache do cluster. O agente tinha escrito que o cluster não tem internet. **Errado:** o cluster tem acesso; a imagem é que força `HF_HUB_OFFLINE=1` (`docker/prism/Dockerfile:35`).
+   - Download feito por um job sem GPU, `polyaxon/hf_download.sh` / `hf_download.yaml`, job `1f15aae8`. O modo offline só é desligado dentro desse script; os passos `ovl_*` continuam offline.
+3. **T2:** o Gabriel aceitou os termos do LMSYS-Chat-1M no Hugging Face e passou um token de leitura.
+   - O token está só em `~/.cache/huggingface/token` (modo 600) da máquina local, nunca no repositório nem no job. Os modelos Qwen não pedem token.
+   - Dados em `/mnt/scratch/scheduler/datasets/lmsys_chat_1m/`.
+   - Regra da T2 (agente): os 12 modelos com mais conversas, em ordem → `model_1..12`. Contagem por modelo = fração real × 2 req/s × 600 s; chegadas de Poisson sintéticas (o conjunto não tem tempos). Tamanhos do 1º turno de cada modelo, tokenizados com o tokenizador do Llama-3.1-8B.
+   - Trace derivado em `polyaxon/traces/T2_lmsys.*`, no `.gitignore` (redistribuição proibida).
+   - `pyarrow`, que só a leitura do parquet usa, ficou numa pasta temporária fora dos ambientes (o `opt-env` não foi alterado).
+4. **Tamanhos realistas × T1:** opção (a). Manter os tamanhos do Azure LLM e usar C6, C7, C8 e T3 como teste da F4 (zero impasses, F4.5).
+5. **Leitura do critério de estatísticas:** pelo **processo**, a média de 20 sementes (`workload_check.py`, leitura "process"). Os valores realizados de cada nível continuam reportados ao lado, como informação. O critério da F3 (taxas ±5%, CV ±10%, popularidade preservada) vale para o gerador, não para o ruído de amostragem de um nível de 600 s. A regra vale igual para todas as cargas, nesta fase e nas próximas.
+6. **T1 no validador:** continua informativo; níveis com T1 ficam VALIDA. Motivo: a F1.1 mostrou que o T1 é um impasse criado pela política, com os workers ociosos e sem falha de código. O resultado é válido e mede o comportamento ruim da política.
+   - Ressalva (agente): a seção 0.2 lista "travamento" como INVALIDA_SISTEMA. Vale para travamento de código (worker preso, driver), não para o T1.
+   - Para distinguir os dois, o T1 exige GPU cheia, 0% de uso e workers no ramo ocioso. Um travamento com outra assinatura (sobretudo nas políticas novas da F4 em diante) ainda é investigado como INVALIDA_SISTEMA.
+   - Todo relatório traz o tempo congelado T1 por nível.

@@ -1,0 +1,24 @@
+# One-off: download HF models into the shared cluster cache (hf_download.sh). No GPU.
+# Submit with: PRISM_GPUS=0 PRISM_JOB_ENV="PRISM_HF_MODELS='Qwen/Qwen2.5-14B-Instruct Qwen/Qwen2.5-32B-Instruct'" polyaxon/submit.sh hf_download
+version: 1.1
+kind: operation
+tags: [prism, hf-download]
+queue: axia/default
+name: hf-download__SUFFIX__
+termination:
+  timeout: __PLX_TIMEOUT__
+component:
+  kind: component
+  run:
+    kind: job
+    connections: [local-scratch, axia-artifacts]
+    container:
+      image: __IMAGE__
+      imagePullPolicy: Always
+      workingDir: "{{ globals.artifacts_path }}/{{ globals.uuid }}/uploads"
+      command: ["bash", "-c", "export __ENV__; export PRISM_RESULTS='{{ globals.run_outputs_path }}'; timeout -k 60 ${PRISM_TIMEOUT:-7200} bash polyaxon/hf_download.sh"]
+      resources:
+        requests:
+          nvidia.com/gpu: __GPUS__
+        limits:
+          nvidia.com/gpu: __GPUS__

@@ -1,0 +1,3 @@
+# F3.12 dry run D (2026-11-05, after D29): A0.1 only; C10 sizes (Qwen2.5-14B/32B now in the cluster cache) and T2 LMSYS
+C10	PRISM_STEPS=ovl_sizes PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50
+T2	PRISM_STEPS=ovl_tr_lmsys PRISM_OVL_RATES=1 PRISM_IDLE_THRESHOLD=50
