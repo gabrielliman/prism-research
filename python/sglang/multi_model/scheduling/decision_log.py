@@ -9,7 +9,9 @@ With PRISM_DECISION_LOG=<path> the policy appends one JSON line per scheduling c
                       arrival + SLO of the waiting requests, minus t), "since_last_arrival_s",
                       "since_last_finish_s", "active_for_s"}},
    "actions": [{"kind": activate|deactivate|migrate, "model", "gpu", "reason", ...}],
-   "notes": [{"kind": "no_fit", "model", "need_gb"}, ...]}
+   "notes": [{"kind": "no_fit", "model", "need_gb"}, ...],
+   "policy": {"name": edf|lvf, "scores": {model: {"u", "viable", "lost", "active"} (edf) | {"vlt", "active"} (lvf)},
+              "in_flight", "rotated_for"}}   (only with PRISM_EVICTION=edf|lvf, F6a.4)
 Unset (the default), nothing is written and the policy behaves exactly as before: the log only reads the state the
 policy already computed. validate_run.py and the analysis read it; the text log is unchanged.
 """
@@ -77,6 +79,10 @@ class DecisionLog:
     def note(self, kind, model=None, **extra):
         if self._cur is not None:
             self._cur["notes"].append({"kind": kind, "model": model, **{k: _num(v) for k, v in extra.items()}})
+
+    def policy(self, name, scores, **extra):
+        if self._cur is not None:
+            self._cur["policy"] = {"name": name, "scores": scores, **extra}
 
     def end(self):
         if self._cur is None:

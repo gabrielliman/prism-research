@@ -559,9 +559,13 @@ class Scheduler:
             self.last_batch = None
 
     @torch.inference_mode()
-    def _run_to_completion_normal(self, deadline: Optional[float] = None):
+    def _run_to_completion_normal(self, deadline: Optional[float] = None, evict_stuck: bool = False):
         """Run the running batch and the waiting queue to completion. With a deadline (perf_counter time,
-        Prism's drain before a swap), stop starting batches once it passes and leave the rest to the caller."""
+        Prism's drain before a swap), stop starting batches once it passes and leave the rest to the caller.
+        With evict_stuck (the last step of a deactivation without preemption, P13): when nothing can run (no
+        running batch and no prefill possible, e.g. a request retracted by a decode OOM finds no KV because the
+        memory went to other models), send the waiting requests back to the model's frontend queue (they restart
+        from their prompt, as with RECOMPUTE) instead of waiting forever. PRISM_DEACTIVATE_EVICT_STUCK=0 disables."""
         batch = self.get_next_batch_to_run()
         if batch is not None:
             logger.info(
@@ -590,6 +594,19 @@ class Scheduler:
                 )
                 return
             batch = self.get_next_batch_to_run()
+            if (
+                evict_stuck
+                and batch is None
+                and not self.running_batch
+                and self.waiting_queue
+                and os.environ.get("PRISM_DEACTIVATE_EVICT_STUCK", "1") == "1"
+            ):
+                logger.warning(
+                    f"P13: deactivation cannot run its {len(self.waiting_queue)} waiting (retracted) requests "
+                    f"(no running batch, no prefill possible); sending them back to the frontend queue"
+                )
+                self._evict_all_waiting_requests()
+                break
 
         self.last_batch = None
 
@@ -1787,7 +1804,7 @@ class Scheduler:
             if self.enable_overlap:
                 self._run_to_completion_overlap(result_queue)
             else:
-                self._run_to_completion_normal()
+                self._run_to_completion_normal(evict_stuck=True)
         else:
             preempt_mode = recv_req.preempt_mode
             # TODO: chunked prefill

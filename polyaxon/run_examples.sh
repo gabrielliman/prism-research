@@ -507,6 +507,8 @@ PY3
                      rates=${PRISM_OVL_RATES:-0.2}; dur=${PRISM_OVL_DURATION:-300}; drain=${PRISM_OVL_DRAIN:-300}
                      load="--input-range 256 1024 --output-range 128 512 --model-rates $(for i in $(seq $((n + 1)) $((n + n2))); do printf 'model_%s=%s ' "$i" "${PRISM_OVL_RATE2:-0.12}"; done)" ;;
       esac
+      # PRISM_OVL_SLO_SPEC=<family:k=v,...> (F6a.1, e.g. S2:kT=10,kD=5): per-request SLO sent to the server instead of
+      # PRISM_OVL_SLO_TTFT/_TPOT (overload_load.py --slo-spec; same rule and bases as slo_metrics.py).
       # PRISM_OVL_LOAD replaces the step's load arguments (lengths, --cv, --groups) to vary the workload.
       load="${PRISM_OVL_LOAD:-$load}"
       python3 - "$CFG_DIR/$step.json" "$M" "$n" "$on" "$pool" "$M2" "$n2" "$on2" <<'PY2'
@@ -565,6 +567,7 @@ PY2
           timeout -k 30 $((${dur%.*} + ${drain%.*} + 120)) python3 polyaxon/overload_load.py \
             --base-url http://127.0.0.1:30002 --models $models "${level[@]}" --drain "$drain" "${ded[@]}" \
             $load --slo-ttft "${PRISM_OVL_SLO_TTFT:-1.0}" --slo-tpot "${PRISM_OVL_SLO_TPOT:-0.1}" \
+            ${PRISM_OVL_SLO_SPEC:+--slo-spec "$PRISM_OVL_SLO_SPEC" --slo-config "$cfg" --slo-scenario "$step"} \
             --out "$RESULTS/$lvl" > "$RESULTS/$lvl/load.log" 2>&1 || rc=1
           kill $SMI_PID 2>/dev/null
           [ -n "$FAULT_PID" ] && { kill $FAULT_PID 2>/dev/null; pkill -P $FAULT_PID 2>/dev/null; }

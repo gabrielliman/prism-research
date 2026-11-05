@@ -16,6 +16,12 @@ Workload knobs:
   --groups G --phase P           models split in G contiguous groups; only one group sends at a time,
                                  rotating every P seconds (time-sharing pressure). G=1: all always on.
   --slo-ttft / --slo-tpot        per-request SLO sent to the server and used for attainment (s)
+  --slo-spec FAM:k=v,...         F6a.1: instead, each request's SLO from a family and level (slo_metrics.py: S1, S2,
+                                 S2M, S3, S2L), the same rule the metrics use: the server gets the TTFT SLO (its
+                                 deadline = arrival + SLO_TTFT), and attainment uses both. Needs --slo-config (the
+                                 server's model config: model_name -> model_path) and --slo-scenario (ovl_* step, the
+                                 key of reports/registro/latencia_ded.json). Overrides --slo-ttft/--slo-tpot, also for
+                                 --real-trace.
   --real-trace PKL --time-scale S  instead of the synthetic workload, Prism's e2e benchmark trace
                                  (benchmark.py --e2e-benchmark: trace.py generate_e2e_benchmark_reqs, same
                                  requests, prompts and per-model SLOs sent to the server) at time scale S;
@@ -110,6 +116,21 @@ def build_requests(a):
             for i, (t, m, pl, ol) in enumerate(reqs)]
 
 
+def apply_slo_spec(a, reqs):
+    """F6a.1: per-request (SLO_TTFT, SLO_TPOT) from --slo-spec, with slo_metrics.py's rule and bases."""
+    import slo_metrics as sm
+
+    fam, p = sm.parse_slo(a.slo_spec)
+    refs = sm.Refs()
+    path = {m["model_name"]: m["model_path"] for m in json.load(open(a.slo_config))}
+    bases = sm.bases_for(fam, a.slo_scenario, path, refs)
+    for r in reqs:
+        ttft, tpot = sm.slo_of({"model": r.model, "prompt_len": r.prompt_len}, path[r.model], fam, p, refs,
+                               bases[r.model])
+        r.slo = r.slo_ttft = ttft
+        r.slo_tpot = tpot
+
+
 async def run(a, reqs):
     server = a.base_url
     start = time.perf_counter()
@@ -158,7 +179,9 @@ def summarize(a, rows, elapsed):
     ok = [r for r in rows if r["status"] == "ok"]
     ttft = np.array([r["ttft"] for r in ok]) if ok else np.array([np.nan])
     tpot = np.array([r["tpot"] for r in ok if r["tpot"] > 0]) if ok else np.array([np.nan])
-    att = [r["status"] == "ok" and r["ttft"] < a.slo_ttft and r["tpot"] < a.slo_tpot for r in rows]
+    # with --slo-spec each request's own SLO; otherwise --slo-ttft/--slo-tpot (as before, also for --real-trace)
+    st = (lambda r: (r["slo_ttft"], r["slo_tpot"])) if a.slo_spec else (lambda r: (a.slo_ttft, a.slo_tpot))
+    att = [r["status"] == "ok" and r["ttft"] < st(r)[0] and r["tpot"] < st(r)[1] for r in rows]
     per_model = {}
     for m in ([a.send_as or a.only_model] if a.only_model else a.models):
         mr = [r for r in rows if r["model"] == m]
@@ -198,6 +221,9 @@ def main():
     p.add_argument("--phase", type=float, default=150)
     p.add_argument("--slo-ttft", type=float, default=1.0)
     p.add_argument("--slo-tpot", type=float, default=0.1)
+    p.add_argument("--slo-spec")
+    p.add_argument("--slo-config")
+    p.add_argument("--slo-scenario")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--real-trace")
     p.add_argument("--time-scale", type=float, default=1.0)
@@ -212,6 +238,13 @@ def main():
         p.error("--rate and --duration are required without --real-trace")
     set_ulimit()  # as benchmark.py does: one socket per in-flight request
     reqs = build_requests(a)
+    if a.slo_spec:
+        if not (a.slo_config and a.slo_scenario):
+            p.error("--slo-spec needs --slo-config and --slo-scenario")
+        apply_slo_spec(a, reqs)
+        s = sorted(r.slo_ttft for r in reqs)
+        print(f"SLO {a.slo_spec} ({a.slo_scenario}): TTFT {s[0]:.3f}-{s[-1]:.3f} s, "
+              f"TPOT {min(r.slo_tpot for r in reqs):.4f}-{max(r.slo_tpot for r in reqs):.4f} s", flush=True)
     if a.only_model:
         reqs = [r for r in reqs if r.model == a.only_model]
         for r in reqs:

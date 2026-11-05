@@ -28,12 +28,14 @@ EV = {  # log events: color, marker, label
     "evict_pressure": ("#e87ba4", "v", "despejo sob pressão"),
     "evict_fair": ("#eda100", "v", "rodízio anti-fome (modelo ocupado)"),
     "evict_swap": ("#008300", "v", "troca por throughput/GB"),
+    "evict_edf": ("#d55181", "v", "rodízio por folga (A2.1 EDF)"),
+    "evict_lvf": ("#8f4ad6", "v", "rodízio por atraso virtual (A9.1 LVF)"),
     "kv_oom": (ERRO, "x", "kvcached sem memória (ativação falhou)"),
     "model_lost": ("#c98500", "X", "modelo perdido (ativação falhou ou worker morto)"),
     "kv_refused": ("#6da7ec", "|", "KV recusado pelo árbitro (sem queda)"),
     "oom": (ERRO, "X", "worker sem memória (torch OOM)"),
 }
-DESPEJOS = ("evict", "evict_pressure", "evict_fair", "evict_swap")
+DESPEJOS = ("evict", "evict_pressure", "evict_fair", "evict_swap", "evict_edf", "evict_lvf")
 SLOS_TTFT = (1, 2, 5)  # s; extra TTFT-only SLO columns of metricas()
 PESOS_8B_GB = 15.0
 
@@ -88,6 +90,7 @@ def metricas(lv):
         "ativações": int(k.get("activate", 0)),
         "despejos ociosidade": int(k.get("evict", 0)), "despejos pressão": int(k.get("evict_pressure", 0)),
         "rodízios": int(k.get("evict_fair", 0)), "trocas throughput": int(k.get("evict_swap", 0)),
+        "rodízios por prazo": int(k.get("evict_edf", 0)) + int(k.get("evict_lvf", 0)),
         "requisições preemptadas": int(pd.to_numeric(eventos(lv, "preempt").value).sum()),
         "ativações falhas (kvcached)": int(k.get("kv_oom", 0)),
         "falhas de driver kvcached": int(k.get("kv_oom", 0)), "torch OOM": int(k.get("oom", 0)),

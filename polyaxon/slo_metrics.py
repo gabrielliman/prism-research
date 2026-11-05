@@ -102,6 +102,12 @@ def slo_of(req, path, fam, p, refs, base=None):
     return p["kA"] * refs.c_at(path), p["kD"] * base[1]
 
 
+def bases_for(fam, scenario, models, refs):
+    """model -> (TTFT_base, TPOT_base) or None: the P50 base for S2M, the P95 one otherwise (D20, D21). Used by the
+    metrics and by overload_load.py --slo-spec (F6a.1), so the deadline sent and the one measured are the same."""
+    return {m: refs.base(scenario, m, "p50" if fam == "S2M" else "p95") for m in models}
+
+
 def load_level(d):
     d = pathlib.Path(d)
     reqs = []
@@ -147,7 +153,7 @@ def evaluate(reqs, ev, cfg, spec, refs, per_model=False, scenario=None):
     fam, p = parse_slo(spec)
     path = {m["model_name"]: m["model_path"] for m in cfg}
     states = state_at(ev, cfg) if ev else None
-    bases = {m: refs.base(scenario, m, "p50" if fam == "S2M" else "p95") for m in path}
+    bases = bases_for(fam, scenario, path, refs)
     rows = []
     for r in reqs:
         base = bases[r["model"]]

@@ -6,6 +6,8 @@ from typing import Dict, List, Set, Tuple, Optional, DefaultDict
 from collections import defaultdict, deque
 
 from sglang.multi_model.scheduling.decision_log import DecisionLog
+from sglang.multi_model.scheduling.estimators import activation_cost
+from sglang.multi_model.scheduling.policy import deadline
 from sglang.multi_model.scheduling.action import (
     ActivateAction,
     BaseAction,
@@ -197,8 +199,32 @@ class SimpleGlobalPolicy(GlobalPolicy):
         #             their tokens/s by PRISM_SWAP_MARGIN. Victims are preempted (PRISM_SWAP_PREEMPT=1: running
         #             requests recomputed later) and/or drained first (PRISM_SWAP_DRAIN=1: serve their accepted
         #             requests for up to PRISM_SWAP_DRAIN_TIMEOUT s).
+        #   edf       F6a/A2.1: which inactive model enters, and which active models leave for it, by deadline slack
+        #             (EDF between models); policy/deadline.py edf_select. Knobs PRISM_EDF_FLOOR, PRISM_EDF_BUDGET.
+        #   lvf       F6a/A9.1: by SuperInfer's virtual lag time (largest lag first); policy/deadline.py lvf_select.
+        #             Knobs PRISM_LVF_ALPHA, PRISM_LVF_BETA_F, PRISM_LVF_BETA_B, PRISM_LVF_BUDGET.
+        #             Both: victims are deactivated as the throughput swap's (PRISM_SWAP_PREEMPT, PRISM_SWAP_DRAIN),
+        #             only after PRISM_MIN_RESIDENCY s resident (A1.3), and a model needs PRISM_KV_RESERVE_REQS
+        #             requests' worth of KV on top of its weights to be activated (A1.1). The idle eviction (step 1)
+        #             still runs.
         self.EVICTION = os.environ.get("PRISM_EVICTION", "idle")
-        assert self.EVICTION in ["idle", "pressure", "adaptive", "fair", "throughput"]
+        assert self.EVICTION in ["idle", "pressure", "adaptive", "fair", "throughput", "edf", "lvf"]
+        # F6a knobs (D25). Defaults keep every other strategy unchanged: A1.1 and A1.3 are off unless set.
+        self.EDF_FLOOR = float(os.environ.get("PRISM_EDF_FLOOR", 0))  # s; slack below it = request already lost
+        self.EDF_BUDGET = int(os.environ.get("PRISM_EDF_BUDGET", 1))  # rotations in flight at once
+        self.LVF_ALPHA = float(os.environ.get("PRISM_LVF_ALPHA", 3))
+        self.LVF_BETA_F = float(os.environ.get("PRISM_LVF_BETA_F", 0.5))
+        self.LVF_BETA_B = float(os.environ.get("PRISM_LVF_BETA_B", 0))
+        self.LVF_BUDGET = int(os.environ.get("PRISM_LVF_BUDGET", 1))  # rotations in flight at once
+        self.KV_RESERVE_REQS = float(os.environ.get("PRISM_KV_RESERVE_REQS", 0))  # A1.1 b (0 = off)
+        self.MIN_RESIDENCY = float(os.environ.get("PRISM_MIN_RESIDENCY", 0))  # A1.3 T_min in s (0 = off)
+        # Ĉ_at = a + b·weights_gb + c·activations ahead (F2.3, reports/data/F02/cat/cat_model.json) and prefill
+        # p̂ = a + b·tokens (F2.10, reports/registro/latencia_ref.json, Llama-3.1-8B)
+        self.CAT_COEF = {"a": float(os.environ.get("PRISM_CAT_A", 0.4626)),
+                         "b": float(os.environ.get("PRISM_CAT_B", 0.06277)),
+                         "c": float(os.environ.get("PRISM_CAT_C", 1.1445))}
+        self.PREFILL_A = float(os.environ.get("PRISM_PREFILL_A", 0.01228))
+        self.PREFILL_B = float(os.environ.get("PRISM_PREFILL_B", 3.342e-05))
         self.SWAP_MARGIN = float(os.environ.get("PRISM_SWAP_MARGIN", 0.2))
         self.SWAP_MIN_RESIDENCY = float(os.environ.get("PRISM_SWAP_MIN_RESIDENCY", 20))
         self.SWAP_AGING_S = float(os.environ.get("PRISM_SWAP_AGING_S", 30))
@@ -1005,6 +1031,91 @@ class SimpleGlobalPolicy(GlobalPolicy):
         
         return [gpu_clusters[idx] for idx, _ in sorted(cluster_avg_memory, key=lambda x: x[1], reverse=True)]
     
+    def _kv_reserve_gb(self, model_name: str, queue: Optional[ModelQueueTracker]) -> float:
+        """A1.1: KV of PRISM_KV_RESERVE_REQS requests of the model's mean size (prompt + output of its queued
+        requests; 1024 tokens if none), on top of the weights, to activate it."""
+        if self.KV_RESERVE_REQS <= 0:
+            return 0.0
+        reqs = (list(queue.waiting_reqs) + list(queue.running_reqs)) if queue else []
+        sizes = [(r.prompt_len or 0) + (r.output_len or 0) for r in reqs if r.prompt_len is not None]
+        mean = sum(sizes) / len(sizes) if sizes else 1024.0
+        return self.KV_RESERVE_REQS * mean * self.model_weights_info[model_name]["cell_size"] / (1 << 30)
+
+    def _deadline_snapshot(
+        self,
+        model_queues: Dict[str, ModelQueueTracker],
+        model_instance_state_dict: Dict[str, List[ModelInstanceState]],
+        gpu_to_active_instances: Dict[int, List[ModelInstanceState]],
+        blocked_keys: Set[Tuple[str, int]],
+        gpu_available_memory: Dict[int, float],
+        now: float,
+    ) -> "deadline.Snapshot":
+        """The state the F6a decision functions see (policy/deadline.py)."""
+        active = {inst.model_name: (gpu_id, inst) for gpu_id, insts in gpu_to_active_instances.items() for inst in insts}
+        ahead = len(self.pending_activations)
+        models = {}
+        for name in model_instance_state_dict:
+            queue = model_queues.get(name)
+            weights = self.model_weights_info[name]["model_size"]
+            waiting = []
+            for r in (queue.waiting_reqs if queue else []):
+                if r.arrival_time is None or r.is_warmup:
+                    continue
+                pre = r.preempted_time if r.state == ReqState.PREEMTED else None
+                waiting.append(deadline.ReqSnap(arrival=r.arrival_time, slo=r.slo, prompt_len=r.prompt_len or 0,
+                                                preempted_at=pre))
+            running = queue.get_num_running_reqs() if queue else 0
+            gpu, inst = active.get(name, (None, None))
+            run_tokens = sum((r.prompt_len or 0) + (r.output_len or 0) for r in queue.running_reqs) if queue else 0
+            models[name] = deadline.ModelSnap(
+                name=name, gpu=gpu,
+                need_gb=weights + self.ACTIVATION_HEADROOM + max(self.ACTIVATION_KV_GB, self._kv_reserve_gb(name, queue)),
+                free_gb=self._model_memory(name, run_tokens),
+                waiting=waiting, running=running,
+                active_since=self.active_since.get(name) if gpu is not None else None,
+                c_at=activation_cost(weights, ahead, self.CAT_COEF),
+                reserved=gpu is None and self.swap_reservation_until.get(name, 0) > now,
+                cooldown=self.pressure_cooldown_until.get(name, 0) > now,
+                blocked=inst is not None and (name, inst.instance_idx) in blocked_keys,
+            )
+        in_flight = sum(1 for m in models.values() if m.reserved)
+        return deadline.Snapshot(now=now, models=models, gpu_free=dict(gpu_available_memory),
+                                 prefill_a=self.PREFILL_A, prefill_b=self.PREFILL_B, in_flight=in_flight)
+
+    def _deadline_actions(
+        self,
+        model_queues: Dict[str, ModelQueueTracker],
+        model_instance_state_dict: Dict[str, List[ModelInstanceState]],
+        gpu_to_active_instances: Dict[int, List[ModelInstanceState]],
+        blocked_keys: Set[Tuple[str, int]],
+        gpu_available_memory: Dict[int, float],
+    ):
+        """PRISM_EVICTION=edf|lvf: (activation_plan {(model, gpu): gpu}, evictions [(instance, gpu, reason)])."""
+        now = time.time()
+        snap = self._deadline_snapshot(model_queues, model_instance_state_dict, gpu_to_active_instances,
+                                       blocked_keys, gpu_available_memory, now)
+        if self.EVICTION == "edf":
+            params = deadline.Params(floor=self.EDF_FLOOR, budget=self.EDF_BUDGET, min_residency=self.MIN_RESIDENCY)
+            dec = deadline.edf_select(snap, params)
+        else:
+            params = deadline.Params(alpha=self.LVF_ALPHA, beta_f=self.LVF_BETA_F, beta_b=self.LVF_BETA_B,
+                                     budget=self.LVF_BUDGET, min_residency=self.MIN_RESIDENCY)
+            dec = deadline.lvf_select(snap, params)
+        self.dlog.policy(self.EVICTION, dec.scores, in_flight=snap.in_flight, rotated_for=dec.rotated_for)
+        reservation = self.SWAP_RESERVATION + (self.SWAP_DRAIN_TIMEOUT if self.SWAP_DRAIN else 0.0)
+        for name in dec.rotated_for:
+            self.pressure_cooldown_until[name] = now + self.PRESSURE_COOLDOWN
+            self.swap_reservation_until[name] = now + reservation
+        for name in dec.unplaced:
+            logger.warning(f"No suitable GPU found for inactive model {name}")
+            self.dlog.note("no_fit", name, need_gb=snap.models[name].need_gb)
+        activation_plan = {(name, gpu): gpu for name, gpu in dec.activations}
+        by_name = {inst.model_name: inst for insts in gpu_to_active_instances.values() for inst in insts}
+        evictions = [(by_name[name], gpu, reason) for name, gpu, reason in dec.victims]
+        for name, score in dec.scores.items():
+            logger.info(f"{self.EVICTION} score {name}: {score}")
+        return activation_plan, evictions
+
     def gen_actions(
         self,
         model_queues: Dict[str, ModelQueueTracker],
@@ -1113,7 +1224,13 @@ class SimpleGlobalPolicy(GlobalPolicy):
         
         # 3. Activate inactive models with requests
         start_inactive = time.time()
-        inactive_models_with_requests = self._find_inactive_models_with_requests(model_queues, model_instance_state_dict)
+        if self.EVICTION in ("edf", "lvf"):
+            activation_plan, evictions = self._deadline_actions(
+                model_queues, model_instance_state_dict, gpu_to_active_instances, idle_instance_keys,
+                gpu_available_memory)
+            inactive_models_with_requests = []
+        else:
+            inactive_models_with_requests = self._find_inactive_models_with_requests(model_queues, model_instance_state_dict)
         
         sorted_inactive_models = sorted(
             inactive_models_with_requests,
@@ -1126,7 +1243,8 @@ class SimpleGlobalPolicy(GlobalPolicy):
 
         sorted_clusters = self._prepare_gpu_clusters(gpu_available_memory)
         
-        activation_plan = {}
+        if self.EVICTION not in ("edf", "lvf"):
+            activation_plan = {}
         unplaced_models = []
         for model_name in sorted_inactive_models:
             model_memory_required = (
@@ -1150,6 +1268,9 @@ class SimpleGlobalPolicy(GlobalPolicy):
             evictions = self._throughput_swaps(
                 unplaced_models, model_queues, gpu_to_active_instances, idle_instance_keys, gpu_available_memory
             )
+            preempt = self.SWAP_PREEMPT
+            drain_timeout = self.SWAP_DRAIN_TIMEOUT if self.SWAP_DRAIN else None
+        elif self.EVICTION in ("edf", "lvf"):
             preempt = self.SWAP_PREEMPT
             drain_timeout = self.SWAP_DRAIN_TIMEOUT if self.SWAP_DRAIN else None
         elif self.EVICTION != "idle":
