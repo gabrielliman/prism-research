@@ -81,8 +81,17 @@ Commits:
 ### 0.8 Infraestrutura
 
 - Polyaxon (`kunumi/hpc4ai`), imagem do `install.md` (SGLang 0.3.4 do Prism + kvcached + Redis), uma H200 por job, até 8 H200 disponíveis.
-- Manter o limite de jobs simultâneos (hoje 6) e a verificação de saúde do nó antes de cada nível (R2.4). Se jobs simultâneos interferirem entre si (detectado pelo validador), reduzir o paralelismo e registrar a decisão.
+- **No máximo 3 jobs do Prism simultâneos no nó**, contando todas as sessões. Em 30/10, com 4 jobs, 38% dos níveis tiveram erro do driver no kvcached, e com 5 ou mais, 71–79% (`reports/2026-10-30 Variação de desempenho do nó GPU do cluster.md`). Mesmo com 3 jobs, a disputa de CPU distorce a cauda do TPOT (D21).
+- Manter a verificação de saúde do nó antes de cada nível (R2.4). Se jobs simultâneos interferirem entre si (detectado pelo validador), reduzir o paralelismo e registrar a decisão.
 - Toda campanha registra a versão do código (hash do commit), a imagem e as variáveis de ambiente efetivas.
+
+### 0.9 Relevância da carga antes de rodar
+
+Antes de submeter qualquer execução ao Polyaxon, o agente justifica, para cada carga, **por que ela exercita o que está sendo mudado**. Por exemplo, uma política de residência só se testa em carga com disputa por residência, ou seja, com ativações e despejos. Também verifica se já existem dados reaproveitáveis.
+
+- Cargas que não exercitam a mudança ficam fora e são registradas como tal.
+- Execuções de linha de base reaproveitáveis não são refeitas sem motivo. Os motivos válidos são deriva do nó, código diferente ou pareamento exigido pela comparação.
+- A justificativa vai para o relatório da fase, na seção "Configurações executadas".
 
 ---
 
@@ -106,7 +115,8 @@ O agente deve confirmar cada item em F0 em vez de assumir.
 | F0 | Reconhecimento e reprodução da linha de base | — | [HUMANO] | nov/2026 |
 | F1 | Fechar a robustez restante | F0 | automático | nov/2026 |
 | F2 | Instrumentação, validador e estimadores | F1 | [HUMANO] | nov–dez/2026 |
-| F3 | Catálogo de cargas | F2 | [HUMANO] | dez/2026–jan/2027 |
+| **F6a** | **Primeira rodada das políticas por prazo (A2.1, A9.1), adiantada (D24)** | F2 | [HUMANO] | **nov/2026 (prioridade atual)** |
+| F3 | Catálogo de cargas | F2, F6a | [HUMANO] | dez/2026–jan/2027 |
 | F4 | Restrições estruturais (A1) | F3 | automático | jan/2027 |
 | F5 | Campanha de linhas de base sob a nova metodologia | F4 | [HUMANO] | jan–fev/2027 |
 | F6 | Ativação e despejo por folga (A2, A3, A4) e por atraso virtual (A9) | F5 | [HUMANO] | mar–jun/2027 |
@@ -115,6 +125,12 @@ O agente deve confirmar cada item em F0 em vez de assumir.
 | F9 | Oráculo offline (A8) | F2, F3 | [HUMANO] | jan–abr/2027 (em paralelo) |
 | F10 | Campanha final de avaliação | F6–F9 | [HUMANO] | jul–set/2027 |
 | F11 | Consolidação para artigos e dissertação | F10 | [HUMANO] | set/2027 em diante |
+
+**Reordenação de 2026-11-04 (D24, Gabriel):**
+- antes da F3, entra a F6a, uma primeira rodada das duas políticas por prazo mais simples, só com as cargas atuais;
+- as tarefas da F6a passam na frente de qualquer outra;
+- o restante da F6 (A2.2, A2.3, A3, A4, A9.2) continua depois da F5, como antes;
+- a F3 começa depois do gate da F6a.
 
 Marcos externos: F0–F5 sustentam o artigo de resultados parciais (metodologia de sobrecarga + fragilidades + linhas de base), com submissão prevista para fevereiro de 2027 (EuroMLSys) ou maio–junho de 2027 (SBAC-PAD). F10 sustenta o artigo final (EuroSys 2028, setembro de 2027, ou MLSys 2028, outubro de 2027).
 
@@ -372,6 +388,14 @@ O SLO fixo usado até aqui (TTFT < 1 s e TPOT < 100 ms para todos os modelos e r
 | S4 | Classes por requisição | interativa: S2 com `k_T` baixo; lote: S2 com `k_T` alto ou absoluto folgado | interativa: `k_D` baixo; lote: sem limite de TPOT | carga C9 e política A7 |
 | S5 | Heterogêneo por modelo | `k_T` sorteado ou definido por modelo (ex.: modelos pequenos estritos, grandes folgados) | idem com `k_D` | provedores com SLOs diferentes por modelo |
 
+**Revisão depois do gate da F2 (D20–D23):**
+- **Base do S2:** não é mais `TTFT_iso`/`TPOT_iso`. É a carga do próprio modelo em GPU dedicada, como no artigo do Prism, juntando os modelos idênticos da carga: S2 sobre o P95 e S2M sobre a mediana (`reports/registro/latencia_ref.md`). O S2 não depende mais de `L_r`.
+- **Níveis aprovados:**
+  - S2: `k_T ∈ {2, 5, 10, 25}`, `k_D ∈ {1,5; 2; 3; 5}`;
+  - S2M: `k_T ∈ {5, 10, 25, 50}`, `k_D ∈ {3, 5, 10, 20}`;
+  - S3: `k_A ∈ {2, 5, 10, 25, 50}`.
+- As tabelas e os níveis iniciais abaixo ficam como registro do plano original.
+
 **Níveis iniciais** (ajustáveis no gate de F2, com o motivo registrado): `k_T ∈ {2, 5, 10, 25, 50}`, `k_D ∈ {1,5; 2; 3; 5}`, `k_A ∈ {0,5; 1; 2; 5}`. TTFT e TPOT variam **separadamente** (uma grade, não uma diagonal), porque estressam mecanismos diferentes: o TTFT depende de residência e fila, o TPOT depende da pressão de KV e da partilha de computação entre modelos residentes.
 
 **Regra de economia de execuções (importante).**
@@ -439,6 +463,86 @@ O SLO fixo usado até aqui (TTFT < 1 s e TPOT < 100 ms para todos os modelos e r
 
 **Gate [HUMANO]** (o Gabriel decide, a partir da observação 4.0 e das curvas de F2.12: a família principal de SLO, os níveis de `k_T`, `k_D` e `k_A`, e os SLOs das classes interativa e de lote).
 
+### F6a — Primeira rodada das políticas por prazo (A2.1 e A9.1), adiantada (D24)
+
+**Objetivo:** responder cedo à pergunta central da F6, com as duas políticas mais simples e só as cargas atuais: escolher quem entra na GPU pela folga, ou pelo atraso acumulado, melhora o SLO em relação às linhas de base?
+- **A2.1** é "folga primeiro" (EDF entre modelos).
+- **A9.1** é "atraso primeiro" (Virtual Lag Time do SuperInfer). Não usa estimadores.
+
+**Escopo (decidido com o Gabriel em 2026-11-04):**
+- **Entram:**
+  - A2.1 e A9.1;
+  - A1.1 (reserva mínima de KV) e A1.3 (residência mínima `T_min`), como opções que as duas usam;
+  - o ciclo do controlador como fator: 5 s (padrão) e 1 s (`PRISM_SCHEDULE_INTERVAL`).
+- **Ficam fora:**
+  - A1.2 (detector de impasse), que fica para a F4;
+  - A2.2, A2.3, A3, A4 e A9.2, que ficam para a F6;
+  - A5 e A6, que ficam para a F7;
+  - cargas novas, que ficam para a F3.
+
+**Tarefas**
+- **F6a.1 Prazo por requisição no gerador.**
+  - `overload_load.py --slo-spec <família:nível>` calcula o `slo_ttft`/`slo_tpot` de cada requisição pela mesma regra do `slo_metrics.py`, com as bases de `latencia_ded.json`, e envia o prazo ao servidor;
+  - as métricas usam a mesma especificação;
+  - o padrão (`--slo-ttft 1`) não muda.
+- **F6a.2 Funções puras de decisão.**
+  - ficam em `python/sglang/multi_model/scheduling/policy/deadline.py`, no formato `edf_select(...)` e `lvf_select(...)` → `(vítimas, ativações)`;
+  - o `simple_global.py` monta o retrato do estado e aplica as ações, o que adianta a refatoração pendente da F0;
+  - variáveis:
+    - `PRISM_EVICTION=edf | lvf`, com o padrão `idle` inalterado;
+    - `PRISM_EDF_FLOOR`, o piso de folga;
+    - `PRISM_LVF_ALPHA` (3), `PRISM_LVF_BETA_F` (0,5), `PRISM_LVF_BETA_B` (0) e `PRISM_LVF_BUDGET` (1);
+    - `PRISM_KV_RESERVE_REQS` (`b` da A1.1; 0 = desligado);
+    - `PRISM_MIN_RESIDENCY` (`T_min` da A1.3; 0 = desligado);
+  - os parâmetros escolhidos vão para `decisoes.md`.
+- **F6a.3 Testes unitários** em `tests/policy/` (seção 0.6), cobrindo:
+  - tudo cabe, então nenhuma troca;
+  - fome do C1, troca de grupo do C2 e impasse do C3;
+  - fila inviável ignorada pela A2.1;
+  - modelo rotativo com `α` alto vencendo um em espera;
+  - orçamento de ativações esgotado;
+  - vítima com residência abaixo de `T_min`;
+  - memória exatamente no limite.
+- **F6a.4 Logs:** toda decisão das duas políticas vai para o log de decisões da F2, com a folga ou o VLT de cada modelo.
+- **F6a.5 Smoke test:** 1 nível de A2.1 e 1 de A9.1 no C1, validados pelo validador.
+- **F6a.6 Triagem** (seção 0.9: só cargas com disputa por residência). Ver a tabela abaixo.
+- **F6a.7 Confirmação**, só para o que passar na triagem:
+  - 5 repetições pareadas na mesma janela, contra A0.1 e a melhor linha de base da triagem;
+  - mais o C2 como controle, para verificar que nada piora num caso que o limiar curto já resolve.
+- **F6a.8 Relatório** `reports/fases/F06a_prazo_primeira_rodada.md`.
+
+**Cargas da triagem e por quê** (ativações por execução em outubro, com A0.1 / A0.3):
+
+| Carga | Entra? | Motivo |
+| --- | --- | --- |
+| C1 `ovl_mem` 0,2 | sim | É fome sem ociosidade (4 / 38 ativações). O limiar nunca despeja, e rodar por throughput piora de 64% para 24%. Pergunta: uma rotação guiada por prazo é melhor que não rodar? |
+| T1 `ovl_trace_big` ts1 | sim | É o trace real do Prism, com popularidade desigual (12 / 65 ativações). As linhas de base empatam em 78–80%, e é aqui que "folga primeiro" × "atraso primeiro" deve se diferenciar. |
+| C2 `ovl_phases` 0,5 | só na confirmação | Problema previsível, já resolvido pelo limiar curto (87%). Serve de controle de não piora. |
+| C3 `ovl_mix` | não | Impasse estrutural: quem resolve é a A1.1, não a política de prazo. Misturaria os efeitos e fica para a F4. |
+| C4 `ovl_kv`, C5 `ovl_compute` | não | Zero ativações: todos os modelos cabem, e uma política de residência não tem o que decidir. |
+
+**Matriz da triagem:** C1 e T1, 2 repetições, no máximo 3 jobs simultâneos.
+
+| Grupo | Configurações | Níveis de SLO | Níveis de carga |
+| --- | --- | --- | --- |
+| Linhas de base, rodadas de novo para parear na mesma janela | A0.1, A0.2, A0.3, `fair` | uma execução vale para todas as famílias | 4 × 2 cargas × 2 rep. = 16 |
+| Novas | A2.1, A9.1 | S2 `k_T` = 10 (estrito), S2 `k_T` = 25 (folgado), S3 `k_A` = 5. O `k_D` só entra nas métricas, porque as políticas decidem pelo TTFT | 2 × 3 × 2 × 2 = 24 |
+| Ciclo de 1 s | A2.1, A9.1 no melhor nível de SLO de cada uma | — | 2 × 2 × 2 = 8 |
+
+São 48 níveis no total.
+- Os prazos de TTFT do 8B no S2 com `k_T = 10` (0,6–1,2 s) ficam abaixo de `Ĉ_at` (~1,4 s). No S2 com `k_T = 25` (1,6–3,1 s) e no S3 com `k_A = 5`, ficam acima. Assim a triagem cobre os dois lados da observação 4.0.
+- **Sinal na triagem:** diferença maior que ~8 pontos na vista combinada ou na só TTFT, em relação à melhor linha de base da mesma campanha. Esse é o tamanho da deriva entre períodos.
+- **Regressão:** o A0.1 da triagem é comparado com 28/10 e com a F1, dentro dessa deriva. Com o padrão `idle`, o código novo não é executado.
+
+**Critérios de aceitação**
+- Testes unitários passando.
+- Smoke test e níveis da triagem válidos pelo validador.
+- Resultados nas três vistas da seção 7.1, com a decomposição das violações e a separação evitável × inevitável.
+- Toda diferença grande explicada pelos logs de decisão.
+- Na confirmação, o IC 95% pareado por semente, como na F6.
+
+**Gate [HUMANO]** depois da triagem (o Gabriel decide o que vai para a confirmação) e depois da confirmação.
+
 ### F3 — Catálogo de cargas
 
 **Tarefas**
@@ -476,6 +580,7 @@ As linhas de base não usam o SLO, então cada execução desta campanha gera as
 ### F6 — Ativação e despejo por folga (A2, A3, A4) e por atraso virtual (A9)
 
 **Tarefas**
+- (A2.1 e A9.1, com A1.1 e A1.3, vêm da F6a.)
 - F6.1 Implementar A2.1, A2.2, A2.3 com testes unitários (incluindo os estados de fome de C1 e de troca de grupo de C2).
 - F6.2 Implementar A3.1–A3.3 com testes unitários (incluindo escolha de vítimas e drenar × preemptar).
 - F6.3 Implementar A4 combinando A1, A2 e A3.
