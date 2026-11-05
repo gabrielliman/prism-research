@@ -1,0 +1,5 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/A0.1/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6a-tri/cyc1-c1-1,1507c2a3c87145c2b1e41f296f64d443,cyc1-c1-1/outputs/A0.1/ovl_mem/rate0.2,VALIDA,,,2026-11-05 01:21:38,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.2/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6a-tri/cyc1-c1-1,1507c2a3c87145c2b1e41f296f64d443,cyc1-c1-1/outputs/A0.2/ovl_mem/rate0.2,VALIDA,,,2026-11-05 01:43:51,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/edf1s_S2k25/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6a-tri/cyc1-c1-1,1507c2a3c87145c2b1e41f296f64d443,cyc1-c1-1/outputs/edf1s_S2k25/ovl_mem/rate0.2,VALIDA,,,2026-11-05 01:33:41,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/lvf1s_S3k5/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6a-tri/cyc1-c1-1,1507c2a3c87145c2b1e41f296f64d443,cyc1-c1-1/outputs/lvf1s_S3k5/ovl_mem/rate0.2,VALIDA,,,2026-11-05 01:54:26,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK

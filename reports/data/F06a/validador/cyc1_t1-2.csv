@@ -1,0 +1,5 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/A0.1/ovl_trace_big/ts1,/mnt/scratch/scheduler/prism-raw/F6a-tri/cyc1-t1-2,dc046edfde3f44c99071d9ee5e423fc9,cyc1-t1-2/outputs/A0.1/ovl_trace_big/ts1,VALIDA,,,2026-11-05 02:50:46,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.2/ovl_trace_big/ts1,/mnt/scratch/scheduler/prism-raw/F6a-tri/cyc1-t1-2,dc046edfde3f44c99071d9ee5e423fc9,cyc1-t1-2/outputs/A0.2/ovl_trace_big/ts1,VALIDA,,,2026-11-05 03:23:55,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/edf1s_S2k10/ovl_trace_big/ts1,/mnt/scratch/scheduler/prism-raw/F6a-tri/cyc1-t1-2,dc046edfde3f44c99071d9ee5e423fc9,cyc1-t1-2/outputs/edf1s_S2k10/ovl_trace_big/ts1,VALIDA,,,2026-11-05 03:08:08,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/lvf1s_S3k5/ovl_trace_big/ts1,/mnt/scratch/scheduler/prism-raw/F6a-tri/cyc1-t1-2,dc046edfde3f44c99071d9ee5e423fc9,cyc1-t1-2/outputs/lvf1s_S3k5/ovl_trace_big/ts1,VALIDA,,,2026-11-05 03:39:45,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK

@@ -1,0 +1,3 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/edf_S3k5/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6a/smoke,d8eed798eb23497796dbad295cd3692a,smoke/outputs/edf_S3k5/ovl_mem/rate0.2,VALIDA,,,2026-11-04 21:58:51,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/lvf_S3k5/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6a/smoke,d8eed798eb23497796dbad295cd3692a,smoke/outputs/lvf_S3k5/ovl_mem/rate0.2,VALIDA,,,2026-11-04 22:06:58,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
