@@ -1,0 +1,1264 @@
+# base commit d6afc63174f2a541f1670abc4d3b93a85b287ee0
+diff --git a/TODO.md b/TODO.md
+index 01a1719..16f61d3 100644
+--- a/TODO.md
++++ b/TODO.md
+@@ -67,9 +67,10 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
+ - [x] F3.13 Relatório F03 com a proposta de conjunto de cargas (2026-11-05, reports/fases/F03_cargas.md; gate APROVADO em 2026-11-05, D29)
+ 
+ ## F4 — Restrições estruturais (A1) · gate automático
+-- [ ] F4.1 A1.1 reserva mínima de KV na ativação + testes unitários
+-- [ ] F4.2 A1.2 detector de impasse + testes unitários
+-- [ ] F4.3 A1.3 histerese mínima de residência + testes unitários
++- [x] F4.1 A1.1 reserva mínima de KV na ativação + testes unitários (2026-11-05, `policy/structural.py` + `_activation_need_gb` em toda estratégia, soma o piso de 5% do kvcached; `tests/policy/test_structural.py`; D34)
++- [x] F4.2 A1.2 detector de impasse + testes unitários (2026-11-05, `PRISM_DEADLOCK_S`, relógio pelos `served_tokens`, vítima pelo critério da A0.3, com preempção; `tests/policy/test_structural.py`; D34)
++- [x] F4.3 A1.3 histerese mínima de residência + testes unitários (2026-11-05, `PRISM_MIN_RESIDENCY` em todo caminho de despejo; `tests/policy/test_structural.py`; D34)
++- [x] F4.3b Smoke: C6 (A0.1, A0.3) e C1 com 14 modelos, com A1 (2026-11-05, job `cbb45bf8`, 3/3 VALIDA, T1 0/0/34 s; C6 atende 1193/1193 nas duas; C1n14 57%, sem congelar, 2 disparos da A1.2, fome da A0.1 nos modelos 12–14; `reports/data/F04/validador/smoke.csv`)
+ - [ ] F4.4 Campanha: C3, C1 (8 e 14 modelos), C2, T1 × {A0.1, A0.3} × {sem, com A1}, 5 repetições
+ - [ ] F4.5 Zero impasses; sem piora significativa nos cenários sem impasse
+ - [ ] F4.6 Parâmetros `b`, `Δ_imp`, `T_min` registrados; relatório F04
+diff --git a/docs/agent/code-map.md b/docs/agent/code-map.md
+index 18f6db5..8763309 100644
+--- a/docs/agent/code-map.md
++++ b/docs/agent/code-map.md
+@@ -44,7 +44,7 @@ multi_model_server.py ─ endpoint.py / request_handler*.py   frontend: receives
+ | `controller_global.py` | Global controller. Builds the policy (`--policy simple-global` → `SimpleGlobalPolicy`, around line 143), runs `run_scheduling_loop`, executes actions, and handles GPU scheduler events (`handle_model_events`: `model_lost`, `model_activated`, `model_service_lost`) |
+ | `policy/base.py`, `policy/base_global.py` | Abstract `BasePolicy` / `GlobalPolicy` with `gen_actions(...)` |
+ | `policy/simple_global.py` | **The only policy.** Prism's original algorithm plus our eviction strategies (`PRISM_EVICTION`). See [policies.md](policies.md) |
+-| `action.py` | `ActivateAction`, `DeactivateAction` (preempt, drain_timeout), `ResizeAction`: what a policy returns |
++| `action.py` | `ActivateAction`, `DeactivateAction` (preempt), `ResizeAction`: what a policy returns |
+ | `state.py` | `ModelInstanceState`, `ModelState` (ACTIVE / INACTIVE / ACTIVATING / DEACTIVATING) |
+ | `model_queue_tracker.py` | Per-model queue (`waiting_reqs`, running, `served_tokens`, last arrival/finish): the policy's input |
+ | `estimators.py` | Pure estimators for the deadline-aware policies (F2): activation cost Ĉ_at, prefill p̂, queue q̂_r, rate λ̂. Coefficients in `reports/data/F02/cat/cat_model.json` and `reports/registro/latencia_ref.json` |
+@@ -54,7 +54,7 @@ multi_model_server.py ─ endpoint.py / request_handler*.py   frontend: receives
+ 
+ ## `python/sglang/srt/`: SGLang files Prism changed
+ 
+-`managers/scheduler.py` (worker loop, activate/deactivate handling, drain, R2.2 `PrefillKVFull` retry, R2.5 TTFT
++`managers/scheduler.py` (worker loop, activate/deactivate handling (preempt or finish the running batch, D30), R2.2 `PrefillKVFull` retry, R2.5 TTFT
+ fix in `process_batch_result_prefill`), `managers/tp_worker*.py`, `model_executor/worker_pool_model_runner.py`
+ (weight reservation, activation rollback → `ActivationOutOfMemory`), `model_executor/model_runner.py`,
+ `single_model_runner.py`, `mem_cache/memory_pool.py` (kvcached elastic pool), `server_args.py`, `utils.py`.
+diff --git a/docs/agent/glossary.md b/docs/agent/glossary.md
+index 5a426d2..3bca214 100644
+--- a/docs/agent/glossary.md
++++ b/docs/agent/glossary.md
+@@ -21,7 +21,7 @@ The reports are in Portuguese. Common words: *sobrecarga* = overload, *ociosidad
+ | **Level** | One load point in a step (`rate0.5`, `ts1`, `<level>_ded_<model>`): one fresh server, one directory |
+ | **Suite / config line** | A `polyaxon/configs/*_suite.tsv` file / one named configuration in it |
+ | **base / original / idle50** | Prism's published policy (`PRISM_EVICTION=idle`, threshold 50) |
+-| **tp_PxDy** | Throughput swap with preempt x (0/1) and drain y (0/1), e.g. `tp_P0D1` |
++| **tp_PxDy** | Throughput swap with preempt x (0/1) and drain y (0/1), e.g. `tp_P0D1`. Drain (D1) was removed on 2026-11-05 (D30); only P0/P1 remain, and old D1 runs are not comparable with new ones |
+ 
+ ## Workloads (`reports/registro/cargas.md`)
+ 
+diff --git a/docs/agent/policies.md b/docs/agent/policies.md
+index 02561b7..08112ed 100644
+--- a/docs/agent/policies.md
++++ b/docs/agent/policies.md
+@@ -43,7 +43,14 @@ and the `--policy` choices are in `multi_model_server_args.py` (around line 908,
+ | `pressure` | Also evicts the LRU model idle for at least `PRESSURE_MIN_IDLE` when an inactive model with requests doesn't fit | `PRISM_PRESSURE_MIN_IDLE` (2), `PRISM_PRESSURE_COOLDOWN` (10) |
+ | `adaptive` | Per-model threshold = K × p90 of its own inter-arrival gaps; under pressure, evicts the most overdue model | `PRISM_ADAPTIVE_K` (3), `PRISM_ADAPTIVE_MIN` (5) |
+ | `fair` | `pressure`, plus rotating out the longest-active model when someone has waited `FAIR_QUANTUM` | `PRISM_FAIR_QUANTUM` (30) |
+-| `throughput` | Swaps by tokens/s per GB, with aged demand, a margin, a minimum residency and a reservation | `PRISM_SWAP_MARGIN` (0.2), `PRISM_SWAP_MIN_RESIDENCY` (20), `PRISM_SWAP_AGING_S` (30), `PRISM_SWAP_PREEMPT` (P, 0/1), `PRISM_SWAP_DRAIN` (D, 0/1), `PRISM_SWAP_DRAIN_TIMEOUT` (15) |
++| `throughput` | Swaps by tokens/s per GB, with aged demand, a margin, a minimum residency and a reservation | `PRISM_SWAP_MARGIN` (0.2), `PRISM_SWAP_MIN_RESIDENCY` (20), `PRISM_SWAP_AGING_S` (30), `PRISM_SWAP_PREEMPT` (0/1). The timed drain (`PRISM_SWAP_DRAIN`, `PRISM_SWAP_DRAIN_TIMEOUT`) was removed (D30); setting it raises an error |
++
++Structural constraints A1 (F4, `policy/structural.py`; apply to every strategy, all off by default; D34):
++`PRISM_KV_RESERVE_REQS` (A1.1 `b`: activate only with KV for `b` mean-size requests **plus kvcached's 5% floor**,
++`PRISM_KV_FLOOR_FRAC`), `PRISM_DEADLOCK_S` (A1.2 `Δ_imp`: no token served for that long while an active model has
++waiting requests and nothing is in transition → evict the lowest-value active model with preemption; logged as
++`deadlock break for <model>` / decision-log note `deadlock`), `PRISM_MIN_RESIDENCY` (A1.3 `T_min`: no eviction of a
++model resident for less). F4 values: `b=4`, `Δ_imp=30`, `T_min=10`. Tests: `tests/policy/test_structural.py`.
+ 
+ Cross-cutting knobs: `PRISM_ACTIVATION_HEADROOM_GB` (default 0; extra GB beyond the weights needed to activate,
+ which avoids the ovl_mix freeze), `PRISM_ACTIVATION_ACCOUNTING` (default 1 = R2.1; 0 = Prism as published),
+@@ -63,7 +70,8 @@ It reuses Prism's activation, placement and migration logic and changes only *wh
+    that returns a list of `(victim ModelInstanceState, gpu_id, reason str)`. Skip instances already in
+    `idle_instance_keys`, and don't evict models that are still activating (`self.pending_activations`).
+ 3. Add a branch in step 3b of `gen_actions` (the `if self.EVICTION == "throughput": ... elif ...` block) and
+-   set `preempt` / `drain_timeout` for the resulting `DeactivateAction`s.
++   set `preempt` for the resulting `DeactivateAction`s. With `preempt=False` the not-yet-started requests go back
++   to the model's queue and the running batch finishes without a time limit; with `True` it is recomputed later (D30).
+ 4. Keep the `ACTION: deactivate ... Reason: <reason>` log line and the `self.dlog.action(...)` call.
+    `extract_ovl.py` parses those lines into `events.csv` with the regex
+    `Reason: (pressure eviction|fair rotation|throughput swap) for <model>` (around line 130). Use the form
+diff --git a/docs/agent/running-jobs.md b/docs/agent/running-jobs.md
+index a9fc6d8..90917c8 100644
+--- a/docs/agent/running-jobs.md
++++ b/docs/agent/running-jobs.md
+@@ -76,7 +76,7 @@ files are gitignored: `git add -f polyaxon/configs/<file>`.
+ # my_suite.tsv — what it tests, which decision/phase
+ base	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5
+ idle5	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_IDLE_THRESHOLD=5
+-tp_P0D1	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_EVICTION=throughput PRISM_SWAP_DRAIN=1 PRISM_ACTIVATION_HEADROOM_GB=3
++tp_P0	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+ ```
+ 
+ ### Steps (`PRISM_STEPS`, space- or comma-separated)
+diff --git a/docs/agent/testing.md b/docs/agent/testing.md
+index dd255f9..2bf8088 100644
+--- a/docs/agent/testing.md
++++ b/docs/agent/testing.md
+@@ -9,6 +9,8 @@ PY=/mnt/scratch/scheduler/opt-env/bin/python
+ $PY -m unittest tests/controller/test_decision_log.py      # policy + decision log, SGLang stubbed out (2 tests)
+ $PY -m unittest tests/controller/test_estimators.py        # estimators.py on hand-built inputs (7 tests)
+ $PY -m unittest tests/robustness/test_model_service_alive.py  # P12 model-service PID liveness (5 tests)
++$PY -m unittest tests/policy/test_deadline.py tests/policy/test_structural.py  # F6a A2.1/A9.1, F4 A1.1-A1.3
++KVCACHED_SRC=/mnt/scratch/scheduler/kvcached $PY test/multi-model/test_memory_robustness.py  # from a worktree, or all 8 skip
+ $PY test/multi-model/test_memory_robustness.py             # memory arbiter + kvcached fixes, simulated device (8 tests)
+ $PY tests/controller/bench_decision_log.py                 # cost per cycle of the decision log (benchmark, not a test)
+ ```
+diff --git a/polyaxon/extract_ovl.py b/polyaxon/extract_ovl.py
+index 10afde8..7933471 100644
+--- a/polyaxon/extract_ovl.py
++++ b/polyaxon/extract_ovl.py
+@@ -9,6 +9,7 @@ For each level <outputs>/<step>/rate<r>/ (ts<s>/ for ovl_trace) writes <dest>/<N
+   events.csv    t, source, kind, model, value; from the logs:
+                   controller   activate (ACTION), evict (idle eviction), evict_pressure / evict_fair
+                                evict_swap / evict_edf / evict_lvf (PRISM_EVICTION strategies; value = the waiting model it made room for),
++                               evict_deadlock (F4 A1.2 impasse detector; value = the active model it unblocks),
+                                no_fit (No suitable GPU found),
+                                free_mem (free GPU memory the controller saw, GB)
+                   gpu_sched    act_req / act_ok / deact_ok (activation requests and completions),
+@@ -127,9 +128,9 @@ def events(level_dir, t0):
+             rows.append((t, "controller", "activate", m.group(1), ""))
+         elif m := re.search(r"ACTION: deactivate (\S+?):\d+ .*idle instance eviction", line):
+             rows.append((t, "controller", "evict", m.group(1), ""))
+-        elif m := re.search(r"ACTION: deactivate (\S+?):\d+ .*Reason: (pressure eviction|fair rotation|throughput swap|edf rotation|lvf rotation) for (\S+)", line):
++        elif m := re.search(r"ACTION: deactivate (\S+?):\d+ .*Reason: (pressure eviction|fair rotation|throughput swap|edf rotation|lvf rotation|deadlock break) for (\S+)", line):
+             kind = {"pressure eviction": "evict_pressure", "fair rotation": "evict_fair", "edf rotation": "evict_edf",
+-                    "lvf rotation": "evict_lvf"}.get(m.group(2), "evict_swap")
++                    "lvf rotation": "evict_lvf", "deadlock break": "evict_deadlock"}.get(m.group(2), "evict_swap")
+             rows.append((t, "controller", kind, m.group(1), m.group(3)))
+         elif m := re.search(r"No suitable GPU found for inactive model (\S+)", line):
+             rows.append((t, "controller", "no_fit", m.group(1), ""))
+diff --git a/polyaxon/ovl_plots.py b/polyaxon/ovl_plots.py
+index 385e467..5b47858 100644
+--- a/polyaxon/ovl_plots.py
++++ b/polyaxon/ovl_plots.py
+@@ -30,12 +30,13 @@ EV = {  # log events: color, marker, label
+     "evict_swap": ("#008300", "v", "troca por throughput/GB"),
+     "evict_edf": ("#d55181", "v", "rodízio por folga (A2.1 EDF)"),
+     "evict_lvf": ("#8f4ad6", "v", "rodízio por atraso virtual (A9.1 LVF)"),
++    "evict_deadlock": ("#b3261e", "v", "despejo pelo detector de impasse (A1.2)"),
+     "kv_oom": (ERRO, "x", "kvcached sem memória (ativação falhou)"),
+     "model_lost": ("#c98500", "X", "modelo perdido (ativação falhou ou worker morto)"),
+     "kv_refused": ("#6da7ec", "|", "KV recusado pelo árbitro (sem queda)"),
+     "oom": (ERRO, "X", "worker sem memória (torch OOM)"),
+ }
+-DESPEJOS = ("evict", "evict_pressure", "evict_fair", "evict_swap", "evict_edf", "evict_lvf")
++DESPEJOS = ("evict", "evict_pressure", "evict_fair", "evict_swap", "evict_edf", "evict_lvf", "evict_deadlock")
+ SLOS_TTFT = (1, 2, 5)  # s; extra TTFT-only SLO columns of metricas()
+ PESOS_8B_GB = 15.0
+ 
+diff --git a/python/sglang/multi_model/scheduling/action.py b/python/sglang/multi_model/scheduling/action.py
+index 926b8db..394d262 100644
+--- a/python/sglang/multi_model/scheduling/action.py
++++ b/python/sglang/multi_model/scheduling/action.py
+@@ -81,7 +81,6 @@ class DeactivateAction(BaseAction):
+     preempt: bool = True
+     preempt_mode: str = "RECOMPUTE"
+     evict_waiting_requests: bool = False
+-    drain_timeout: Optional[float] = None  # serve the accepted requests up to this long first (Prism drain)
+ 
+     def execute(
+         self, url: str, model_instance_state_dict: Dict[str, List[ModelInstanceState]]
+diff --git a/python/sglang/multi_model/scheduling/policy/simple_global.py b/python/sglang/multi_model/scheduling/policy/simple_global.py
+index 8b61794..e5ebf6f 100644
+--- a/python/sglang/multi_model/scheduling/policy/simple_global.py
++++ b/python/sglang/multi_model/scheduling/policy/simple_global.py
+@@ -7,7 +7,7 @@ from collections import defaultdict, deque
+ 
+ from sglang.multi_model.scheduling.decision_log import DecisionLog
+ from sglang.multi_model.scheduling.estimators import activation_cost
+-from sglang.multi_model.scheduling.policy import deadline
++from sglang.multi_model.scheduling.policy import deadline, structural
+ from sglang.multi_model.scheduling.action import (
+     ActivateAction,
+     BaseAction,
+@@ -196,14 +196,15 @@ class SimpleGlobalPolicy(GlobalPolicy):
+         #   throughput  swap by tokens/s per GB: when a model with requests does not fit, evict the active models
+         #             (active for at least PRISM_SWAP_MIN_RESIDENCY s) serving the fewest tokens/s per GB they
+         #             occupy, if the waiting model's token demand, aged by its wait (PRISM_SWAP_AGING_S), beats
+-        #             their tokens/s by PRISM_SWAP_MARGIN. Victims are preempted (PRISM_SWAP_PREEMPT=1: running
+-        #             requests recomputed later) and/or drained first (PRISM_SWAP_DRAIN=1: serve their accepted
+-        #             requests for up to PRISM_SWAP_DRAIN_TIMEOUT s).
++        #             their tokens/s by PRISM_SWAP_MARGIN. Victims return their not-yet-started requests to the
++        #             model's queue and either preempt the running ones (PRISM_SWAP_PREEMPT=1: recomputed later)
++        #             or let them finish, without a time limit (PRISM_SWAP_PREEMPT=0). The timed drain
++        #             (PRISM_SWAP_DRAIN) was removed (D30).
+         #   edf       F6a/A2.1: which inactive model enters, and which active models leave for it, by deadline slack
+         #             (EDF between models); policy/deadline.py edf_select. Knobs PRISM_EDF_FLOOR, PRISM_EDF_BUDGET.
+         #   lvf       F6a/A9.1: by SuperInfer's virtual lag time (largest lag first); policy/deadline.py lvf_select.
+         #             Knobs PRISM_LVF_ALPHA, PRISM_LVF_BETA_F, PRISM_LVF_BETA_B, PRISM_LVF_BUDGET.
+-        #             Both: victims are deactivated as the throughput swap's (PRISM_SWAP_PREEMPT, PRISM_SWAP_DRAIN),
++        #             Both: victims are deactivated as the throughput swap's (PRISM_SWAP_PREEMPT),
+         #             only after PRISM_MIN_RESIDENCY s resident (A1.3), and a model needs PRISM_KV_RESERVE_REQS
+         #             requests' worth of KV on top of its weights to be activated (A1.1). The idle eviction (step 1)
+         #             still runs.
+@@ -216,8 +217,15 @@ class SimpleGlobalPolicy(GlobalPolicy):
+         self.LVF_BETA_F = float(os.environ.get("PRISM_LVF_BETA_F", 0.5))
+         self.LVF_BETA_B = float(os.environ.get("PRISM_LVF_BETA_B", 0))
+         self.LVF_BUDGET = int(os.environ.get("PRISM_LVF_BUDGET", 1))  # rotations in flight at once
++        # F4 structural constraints (policy/structural.py), for every PRISM_EVICTION strategy; all off by default.
+         self.KV_RESERVE_REQS = float(os.environ.get("PRISM_KV_RESERVE_REQS", 0))  # A1.1 b (0 = off)
++        # A1.1 also keeps the part of the GPU kvcached never maps for KV free (GPU_UTILIZATION = 0.95 in
++        # kvcached/slab_allocator.py); only with A1.1 on, so the default rule is unchanged.
++        self.KV_FLOOR_FRAC = float(os.environ.get("PRISM_KV_FLOOR_FRAC", 0.05))
++        self.KV_FLOOR_GB = self.KV_FLOOR_FRAC * gpu_mem if self.KV_RESERVE_REQS > 0 else 0.0
+         self.MIN_RESIDENCY = float(os.environ.get("PRISM_MIN_RESIDENCY", 0))  # A1.3 T_min in s (0 = off)
++        self.DEADLOCK_S = float(os.environ.get("PRISM_DEADLOCK_S", 0))  # A1.2 Δ_imp in s (0 = off)
++        self.deadlock = structural.DeadlockDetector(self.DEADLOCK_S)
+         # Ĉ_at = a + b·weights_gb + c·activations ahead (F2.3, reports/data/F02/cat/cat_model.json) and prefill
+         # p̂ = a + b·tokens (F2.10, reports/registro/latencia_ref.json, Llama-3.1-8B)
+         self.CAT_COEF = {"a": float(os.environ.get("PRISM_CAT_A", 0.4626)),
+@@ -229,8 +237,10 @@ class SimpleGlobalPolicy(GlobalPolicy):
+         self.SWAP_MIN_RESIDENCY = float(os.environ.get("PRISM_SWAP_MIN_RESIDENCY", 20))
+         self.SWAP_AGING_S = float(os.environ.get("PRISM_SWAP_AGING_S", 30))
+         self.SWAP_PREEMPT = os.environ.get("PRISM_SWAP_PREEMPT", "0") == "1"
+-        self.SWAP_DRAIN = os.environ.get("PRISM_SWAP_DRAIN", "0") == "1"
+-        self.SWAP_DRAIN_TIMEOUT = float(os.environ.get("PRISM_SWAP_DRAIN_TIMEOUT", 15))
++        for removed in ("PRISM_SWAP_DRAIN", "PRISM_SWAP_DRAIN_TIMEOUT"):
++            if os.environ.get(removed, "0") not in ("", "0"):
++                # an old suite would otherwise run a different configuration without noticing
++                raise ValueError(f"{removed} was removed (D30): a swap now only chooses PRISM_SWAP_PREEMPT=0/1")
+         self.SWAP_RESERVATION = 15.0  # s the swapped-in model keeps priority for the freed memory
+         self.DEMAND_WINDOW = 30.0  # s over which a waiting model's queued tokens count as its demand
+         self.served_history: DefaultDict[str, deque] = defaultdict(deque)  # (time, served_tokens) per model
+@@ -379,7 +389,8 @@ class SimpleGlobalPolicy(GlobalPolicy):
+             evictable_instances[gpu_id] = []
+             
+             for model_instance in active_instances:
+-                if model_instance.model_name in idle_models:
++                if model_instance.model_name in idle_models and self._resident_long_enough(
++                        model_instance.model_name, current_time):
+                     evictable_instances[gpu_id].append(model_instance)
+         
+         return evictable_instances
+@@ -432,7 +443,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+             (gpu_id, inst)
+             for gpu_id, insts in gpu_to_active_instances.items()
+             for inst in insts
+-            if (inst.model_name, inst.instance_idx) not in taken
++            if (inst.model_name, inst.instance_idx) not in taken and self._resident_long_enough(inst.model_name, now)
+         ]
+         victims = []
+         for model_name in unplaced_models:
+@@ -489,6 +500,16 @@ class SimpleGlobalPolicy(GlobalPolicy):
+             # until a window has passed since activation, divide by the window (no extrapolation)
+             self.served_tput[model_name] = (hist[-1][1] - n0) / max(now - t0, self.DEMAND_WINDOW / 2)
+ 
++    def _keep_value(self, name: str, queue: ModelQueueTracker) -> Tuple[float, float, float]:
++        """What keeping an active model is worth (A0.3's criterion, also A1.2's): tokens/s it served over the
++        window plus its own queued tokens over the window, per GB it occupies (weights + KV of its running
++        requests). Returns (per GB, tokens/s, GB)."""
++        tokens = sum((r.prompt_len or 0) + (r.output_len or 0) for r in queue.running_reqs)
++        mem = self._model_memory(name, tokens)
++        backlog = sum((r.prompt_len or 0) + (r.output_len or 0) for r in queue.waiting_reqs)
++        tput = self.served_tput.get(name, 0.0) + backlog / self.DEMAND_WINDOW
++        return tput / mem, tput, mem
++
+     def _throughput_swaps(
+         self,
+         unplaced_models: List[str],
+@@ -509,15 +530,10 @@ class SimpleGlobalPolicy(GlobalPolicy):
+                 name = inst.model_name
+                 if (name, inst.instance_idx) in taken:
+                     continue
+-                if now - self.active_since.get(name, now) < self.SWAP_MIN_RESIDENCY:
++                if now - self.active_since.get(name, now) < max(self.SWAP_MIN_RESIDENCY, self.MIN_RESIDENCY):
+                     continue
+-                queue = model_queues[name]
+-                tokens = sum((r.prompt_len or 0) + (r.output_len or 0) for r in queue.running_reqs)
+-                mem = self._model_memory(name, tokens)
+-                # what keeping it is worth: tokens/s it served plus its own queued work over the window
+-                backlog = sum((r.prompt_len or 0) + (r.output_len or 0) for r in queue.waiting_reqs)
+-                tput = self.served_tput.get(name, 0.0) + backlog / self.DEMAND_WINDOW
+-                candidates[gpu_id].append((tput / mem, tput, mem, inst))
++                density, tput, mem = self._keep_value(name, model_queues[name])
++                candidates[gpu_id].append((density, tput, mem, inst))
+         for cands in candidates.values():
+             cands.sort(key=lambda c: c[0])
+ 
+@@ -526,7 +542,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+         for model_name in sorted(unplaced_models, key=lambda m: -demand[m]):
+             if self.pressure_cooldown_until.get(model_name, 0) > now:
+                 continue
+-            need = self.model_weights_info[model_name]["model_size"] + self.ACTIVATION_HEADROOM + self.ACTIVATION_KV_GB
++            need = self._activation_need_gb(model_name, model_queues.get(model_name))
+             best = None
+             for gpu_id, cands in candidates.items():
+                 missing, freed, lost, picked = need - gpu_available_memory.get(gpu_id, 0.0), 0.0, 0.0, []
+@@ -1038,8 +1054,19 @@ class SimpleGlobalPolicy(GlobalPolicy):
+             return 0.0
+         reqs = (list(queue.waiting_reqs) + list(queue.running_reqs)) if queue else []
+         sizes = [(r.prompt_len or 0) + (r.output_len or 0) for r in reqs if r.prompt_len is not None]
+-        mean = sum(sizes) / len(sizes) if sizes else 1024.0
+-        return self.KV_RESERVE_REQS * mean * self.model_weights_info[model_name]["cell_size"] / (1 << 30)
++        return structural.kmin_gb(self.KV_RESERVE_REQS, sizes, self.model_weights_info[model_name]["cell_size"])
++
++    def _activation_need_gb(self, model_name: str, queue: Optional[ModelQueueTracker]) -> float:
++        """Free GB (after pending activations) needed to activate a model: weights + headroom + activation KV, and
++        with A1.1 the KV of b requests instead of the activation KV when larger, plus kvcached's floor."""
++        return structural.activation_need_gb(
++            self.model_weights_info[model_name]["model_size"], self.ACTIVATION_HEADROOM, self.ACTIVATION_KV_GB,
++            self._kv_reserve_gb(model_name, queue), self.KV_FLOOR_GB)
++
++    def _resident_long_enough(self, model_name: str, now: float) -> bool:
++        """A1.3: evictable only after PRISM_MIN_RESIDENCY s resident (always, with it off)."""
++        since = self.active_since.get(model_name)
++        return structural.resident_long_enough(None if since is None else now - since, self.MIN_RESIDENCY)
+ 
+     def _deadline_snapshot(
+         self,
+@@ -1069,7 +1096,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+             run_tokens = sum((r.prompt_len or 0) + (r.output_len or 0) for r in queue.running_reqs) if queue else 0
+             models[name] = deadline.ModelSnap(
+                 name=name, gpu=gpu,
+-                need_gb=weights + self.ACTIVATION_HEADROOM + max(self.ACTIVATION_KV_GB, self._kv_reserve_gb(name, queue)),
++                need_gb=self._activation_need_gb(name, queue),
+                 free_gb=self._model_memory(name, run_tokens),
+                 waiting=waiting, running=running,
+                 active_since=self.active_since.get(name) if gpu is not None else None,
+@@ -1102,10 +1129,9 @@ class SimpleGlobalPolicy(GlobalPolicy):
+                                      budget=self.LVF_BUDGET, min_residency=self.MIN_RESIDENCY)
+             dec = deadline.lvf_select(snap, params)
+         self.dlog.policy(self.EVICTION, dec.scores, in_flight=snap.in_flight, rotated_for=dec.rotated_for)
+-        reservation = self.SWAP_RESERVATION + (self.SWAP_DRAIN_TIMEOUT if self.SWAP_DRAIN else 0.0)
+         for name in dec.rotated_for:
+             self.pressure_cooldown_until[name] = now + self.PRESSURE_COOLDOWN
+-            self.swap_reservation_until[name] = now + reservation
++            self.swap_reservation_until[name] = now + self.SWAP_RESERVATION
+         for name in dec.unplaced:
+             logger.warning(f"No suitable GPU found for inactive model {name}")
+             self.dlog.note("no_fit", name, need_gb=snap.models[name].need_gb)
+@@ -1116,6 +1142,52 @@ class SimpleGlobalPolicy(GlobalPolicy):
+             logger.info(f"{self.EVICTION} score {name}: {score}")
+         return activation_plan, evictions
+ 
++    def _deadlock_check(
++        self,
++        model_queues: Dict[str, ModelQueueTracker],
++        model_instance_state_dict: Dict[str, List[ModelInstanceState]],
++        gpu_to_active_instances: Dict[int, List[ModelInstanceState]],
++        taken: Set[Tuple[str, int]],
++        acting: bool,
++    ) -> Optional[Tuple[ModelInstanceState, int, str]]:
++        """A1.2: advance the stall clock and, after PRISM_DEADLOCK_S s stalled, return the victim (instance, gpu,
++        reason). `acting`: this cycle already deactivates or activates a model, which is a transition."""
++        now = time.time()
++        served = float(sum(q.served_tokens for q in model_queues.values()))
++        active = {inst.model_name: (gpu_id, inst) for gpu_id, insts in gpu_to_active_instances.items() for inst in insts}
++        with_waiting = [m for m in active
++                        if any(not r.is_warmup for r in model_queues[m].waiting_reqs)]
++        moving = sum(1 for insts in model_instance_state_dict.values() for i in insts
++                     if i.state in (ModelState.ACTIVATING, ModelState.DEACTIVATING))
++        transitions = len(self.pending_activations) + moving + (1 if acting else 0)
++        stalled = self.deadlock.update(structural.StallInput(now=now, served_total=served,
++                                                             active_with_waiting=len(with_waiting),
++                                                             transitions=transitions))
++        if not self.deadlock.fired(stalled):
++            return None
++        cands = []
++        for name, (gpu_id, inst) in active.items():
++            density, _, _ = self._keep_value(name, model_queues[name])
++            since = self.active_since.get(name)
++            cands.append(structural.VictimCand(name=name, gpu=gpu_id, value_per_gb=density,
++                                               active_for_s=None if since is None else now - since,
++                                               excluded=(name, inst.instance_idx) in taken))
++        pick = structural.deadlock_victim(cands, self.MIN_RESIDENCY)
++        # the model it unblocks: the active one with the oldest waiting request
++        oldest = min(with_waiting, key=lambda m: model_queues[m].get_earliest_arrival_time())
++        state = {c.name: {"value_per_gb": round(c.value_per_gb, 3), "active_for_s": c.active_for_s,
++                          "waiting": model_queues[c.name].get_num_waiting_reqs(),
++                          "running": model_queues[c.name].get_num_running_reqs(), "excluded": c.excluded}
++                 for c in cands}
++        self.dlog.note("deadlock", pick.name if pick else None, stalled_s=stalled, served_tokens=served,
++                       unblocks=oldest, candidates=state)
++        logger.warning(f"Impasse detector (A1.2): no token for {stalled:.1f} s with {len(with_waiting)} active "
++                       f"models waiting; victim {pick.name if pick else None}; candidates {state}")
++        if pick is None:
++            return None
++        self.deadlock.reset(now)
++        return active[pick.name][1], pick.gpu, f"deadlock break for {oldest}"
++
+     def gen_actions(
+         self,
+         model_queues: Dict[str, ModelQueueTracker],
+@@ -1138,7 +1210,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+                 del self.active_since[model_name]
+         for model_name in active_models:
+             self.active_since.setdefault(model_name, time.time())
+-        if self.EVICTION == "throughput":
++        if self.EVICTION == "throughput" or self.deadlock.enabled:
+             self._update_tput(model_queues, active_models)
+         if self.dlog.enabled:
+             self.dlog.models(time.time(), model_queues, model_instance_state_dict, self.model_weights_info,
+@@ -1247,9 +1319,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
+             activation_plan = {}
+         unplaced_models = []
+         for model_name in sorted_inactive_models:
+-            model_memory_required = (
+-                self.model_weights_info[model_name]["model_size"] + self.ACTIVATION_HEADROOM + self.ACTIVATION_KV_GB
+-            )
++            model_memory_required = self._activation_need_gb(model_name, model_queues.get(model_name))
+             target_gpu = self._place_inactive_model(
+                 model_name, 0, model_memory_required,  # instance_idx doesn't matter here
+                 gpu_available_memory, sorted_clusters, model_queues, model_instance_state_dict
+@@ -1263,16 +1333,14 @@ class SimpleGlobalPolicy(GlobalPolicy):
+                 unplaced_models.append(model_name)
+ 
+         # 3b. Alternative eviction strategies (PRISM_EVICTION): free room for the models that did not fit
+-        preempt, drain_timeout = False, None
++        preempt = False
+         if self.EVICTION == "throughput":
+             evictions = self._throughput_swaps(
+                 unplaced_models, model_queues, gpu_to_active_instances, idle_instance_keys, gpu_available_memory
+             )
+             preempt = self.SWAP_PREEMPT
+-            drain_timeout = self.SWAP_DRAIN_TIMEOUT if self.SWAP_DRAIN else None
+         elif self.EVICTION in ("edf", "lvf"):
+             preempt = self.SWAP_PREEMPT
+-            drain_timeout = self.SWAP_DRAIN_TIMEOUT if self.SWAP_DRAIN else None
+         elif self.EVICTION != "idle":
+             evictions = self._pressure_evictions(
+                 unplaced_models, model_queues, gpu_to_active_instances, idle_instance_keys
+@@ -1290,11 +1358,24 @@ class SimpleGlobalPolicy(GlobalPolicy):
+                     preempt_mode="RECOMPUTE",
+                     evict_waiting_requests=True,
+                     gpu_id=gpu_id,
+-                    drain_timeout=drain_timeout,
+                 )
+             )
+             logger.info(f"ACTION: deactivate {victim.model_name}:{victim.instance_idx} on GPU {gpu_id}. Reason: {reason}")
+-            self.dlog.action("deactivate", victim.model_name, gpu_id, reason, preempt=preempt, drain_timeout=drain_timeout)
++            self.dlog.action("deactivate", victim.model_name, gpu_id, reason, preempt=preempt)
++
++        # 3c. A1.2 impasse detector (PRISM_DEADLOCK_S): after any strategy's own decisions
++        if self.deadlock.enabled:
++            victim = self._deadlock_check(model_queues, model_instance_state_dict, gpu_to_active_instances,
++                                          idle_instance_keys, bool(evictions) or bool(activation_plan))
++            if victim is not None:
++                inst, gpu_id, reason = victim
++                instance_key = (inst.model_name, inst.instance_idx)
++                idle_instance_keys.add(instance_key)
++                model_instance_to_action_dict.setdefault(instance_key, []).append(
++                    DeactivateAction(model_name=inst.model_name, instance_idx=inst.instance_idx, preempt=True,
++                                     preempt_mode="RECOMPUTE", evict_waiting_requests=True, gpu_id=gpu_id))
++                logger.info(f"ACTION: deactivate {inst.model_name}:{inst.instance_idx} on GPU {gpu_id}. Reason: {reason}")
++                self.dlog.action("deactivate", inst.model_name, gpu_id, reason, preempt=True)
+ 
+         end_inactive = time.time()
+ 
+diff --git a/python/sglang/srt/managers/io_struct.py b/python/sglang/srt/managers/io_struct.py
+index da7d225..48bf592 100644
+--- a/python/sglang/srt/managers/io_struct.py
++++ b/python/sglang/srt/managers/io_struct.py
+@@ -422,8 +422,6 @@ class DeactivateReqInput:
+     preempt: bool = False  # whether to preempt the ongoing requests
+     preempt_mode: str = PreemptMode.RETURN.name
+     gpu_id: Optional[int] = None
+-    # drain: serve the already accepted requests for up to this many seconds before the above apply
+-    drain_timeout: Optional[float] = None
+ 
+     rid: Optional[str] = None
+ 
+diff --git a/python/sglang/srt/managers/scheduler.py b/python/sglang/srt/managers/scheduler.py
+index 01f270c..9e92ba5 100644
+--- a/python/sglang/srt/managers/scheduler.py
++++ b/python/sglang/srt/managers/scheduler.py
+@@ -559,9 +559,9 @@ class Scheduler:
+             self.last_batch = None
+ 
+     @torch.inference_mode()
+-    def _run_to_completion_normal(self, deadline: Optional[float] = None, evict_stuck: bool = False):
+-        """Run the running batch and the waiting queue to completion. With a deadline (perf_counter time,
+-        Prism's drain before a swap), stop starting batches once it passes and leave the rest to the caller.
++    def _run_to_completion_normal(self, evict_stuck: bool = False):
++        """Run the running batch and the waiting queue to completion (no time limit; the timed drain before a
++        swap was removed, D30: a deactivation either preempts or lets what is already running finish).
+         With evict_stuck (the last step of a deactivation without preemption, P13): when nothing can run (no
+         running batch and no prefill possible, e.g. a request retracted by a decode OOM finds no KV because the
+         memory went to other models), send the waiting requests back to the model's frontend queue (they restart
+@@ -587,12 +587,6 @@ class Scheduler:
+                         result = self.run_batch(batch)
+                         self.process_batch_result(batch, result)
+             self.last_batch = batch
+-            if deadline is not None and time.perf_counter() >= deadline:
+-                logger.info(
+-                    f"Drain deadline reached, waiting queue size: {len(self.waiting_queue)}, "
+-                    f"running batch size: {0 if self.running_batch is None else len(self.running_batch.reqs)}"
+-                )
+-                return
+             batch = self.get_next_batch_to_run()
+             if (
+                 evict_stuck
+@@ -1784,15 +1778,8 @@ class Scheduler:
+         logger.info(
+             f"In handle deactivate request, waiting queue size: {len(self.waiting_queue)}. Running batch size: {0 if self.running_batch is None else len(self.running_batch.reqs)}, last batch size: {0 if self.last_batch is None else len(self.last_batch.reqs)}"
+         )
+-        if recv_req.drain_timeout is not None:
+-            # Drain (Prism eviction strategies): keep serving the requests this engine already accepted for up
+-            # to drain_timeout seconds; what is left is then handled as below (evict / preempt).
+-            if self.enable_overlap:
+-                logger.warning("Drain before deactivation is not implemented with the overlap scheduler")
+-            else:
+-                self._run_to_completion_normal(deadline=time.perf_counter() + recv_req.drain_timeout)
+-                logger.info(f"Drained for {time.perf_counter() - start_time:.2f} s")
+-
++        # The choice is only preempt or not (D30): the accepted requests that have not started go back to the
++        # model's frontend queue, and the running batch is either retracted or finishes, without a time limit.
+         if recv_req.evict_waiting_requests or (
+             recv_req.preempt and recv_req.preempt_mode == PreemptMode.RECOMPUTE
+         ):
+diff --git a/reports/registro/decisoes.md b/reports/registro/decisoes.md
+index 226ea62..b622a45 100644
+--- a/reports/registro/decisoes.md
++++ b/reports/registro/decisoes.md
+@@ -297,3 +297,21 @@ Opções e dados em `reports/fases/F02_instrumentacao.md` (seção "Decisão do
+    - Ressalva (agente): a seção 0.2 lista "travamento" como INVALIDA_SISTEMA. Vale para travamento de código (worker preso, driver), não para o T1.
+    - Para distinguir os dois, o T1 exige GPU cheia, 0% de uso e workers no ramo ocioso. Um travamento com outra assinatura (sobretudo nas políticas novas da F4 em diante) ainda é investigado como INVALIDA_SISTEMA.
+    - Todo relatório traz o tempo congelado T1 por nível.
++
++## D34 — Desenho da A1 e parâmetros `b`, `Δ_imp`, `T_min` (2026-11-05, agente, F4.1–F4.3; gate automático)
++
++Numeração: D30–D33 estão no registro do worktree `apresentacao-prazo` (ainda não commitado); a F4 começa em D34 para não colidir.
++
++- **A1.1 soma o piso do kvcached.** O kvcached nunca mapeia KV nos últimos 5% da GPU (`GPU_UTILIZATION = 0.95`, `kvcached/slab_allocator.py:_physical_free_size`; 7,2 GB numa H200). A conta do controlador (R2.1) não vê esse piso e ativa com `W + 1 GB`, ou seja, pode encher a GPU de pesos até ~1 GB livre, abaixo do piso: nenhum modelo recebe página de KV, e é o T1 (F1.1 já tinha concluído que "a A1.1 deve somar a reserva do kvcached"). Regra: ativar `m` só se `livre − ativações pendentes ≥ W_m + folga + max(KV de ativação, K_min(m)) + 0,05·GPU`. O piso só entra com a A1.1 ligada (`PRISM_KV_FLOOR_FRAC`, padrão 0,05); com `PRISM_KV_RESERVE_REQS=0` a regra é a de antes. A regra vale para toda estratégia (A0.1 `idle`, A0.3 `throughput`, `edf`/`lvf`); na F6a a A1.1 só existia no `edf`/`lvf` e estava desligada (D25), então nenhuma execução anterior muda de sentido.
++- **`b = 4`** (`PRISM_KV_RESERVE_REQS`): mediana do lote em execução por modelo residente com fila, nos níveis da A0.1 sem impasse (C1: 3–6; T1: 2–9; `reports/data/F04/calib/calib_niveis.tsv`, `polyaxon/f4_calib.py`). Com os tamanhos do Azure (prompt + saída ~1250 tokens) e o 8B (128 KiB/token), `K_min` ≈ 0,6 GB < 1 GB: o termo que pesa é o piso. Alternativas: `b = 8` (p75), `b = p90` (16–26, ~2,4–4 GB a mais por ativação, que tira residência de todos os modelos sem motivo medido).
++- **A1.2 pelo contador de tokens.** O detector olha a soma dos `served_tokens` (as engines informam a cada 1 s), não as conclusões: nos níveis sem impasse há trechos de até 281 s sem nenhuma conclusão (saídas longas, ciclos de retirada), mas a GPU nunca fica parada. O relógio só corre enquanto algum modelo ativo tem fila de espera e não há ativação nem desativação em andamento (nem ação da estratégia no mesmo ciclo). Vítima: o ativo de menor valor por GB pelo critério da A0.3 (`_keep_value`, o mesmo código), com residência ≥ `T_min`; empate: o ativo há mais tempo. Desativação com preempção (as requisições dele não progridem). Cada disparo vai para o log de decisões (`notes: deadlock`, com o estado de todos os candidatos) e para o log de texto (`Reason: deadlock break for <modelo>` → `evict_deadlock` no `events.csv`).
++- **`Δ_imp = 30 s`** (`PRISM_DEADLOCK_S`): nos 74 níveis VALIDA sem impasse, o trecho mais longo com GPU > 100 GB, 0% de uso e requisição pendente é 13 s; nos 7 com impasse, 433–1120 s. 30 s é > 2× o maior trecho normal e dispara em 30–35 s (ciclo de 5 s). Alternativas: 15 s (perto do normal), 60 s (perde 1 min de carga por impasse).
++- **`T_min = 10 s`** (`PRISM_MIN_RESIDENCY`), o valor da D25: acima do p99 do `Ĉ_at` do 8B (8,3 s). Vale para todo caminho de despejo (ociosidade, pressão, `fair`, troca por throughput com `max(PRISM_SWAP_MIN_RESIDENCY, T_min)`, `edf`/`lvf`, detector).
++- **O que conta como impasse no critério F4.5 (proposta para revisão do Gabriel):** nível com T1 congelado ≥ 60 s (métrica `t1_frozen_s` do validador). A distribuição observada é bimodal (≤ 13 s × ≥ 433 s), então o limiar não decide nenhum caso real. Não muda a classificação VALIDA do validador (D29, item 6).
++- **"Com A1"** = as três juntas (A1.1 + A1.2 + A1.3), como a F4.4 pede ("sem, com A1").
++
++## D35 — Base de código da F4: código da D30 trazido para este worktree (2026-11-05, agente)
++
++- A F4 compara A0.1 e A0.3 com e sem A1, e desde a D30 a A0.3 é a troca por throughput **sem** drenagem. O código da D30 (remoção da drenagem: `scheduler.py`, `io_struct.py`, `action.py`, `simple_global.py`, testes e docs) estava só no worktree `apresentacao-prazo`, sem commit.
++- O agente aplicou aqui só a parte de código e docs da D30 (diferença do worktree contra o commit `9d1768d`; 18 trechos, aplica sem conflito). Plano, TODO e decisões D30–D33 ficam no outro worktree, que ainda estava sendo editado.
++- Consequência: quando os dois ramos forem juntados, os trechos da D30 são idênticos dos dois lados.
+diff --git a/reports/registro/execucoes.csv b/reports/registro/execucoes.csv
+index e469db3..47f840c 100644
+--- a/reports/registro/execucoes.csv
++++ b/reports/registro/execucoes.csv
+@@ -90,3 +90,6 @@ e24c4752/T4/ovl_tr_azllm/ts1,2026-11-05 08:57:23,F03,9d1768d+diff,gabrielliman/p
+ e24c4752/T5/ovl_tr_burst/ts1,2026-11-05 09:17:49,F03,9d1768d+diff,gabrielliman/prism:sglang0.3.4-cu121,ovl_tr_burst,9476e33aaa181629,ts1,T5,"{""PRISM_IDLE_THRESHOLD"": ""50""}",0,,,42,1,NVIDIA H200,plx-operation-e24c475235d84d01b897da34404117b4-ss9fp,VALIDA,,,,prism-raw/F3-dry/dry-c/outputs/T5/ovl_tr_burst/ts1
+ 2cfa2343/T2/ovl_tr_lmsys/ts1,2026-11-05 11:08:07,F03,9d1768d+diff,gabrielliman/prism:sglang0.3.4-cu121,ovl_tr_lmsys,59ac14592e1ce780,ts1,T2,"{""PRISM_IDLE_THRESHOLD"": ""50""}",0,,,42,1,NVIDIA H200,plx-operation-2cfa2343923b403ebb4c015b6cb443e8-wkng8,VALIDA,,,,prism-raw/F3-dry/dry-d/outputs/T2/ovl_tr_lmsys/ts1
+ f722128d/C10/ovl_sizes/rate0.2,2026-11-05 11:38:14,F03,9d1768d+diff,gabrielliman/prism:sglang0.3.4-cu121,ovl_sizes,b72f0d9356dd5e66,rate0.2,C10,"{""PRISM_IDLE_THRESHOLD"": ""50"", ""PRISM_FD_TRACE"": ""1""}",0,,,42,1,NVIDIA H200,plx-operation-f722128d39a441c689d2babee03858d5-qq8wm,VALIDA,,,,prism-raw/F3-dry/dry-e/outputs/C10/ovl_sizes/rate0.2
++cbb45bf8/C1n14_A01_A1/ovl_mem/rate0.2,2026-11-05 13:40:14,F04,d6afc63+diff,gabrielliman/prism:sglang0.3.4-cu121,C1n14,b81e8e0c8e9e3664,rate0.2,C1n14_A01_A1,"{""PRISM_OVL_N"": ""14"", ""PRISM_IDLE_THRESHOLD"": ""50"", ""PRISM_KV_RESERVE_REQS"": ""4"", ""PRISM_DEADLOCK_S"": ""30"", ""PRISM_MIN_RESIDENCY"": ""10""}",0,,,42,1,NVIDIA H200,plx-operation-cbb45bf8766d4eb6b5cb71afc8c12d27-8tfdm,VALIDA,,,,prism-raw/F4/smoke/outputs/C1n14_A01_A1/ovl_mem/rate0.2
++cbb45bf8/C6_A01_A1/ovl_zipf/rate2,2026-11-05 13:13:00,F04,d6afc63+diff,gabrielliman/prism:sglang0.3.4-cu121,C6,19331633c0e55051,rate2,C6_A01_A1,"{""PRISM_IDLE_THRESHOLD"": ""50"", ""PRISM_KV_RESERVE_REQS"": ""4"", ""PRISM_DEADLOCK_S"": ""30"", ""PRISM_MIN_RESIDENCY"": ""10""}",0,,,42,1,NVIDIA H200,plx-operation-cbb45bf8766d4eb6b5cb71afc8c12d27-8tfdm,VALIDA,,,,prism-raw/F4/smoke/outputs/C6_A01_A1/ovl_zipf/rate2
++cbb45bf8/C6_A03_A1/ovl_zipf/rate2,2026-11-05 13:27:08,F04,d6afc63+diff,gabrielliman/prism:sglang0.3.4-cu121,C6,19331633c0e55051,rate2,C6_A03_A1,"{""PRISM_EVICTION"": ""throughput"", ""PRISM_SWAP_PREEMPT"": ""0"", ""PRISM_ACTIVATION_HEADROOM_GB"": ""3"", ""PRISM_KV_RESERVE_REQS"": ""4"", ""PRISM_DEADLOCK_S"": ""30"", ""PRISM_MIN_RESIDENCY"": ""10""}",0,,,42,1,NVIDIA H200,plx-operation-cbb45bf8766d4eb6b5cb71afc8c12d27-8tfdm,VALIDA,,,,prism-raw/F4/smoke/outputs/C6_A03_A1/ovl_zipf/rate2
+diff --git a/tests/policy/test_deadline.py b/tests/policy/test_deadline.py
+index 345eab9..3cb1739 100644
+--- a/tests/policy/test_deadline.py
++++ b/tests/policy/test_deadline.py
+@@ -252,23 +252,31 @@ class PolicyWiringTest(unittest.TestCase):
+             if k.startswith("PRISM_"):
+                 del os.environ[k]
+ 
+-    def test_edf_rotates_with_drain_and_logs(self):
++    def test_edf_rotates_without_preemption_and_logs(self):
+         with tempfile.TemporaryDirectory() as d:
+             path = os.path.join(d, "dec.jsonl")
+-            p = _policy("edf", 2.0, PRISM_SWAP_DRAIN="1", PRISM_MIN_RESIDENCY="10", PRISM_DECISION_LOG=path)
++            p = _policy("edf", 2.0, PRISM_MIN_RESIDENCY="10", PRISM_DECISION_LOG=path)
+             acts = _run(p, time.time())
+             rec = json.loads(open(path).read().splitlines()[0])
+         deact = [a for a in acts if type(a).__name__ == "DeactivateAction"]
+         self.assertEqual(len(deact), 1)
+         self.assertEqual(deact[0].model_name, "model_3")  # all equal urgency (+inf): active longest
+-        self.assertEqual((deact[0].preempt, deact[0].drain_timeout), (False, 15.0))
++        self.assertEqual((deact[0].preempt, deact[0].evict_waiting_requests), (False, True))
++        self.assertFalse(hasattr(deact[0], "drain_timeout"))  # D30: no timed drain
+         self.assertEqual(rec["policy"]["name"], "edf")
+         self.assertEqual(rec["policy"]["rotated_for"], ["model_4"])
+         self.assertEqual(rec["policy"]["scores"]["model_4"]["viable"], 2)
+         self.assertIn({"kind": "deactivate", "model": "model_3", "gpu": 0, "reason": "edf rotation for model_4",
+-                       "preempt": False, "drain_timeout": 15.0}, rec["actions"])
++                       "preempt": False}, rec["actions"])
+         self.assertTrue(p.swap_reservation_until["model_4"] > time.time())
+ 
++    def test_removed_drain_knobs_fail_loudly(self):
++        # D30: an old suite that still sets the timed drain must not run a different configuration silently
++        for knob in ("PRISM_SWAP_DRAIN", "PRISM_SWAP_DRAIN_TIMEOUT"):
++            with self.assertRaises(ValueError):
++                _policy("edf", 2.0, **{knob: "1"})
++        _policy("edf", 2.0, PRISM_SWAP_DRAIN="0")  # explicitly off is fine
++
+     def test_lvf_activates_when_it_fits(self):
+         p = _policy("lvf", 40.0)
+         acts = _run(p, time.time())
+@@ -276,11 +284,12 @@ class PolicyWiringTest(unittest.TestCase):
+ 
+     def test_kv_reserve_blocks_activation(self):
+         # 16.5 GB free: 15 + 1 fits; with A1.1 b = 8 requests of 800 tokens (8·800·128 KiB = 0.78 GB > 1 GB? no:
+-        # max(1, 0.78) = 1) it still fits; with b = 16 (1.56 GB) it does not
++        # max(1, 0.78) = 1) it still fits; with b = 16 (1.56 GB) it does not. K_min alone: kvcached's floor, which
++        # A1.1 adds since F4, is set to 0 here (tests/policy/test_structural.py covers it)
+         now = time.time()
+-        p = _policy("edf", 16.5, PRISM_KV_RESERVE_REQS="8")
++        p = _policy("edf", 16.5, PRISM_KV_RESERVE_REQS="8", PRISM_KV_FLOOR_FRAC="0")
+         self.assertEqual([a.model_name for a in _run(p, now) if type(a).__name__ == "ActivateAction"], ["model_4"])
+-        p = _policy("edf", 16.5, PRISM_KV_RESERVE_REQS="16")
++        p = _policy("edf", 16.5, PRISM_KV_RESERVE_REQS="16", PRISM_KV_FLOOR_FRAC="0")
+         self.assertEqual([a.model_name for a in _run(p, now) if type(a).__name__ == "ActivateAction"], [])
+ 
+     def test_default_is_unchanged_idle(self):
+diff --git a/tests/robustness/test_deactivate_evict_stuck.py b/tests/robustness/test_deactivate_evict_stuck.py
+index 798d4c4..fc0f250 100644
+--- a/tests/robustness/test_deactivate_evict_stuck.py
++++ b/tests/robustness/test_deactivate_evict_stuck.py
+@@ -63,12 +63,11 @@ class EvictStuckTest(unittest.TestCase):
+         with self.assertRaises(RuntimeError):
+             run_to_completion(Fake(), evict_stuck=True)
+ 
+-    def test_drain_is_unchanged(self):
+-        # the drain (deadline, evict_stuck False) never evicts by itself: it returns at the deadline
++    def test_without_evict_stuck_nothing_is_evicted(self):
++        # outside the deactivation's last step (evict_stuck False), an empty engine just returns
+         f = Fake()
+-        f.get_next_batch_to_run = lambda: None
+         f.waiting_queue = []
+-        run_to_completion(f, deadline=time.perf_counter() + 1)
++        run_to_completion(f)
+         self.assertEqual(f.evicted, [])
+ 
+ 
++++ new file python/sglang/multi_model/scheduling/policy/structural.py
+"""F4: structural constraints A1 (PLANO_AGENTE.md section A1), independent of the policy that picks models.
+
+Pure decision functions; SimpleGlobalPolicy builds their inputs and applies the result. Every constraint is off by
+default (Prism as published):
+
+A1.1 KV reserve at activation (PRISM_KV_RESERVE_REQS = b > 0)
+     Activate m only if  free − pending activations ≥ W_m + headroom + max(KV at activation, K_min(m)) + floor,
+     K_min(m) = b requests of the model's mean size (prompt + output) × KV bytes per token, and floor = the part of
+     the GPU kvcached never maps for KV (kvcached/slab_allocator.py: GPU_UTILIZATION = 0.95, so 5% of the GPU;
+     PRISM_KV_FLOOR_FRAC). Without the floor the controller fills the GPU with weights down to ~1 GB free, below
+     the 7.2 GB kvcached keeps out of the KV pool, and no model gets a KV page: the T1 impasse (reports/erros.md).
+A1.2 Impasse detector (PRISM_DEADLOCK_S = Δ_imp > 0)
+     If for Δ_imp seconds no active model served a token (prefill or decode, the engines' per-second counts) while
+     an active model has waiting requests and no activation or deactivation is in flight, evict the active model
+     of least value: A0.3's criterion (tokens/s served over 30 s plus its own queued tokens over 30 s, per GB it
+     occupies), preempting its running requests (they cannot progress anyway).
+A1.3 Minimum residency (PRISM_MIN_RESIDENCY = T_min > 0)
+     No eviction (idle, pressure, fair, throughput, deadline policies, A1.2) of a model resident for less than T_min.
+"""
+import dataclasses
+from typing import List, Optional, Sequence
+
+
+def activation_need_gb(weights_gb: float, headroom_gb: float, activation_kv_gb: float, kmin_gb: float,
+                       floor_gb: float) -> float:
+    """GB that must be free (after pending activations) to activate a model. With A1.1 off (kmin = floor = 0) this
+    is Prism's rule with R2.1: weights + headroom + activation KV."""
+    return weights_gb + headroom_gb + max(activation_kv_gb, kmin_gb) + floor_gb
+
+
+def kmin_gb(b: float, sizes_tokens: Sequence[float], cell_bytes: float, default_tokens: float = 1024.0) -> float:
+    """K_min(m): KV of b requests of the model's mean size (its queued + running requests; default_tokens if none)."""
+    if b <= 0:
+        return 0.0
+    mean = sum(sizes_tokens) / len(sizes_tokens) if sizes_tokens else default_tokens
+    return b * mean * cell_bytes / (1 << 30)
+
+
+def resident_long_enough(active_for_s: Optional[float], min_residency_s: float) -> bool:
+    """A1.3: an active model may be evicted only after T_min s resident (unknown residency counts as long enough,
+    the state before the controller saw the model active)."""
+    return min_residency_s <= 0 or active_for_s is None or active_for_s >= min_residency_s
+
+
+@dataclasses.dataclass
+class StallInput:
+    """What the detector sees in one controller cycle."""
+    now: float
+    served_total: float           # sum of every model's served_tokens (monotone; tokens only come from engines)
+    active_with_waiting: int      # active models with waiting (non-warmup) requests
+    transitions: int              # activations pending + models ACTIVATING / DEACTIVATING
+
+
+class DeadlockDetector:
+    """A1.2 stall clock. The clock runs while the system could make progress (an active model has work) and none
+    does (no token), with no transition in flight that will change memory; anything else resets it."""
+
+    def __init__(self, delta_s: float):
+        self.delta_s = delta_s
+        self.since: Optional[float] = None
+        self.last_served: Optional[float] = None
+
+    @property
+    def enabled(self) -> bool:
+        return self.delta_s > 0
+
+    def update(self, x: StallInput) -> float:
+        """Seconds stalled so far (0 when not stalled)."""
+        progressed = self.last_served is not None and x.served_total != self.last_served
+        self.last_served = x.served_total
+        if x.active_with_waiting == 0 or x.transitions > 0:
+            self.since = None
+            return 0.0
+        if progressed or self.since is None:  # the stall counts from the last cycle that saw progress
+            self.since = x.now
+            return 0.0
+        return x.now - self.since
+
+    def fired(self, stalled_s: float) -> bool:
+        return self.enabled and stalled_s >= self.delta_s
+
+    def reset(self, now: float):
+        """After an eviction: the next one only after another Δ_imp of stall."""
+        self.since = None
+
+
+@dataclasses.dataclass
+class VictimCand:
+    name: str
+    gpu: int
+    value_per_gb: float           # A0.3: (served tokens/s + queued tokens / 30 s) / GB occupied
+    active_for_s: Optional[float]
+    excluded: bool = False        # already leaving this cycle (idle eviction) or otherwise unavailable
+
+
+def deadlock_victim(cands: List[VictimCand], min_residency_s: float) -> Optional[VictimCand]:
+    """A1.2: the active model of least value per GB among those resident for at least T_min (A1.3). Ties: the one
+    active for longest (it has had its turn)."""
+    ok = [c for c in cands if not c.excluded and resident_long_enough(c.active_for_s, min_residency_s)]
+    if not ok:
+        return None
+    return min(ok, key=lambda c: (c.value_per_gb, -(c.active_for_s or 0.0), c.name))
++++ new file tests/policy/test_structural.py
+"""F4.1-F4.3: decisions of the structural constraints A1.1 (KV reserve), A1.2 (impasse detector) and A1.3 (minimum
+residency) on hand-built states (PLANO_AGENTE.md sections 0.6 and A1). They check the decision, not performance.
+
+Run: /mnt/scratch/scheduler/opt-env/bin/python -m unittest tests/policy/test_structural.py
+Units: GB and seconds. Test GPU: 140 GB, so kvcached's floor (5%) is 7 GB; an 8B model has 15 GB of weights and
+128 KiB of KV per token.
+"""
+import json
+import os
+import sys
+import tempfile
+import time
+import types
+import unittest
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, "..", "controller"))
+from test_decision_log import FREE_GB, sg, mqt, st  # noqa: E402  (imports the policy with SGLang stubbed out)
+
+from sglang.multi_model.scheduling.policy import structural as s1  # noqa: E402
+
+CELL = 131072
+WEIGHTS = {f"model_{i}": {"model_size": 15.0, "cell_size": CELL} for i in range(1, 6)}
+
+
+# ---------------------------------------------------------------- pure functions
+
+
+class NeedTest(unittest.TestCase):
+    def test_default_rule_is_prism_with_r21(self):
+        self.assertEqual(s1.activation_need_gb(15.0, 0.0, 1.0, 0.0, 0.0), 16.0)
+        self.assertEqual(s1.activation_need_gb(15.0, 3.0, 1.0, 0.0, 0.0), 19.0)  # A0.3 headroom
+
+    def test_kmin_replaces_activation_kv_when_larger_and_floor_adds(self):
+        self.assertEqual(s1.activation_need_gb(15.0, 0.0, 1.0, 0.5, 7.0), 23.0)  # max(1, 0.5) + 7
+        self.assertEqual(s1.activation_need_gb(15.0, 0.0, 1.0, 2.5, 7.0), 24.5)
+
+    def test_kmin(self):
+        self.assertEqual(s1.kmin_gb(0, [1000], CELL), 0.0)  # off
+        self.assertAlmostEqual(s1.kmin_gb(4, [], CELL), 4 * 1024 * CELL / 2**30)  # empty queue: 1024 tokens
+        self.assertAlmostEqual(s1.kmin_gb(4, [1000, 2000], CELL), 4 * 1500 * CELL / 2**30)  # 0.73 GB
+
+    def test_residency(self):
+        self.assertTrue(s1.resident_long_enough(1.0, 0.0))  # off
+        self.assertTrue(s1.resident_long_enough(None, 10.0))  # not seen active yet
+        self.assertFalse(s1.resident_long_enough(9.99, 10.0))
+        self.assertTrue(s1.resident_long_enough(10.0, 10.0))  # exactly at the limit
+
+
+class DetectorTest(unittest.TestCase):
+    def x(self, now, served=100.0, waiting=2, transitions=0):
+        return s1.StallInput(now=now, served_total=served, active_with_waiting=waiting, transitions=transitions)
+
+    def test_stall_accumulates_and_fires_at_delta(self):
+        d = s1.DeadlockDetector(30.0)
+        self.assertEqual(d.update(self.x(0.0)), 0.0)
+        self.assertEqual(d.update(self.x(25.0)), 25.0)
+        self.assertFalse(d.fired(25.0))
+        self.assertEqual(d.update(self.x(30.0)), 30.0)
+        self.assertTrue(d.fired(30.0))  # exactly Δ
+
+    def test_any_token_resets(self):
+        d = s1.DeadlockDetector(30.0)
+        d.update(self.x(0.0))
+        d.update(self.x(20.0))
+        self.assertEqual(d.update(self.x(25.0, served=101.0)), 0.0)  # one token served
+        self.assertEqual(d.update(self.x(50.0, served=101.0)), 25.0)  # the clock restarts at 25
+
+    def test_no_active_work_or_transition_resets(self):
+        d = s1.DeadlockDetector(30.0)
+        d.update(self.x(0.0))
+        self.assertEqual(d.update(self.x(20.0, waiting=0)), 0.0)  # every active model idle: not an impasse
+        d.update(self.x(21.0))
+        self.assertEqual(d.update(self.x(40.0, transitions=1)), 0.0)  # activation/deactivation in flight
+        self.assertEqual(d.update(self.x(45.0)), 0.0)
+        self.assertEqual(d.update(self.x(60.0)), 15.0)
+
+    def test_disabled_never_fires_and_reset(self):
+        d = s1.DeadlockDetector(0.0)
+        d.update(self.x(0.0))
+        self.assertFalse(d.fired(d.update(self.x(1e6))))
+        d = s1.DeadlockDetector(30.0)
+        d.update(self.x(0.0))
+        d.update(self.x(31.0))
+        d.reset(31.0)
+        self.assertEqual(d.update(self.x(40.0)), 0.0)
+
+
+class VictimTest(unittest.TestCase):
+    def c(self, name, value, active_for, excluded=False):
+        return s1.VictimCand(name=name, gpu=0, value_per_gb=value, active_for_s=active_for, excluded=excluded)
+
+    def test_least_value_per_gb(self):
+        v = s1.deadlock_victim([self.c("a", 5.0, 100), self.c("b", 1.0, 100), self.c("c", 3.0, 100)], 10.0)
+        self.assertEqual(v.name, "b")
+
+    def test_min_residency_and_exclusion(self):
+        cands = [self.c("a", 5.0, 100), self.c("b", 1.0, 5), self.c("c", 3.0, 100, excluded=True)]
+        self.assertEqual(s1.deadlock_victim(cands, 10.0).name, "a")  # b too recent, c already leaving
+        self.assertEqual(s1.deadlock_victim(cands, 0.0).name, "b")
+        self.assertIsNone(s1.deadlock_victim([self.c("b", 1.0, 5)], 10.0))  # nobody may leave
+        self.assertIsNone(s1.deadlock_victim([], 10.0))
+
+    def test_tie_goes_to_longest_resident(self):
+        v = s1.deadlock_victim([self.c("a", 0.0, 100), self.c("b", 0.0, 300)], 10.0)
+        self.assertEqual(v.name, "b")
+
+
+# ---------------------------------------------------------------- wired into SimpleGlobalPolicy
+
+
+def _policy(eviction, free_gb, **env):
+    for k in list(os.environ):
+        if k.startswith("PRISM_"):
+            del os.environ[k]
+    os.environ.update({"PRISM_EVICTION": eviction, "PRISM_IDLE_THRESHOLD": "50", **env})
+    sys.modules["sglang.srt.utils"].get_available_gpu_memory = lambda device, gpu_id: free_gb
+    sg.get_available_gpu_memory = lambda device, gpu_id: free_gb
+    return sg.SimpleGlobalPolicy(num_gpus=1, gpu_mem=140.0, model_weights_info=WEIGHTS, workers_per_gpu=8)
+
+
+def _impasse(now, waiting=None, n_active=3, inactive_waiting=2, running=None, last_arrival_ago=0.5):
+    """The T1 signature (F1.1, F3 anomaly 1): model_1..n_active resident, each with requests waiting and none
+    running (no KV page for any prefill); model_{n_active+1} inactive with requests; no token served."""
+    waiting = waiting or {i: 3 for i in range(1, n_active + 1)}
+    running = running or {}
+    mem = types.SimpleNamespace(model_weights_memory=15.0, memory_pool_memory=1.0, total_used_memory=16.0,
+                                req_to_token_pool_memory=0.0, token_to_kv_pool_memory=1.0)
+    insts, queues = {}, {}
+    for i in range(1, n_active + 2):
+        name = f"model_{i}"
+        state = st.ModelState.ACTIVE if i <= n_active else st.ModelState.INACTIVE
+        insts[name] = [st.ModelInstanceState(model_name=name, model_path="p", instance_idx=0, gpu_ids=[0],
+                                             state=state, memory_usage=mem, init_memory_pool_size=6.0)]
+        q = queues[name] = mqt.ModelQueueTracker(name)
+        q._last_arrival_time = now - last_arrival_ago
+        q.served_tokens = 5000 * i
+        n = waiting.get(i, 0) if i <= n_active else inactive_waiting
+        for k in range(n):
+            q.waiting_reqs.append(mqt.Req(rid=f"{name}-w{k}", arrival_time=now - 60 + k + i, slo=7.0, model=name,
+                                          prompt_len=1000, output_len=250))
+        for k in range(running.get(i, 0)):
+            q.running_reqs.append(mqt.Req(rid=f"{name}-r{k}", arrival_time=now - 60, slo=7.0, model=name,
+                                          prompt_len=1000, output_len=250, state=mqt.ReqState.RUNNING))
+    return queues, insts
+
+
+def _cycle(p, now, active_for=(300, 200, 100), **kw):
+    p.first_request_time = now - 600
+    queues, insts = _impasse(now, **kw)
+    for i, a in enumerate(active_for, start=1):
+        p.active_since[f"model_{i}"] = now - a
+    return p.gen_actions(queues, insts), queues
+
+
+def _deact(acts):
+    return [(a.model_name, a.preempt) for a in acts if type(a).__name__ == "DeactivateAction"]
+
+
+def _act(acts):
+    return [a.model_name for a in acts if type(a).__name__ == "ActivateAction"]
+
+
+class _Env(unittest.TestCase):
+    def tearDown(self):
+        sg.get_available_gpu_memory = lambda device, gpu_id: FREE_GB
+        for k in list(os.environ):
+            if k.startswith("PRISM_"):
+                del os.environ[k]
+
+
+class KvReserveWiringTest(_Env):
+    """A1.1 in the activation step of every strategy (A0.1 idle, A0.3 throughput, F6a edf/lvf)."""
+
+    def test_default_activates_into_kvcached_floor(self):
+        # 17 GB free: Prism + R2.1 activates (15 + 1), leaving 1 GB, below the 7 GB kvcached keeps out of the KV pool
+        # (the 14-model T1 of F1.1)
+        acts, _ = _cycle(_policy("idle", 17.0), time.time())
+        self.assertEqual(_act(acts), ["model_4"])
+
+    def test_a11_blocks_it_in_idle_and_throughput(self):
+        for ev in ("idle", "throughput", "edf"):
+            p = _policy(ev, 17.0, PRISM_KV_RESERVE_REQS="4")
+            self.assertAlmostEqual(p.KV_FLOOR_GB, 7.0)
+            acts, _ = _cycle(p, time.time())
+            self.assertEqual(_act(acts), [], ev)
+
+    def test_memory_exactly_at_the_limit(self):
+        # need = 15 + max(1, 4 · 1250 · 128 KiB = 0.61 GB) + 7 = 23 GB
+        p = _policy("idle", 23.0, PRISM_KV_RESERVE_REQS="4")
+        self.assertAlmostEqual(p._activation_need_gb("model_4", None) , 15 + max(1.0, 4 * 1024 * CELL / 2**30) + 7)
+        acts, _ = _cycle(p, time.time())
+        self.assertEqual(_act(acts), ["model_4"])
+        acts, _ = _cycle(_policy("idle", 22.99, PRISM_KV_RESERVE_REQS="4"), time.time())
+        self.assertEqual(_act(acts), [])
+
+    def test_kmin_counts_when_larger(self):
+        # b = 16: 16 · 1250 tokens · 128 KiB = 2.44 GB > 1 GB -> need 15 + 2.44 + 7
+        p = _policy("idle", 30.0, PRISM_KV_RESERVE_REQS="16")
+        q, _ = _impasse(time.time())
+        self.assertAlmostEqual(p._activation_need_gb("model_4", q["model_4"]), 15 + 16 * 1250 * CELL / 2**30 + 7)
+
+    def test_default_and_floor_off(self):
+        p = _policy("idle", 17.0)
+        self.assertEqual((p.KV_RESERVE_REQS, p.KV_FLOOR_GB, p.DEADLOCK_S, p.MIN_RESIDENCY), (0.0, 0.0, 0.0, 0.0))
+        self.assertEqual(p._activation_need_gb("model_4", None), 16.0)
+
+
+class DetectorWiringTest(_Env):
+    """A1.2 on the T1 state: GPU full, every resident model with a queue, no token for Δ_imp."""
+
+    def _stall(self, p, now, shift=31.0, **kw):
+        _cycle(p, now, **kw)  # first cycle: starts the clock (unless something resets it)
+        if p.deadlock.since is not None:
+            p.deadlock.since -= shift
+        return _cycle(p, now, **kw)
+
+    def test_fires_on_the_impasse_and_logs_the_state(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "dec.jsonl")
+            # model_2 has the least queued work per GB: it leaves; preempted (its requests cannot progress)
+            p = _policy("idle", 6.6, PRISM_DEADLOCK_S="30", PRISM_DECISION_LOG=path)
+            acts, _ = self._stall(p, time.time(), waiting={1: 5, 2: 1, 3: 3})
+            recs = [json.loads(line) for line in open(path)]
+        self.assertEqual(_deact(acts), [("model_2", True)])
+        note = [n for n in recs[-1]["notes"] if n["kind"] == "deadlock"][0]
+        self.assertEqual(note["model"], "model_2")
+        self.assertGreaterEqual(note["stalled_s"], 30.0)
+        self.assertEqual(note["unblocks"], "model_1")  # oldest waiting request
+        self.assertEqual(sorted(note["candidates"]), ["model_1", "model_2", "model_3"])
+        self.assertIn({"kind": "deactivate", "model": "model_2", "gpu": 0, "reason": "deadlock break for model_1",
+                       "preempt": True}, recs[-1]["actions"])
+        self.assertIsNone(p.deadlock.since)  # next eviction only after another Δ_imp
+
+    def test_not_before_delta(self):
+        p = _policy("idle", 6.6, PRISM_DEADLOCK_S="30")
+        acts, _ = self._stall(p, time.time(), shift=20.0)
+        self.assertEqual(_deact(acts), [])
+
+    def test_not_while_tokens_flow(self):
+        p = _policy("idle", 6.6, PRISM_DEADLOCK_S="30")
+        now = time.time()
+        _cycle(p, now)
+        p.deadlock.since -= 31
+        p.deadlock.last_served -= 1  # one token served since the last cycle
+        acts, _ = _cycle(p, now)
+        self.assertEqual(_deact(acts), [])
+
+    def test_not_with_an_activation_in_flight(self):
+        p = _policy("idle", 6.6, PRISM_DEADLOCK_S="30")
+        p.pending_activations[("model_5", 0)] = (16.0, time.time())
+        acts, _ = self._stall(p, time.time())
+        self.assertEqual(_deact(acts), [])
+
+    def test_not_when_resident_models_are_idle(self):
+        # nothing waits at a resident model (only the inactive one): that is the idle threshold's case, not an impasse
+        p = _policy("idle", 6.6, PRISM_DEADLOCK_S="30")
+        acts, _ = self._stall(p, time.time(), waiting={1: 0, 2: 0, 3: 0}, last_arrival_ago=5.0)
+        self.assertEqual(_deact(acts), [])
+
+    def test_min_residency_protects_recent_models(self):
+        # model_2 is the least valuable but was activated 5 s ago: with T_min = 10 s model_3 (next least) leaves
+        p = _policy("idle", 6.6, PRISM_DEADLOCK_S="30", PRISM_MIN_RESIDENCY="10")
+        acts, _ = self._stall(p, time.time(), waiting={1: 5, 2: 1, 3: 3}, active_for=(300, 5, 100))
+        self.assertEqual(_deact(acts), [("model_3", True)])
+        # all recent: nobody leaves, and the clock keeps running for the next cycle
+        p = _policy("idle", 6.6, PRISM_DEADLOCK_S="30", PRISM_MIN_RESIDENCY="10")
+        acts, _ = self._stall(p, time.time(), active_for=(5, 5, 5))
+        self.assertEqual(_deact(acts), [])
+        self.assertIsNotNone(p.deadlock.since)
+
+    def test_works_with_the_throughput_swap(self):
+        # with no inactive model waiting the swap has nothing to do, and the detector acts on A0.3's criterion
+        p = _policy("throughput", 6.6, PRISM_DEADLOCK_S="30", PRISM_ACTIVATION_HEADROOM_GB="3")
+        acts, _ = self._stall(p, time.time(), waiting={1: 5, 2: 1, 3: 3}, inactive_waiting=0)
+        self.assertEqual(_deact(acts), [("model_2", True)])
+
+    def test_a_swap_in_the_same_cycle_is_a_transition(self):
+        # stalled for 60 s, but this cycle the throughput swap evicts for model_4 (large backlog): the detector
+        # waits for the swap's effect instead of evicting a second model
+        now = time.time()
+        p = _policy("throughput", 6.6, PRISM_DEADLOCK_S="30", PRISM_ACTIVATION_HEADROOM_GB="3",
+                    PRISM_SWAP_MIN_RESIDENCY="0")
+        p.deadlock.since, p.deadlock.last_served = now - 60, 5000.0 * (1 + 2 + 3 + 4)  # = _impasse's served total
+        acts, _ = _cycle(p, now, waiting={1: 5, 2: 1, 3: 3}, inactive_waiting=40)
+        self.assertEqual(_deact(acts), [("model_2", False)])  # the swap's own eviction (no preemption, A0.3)
+        self.assertIsNone(p.deadlock.since)
+
+    def test_off_by_default(self):
+        p = _policy("idle", 6.6)
+        acts, _ = self._stall(p, time.time(), shift=1e5)
+        self.assertEqual(_deact(acts), [])
+
+
+class MinResidencyWiringTest(_Env):
+    """A1.3 on the eviction paths that had no minimum residency (idle; pressure and fair)."""
+
+    def _idle_state(self, p, now, active_for):
+        # model_1 resident, nothing queued, last request 300 s ago: idle for the 50 s threshold
+        p.first_request_time = now - 600
+        queues, insts = _impasse(now, waiting={1: 0}, n_active=1, inactive_waiting=0, last_arrival_ago=300)
+        p.active_since["model_1"] = now - active_for
+        return p.gen_actions(queues, insts)
+
+    def test_idle_eviction_waits_for_t_min(self):
+        now = time.time()
+        self.assertEqual(_deact(self._idle_state(_policy("idle", 60.0), now, 3)), [("model_1", False)])
+        p = _policy("idle", 60.0, PRISM_MIN_RESIDENCY="10")
+        self.assertEqual(_deact(self._idle_state(p, now, 3)), [])
+        self.assertEqual(_deact(self._idle_state(p, now, 12)), [("model_1", False)])
+
+    def test_pressure_respects_t_min(self):
+        now = time.time()
+        p = _policy("pressure", 1.0, PRISM_MIN_RESIDENCY="10")
+        p.first_request_time = now - 600
+        queues, insts = _impasse(now, waiting={1: 0, 2: 0, 3: 0}, last_arrival_ago=5.0)
+        for i, a in enumerate((300, 3, 4), start=1):
+            p.active_since[f"model_{i}"] = now - a
+        self.assertEqual(_deact(p.gen_actions(queues, insts)), [("model_1", False)])  # the only one old enough
+
+
+if __name__ == "__main__":
+    unittest.main()
++++ new file polyaxon/f4_calib.py
+#!/usr/bin/env python3
+"""F4 calibration from existing decision logs (decisions.jsonl, F2.1): no new runs.
+
+For each level it reports
+  stall_max_s   longest stretch of consecutive controller cycles in which some ACTIVE model has waiting requests,
+                no activation is pending, and no ACTIVE model finished a request (min since_last_finish_s grows).
+                This is what the A1.2 detector watches (with tokens instead of finishes, which only makes the
+                live signal faster); levels without impasse bound how long a normal pause lasts -> Δ_imp.
+  run_p50/p90   running requests per ACTIVE model in cycles where it also has waiting requests (saturated batch):
+                the lot a resident model actually serves under load -> b of A1.1.
+  free_min_gb   lowest free GPU memory seen by the controller, and free_p10_gb.
+The T1 frozen time of each level comes from the validator CSVs (reports/data/*/validador/*.csv).
+
+Usage: f4_calib.py <raw root> [...] [--out tsv]
+"""
+import argparse
+import glob
+import json
+import os
+import sys
+
+import numpy as np
+import pandas as pd
+
+
+def level_stats(path):
+    stall, best, prev_t = 0.0, 0.0, None
+    runs, free = [], []
+    for line in open(path):
+        try:
+            c = json.loads(line)
+        except ValueError:
+            continue
+        t = c["t"]
+        g = c["gpus"].get("0", {})
+        if g.get("free_gb") is not None:
+            free.append(g["free_gb"])
+        act = {m: v for m, v in c["models"].items() if v["state"] == "ACTIVE"}
+        busy = [m for m, v in act.items() if v["waiting"] > 0]
+        pending = bool(g.get("pending"))
+        fin = [v["since_last_finish_s"] for v in act.values() if v["since_last_finish_s"] is not None]
+        for m in busy:
+            if act[m]["running"] is not None:
+                runs.append(act[m]["running"])
+        if busy and not pending and fin:
+            s = min(fin)
+            # a stall is "no active model finished since s seconds"; it is reset by any finish
+            stall = s
+            best = max(best, stall)
+        prev_t = t
+    r = np.array(runs) if runs else np.array([np.nan])
+    f = np.array(free) if free else np.array([np.nan])
+    return {"stall_max_s": round(best, 1), "run_p50": float(np.nanpercentile(r, 50)),
+            "run_p90": float(np.nanpercentile(r, 90)), "free_min_gb": round(float(np.nanmin(f)), 1),
+            "free_p10_gb": round(float(np.nanpercentile(f, 10)), 1)}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("roots", nargs="+")
+    ap.add_argument("--out")
+    a = ap.parse_args()
+    val = pd.concat([pd.read_csv(f) for f in glob.glob("reports/data/*/validador/*.csv")])
+    t1 = {os.path.join(r, l): s for r, l, s in zip(val.root, val.level, val.t1_frozen_s)}
+    status = {os.path.join(r, l): s for r, l, s in zip(val.root, val.level, val.status)}
+    rows = []
+    for root in a.roots:
+        for p in sorted(glob.glob(os.path.join(root, "**", "decisions.jsonl"), recursive=True)):
+            d = os.path.dirname(p)
+            key = next((k for k in t1 if os.path.normpath(k) == os.path.normpath(d)), None)
+            row = {"level": d.replace("/mnt/scratch/scheduler/prism-raw/", ""),
+                   "t1_frozen_s": t1.get(key), "status": status.get(key)}
+            row.update(level_stats(p))
+            rows.append(row)
+    df = pd.DataFrame(rows)
+    pd.set_option("display.width", 250, "display.max_rows", 500, "display.max_colwidth", 70)
+    print(df.to_string(index=False))
+    if a.out:
+        df.to_csv(a.out, sep="\t", index=False)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
++++ new file polyaxon/configs/f4_camp_C10_a_suite.tsv
+# F4.4 C10, order a (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.1	PRISM_STEPS=ovl_sizes PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50
+A0.1_A1	PRISM_STEPS=ovl_sizes PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_sizes PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.3_A1	PRISM_STEPS=ovl_sizes PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
++++ new file polyaxon/configs/f4_camp_C10_b_suite.tsv
+# F4.4 C10, order b (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.3_A1	PRISM_STEPS=ovl_sizes PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_sizes PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.1_A1	PRISM_STEPS=ovl_sizes PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.1	PRISM_STEPS=ovl_sizes PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50
++++ new file polyaxon/configs/f4_camp_C1n14_a_suite.tsv
+# F4.4 C1n14, order a (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14 PRISM_IDLE_THRESHOLD=50
+A0.1_A1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.3_A1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
++++ new file polyaxon/configs/f4_camp_C1n14_b_suite.tsv
+# F4.4 C1n14, order b (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.3_A1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.1_A1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14 PRISM_IDLE_THRESHOLD=50
++++ new file polyaxon/configs/f4_camp_C1n8_a_suite.tsv
+# F4.4 C1n8, order a (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=8 PRISM_IDLE_THRESHOLD=50
+A0.1_A1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=8 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=8 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.3_A1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=8 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
++++ new file polyaxon/configs/f4_camp_C1n8_b_suite.tsv
+# F4.4 C1n8, order b (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.3_A1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=8 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=8 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.1_A1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=8 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=8 PRISM_IDLE_THRESHOLD=50
++++ new file polyaxon/configs/f4_camp_C2_a_suite.tsv
+# F4.4 C2, order a (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.1	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_IDLE_THRESHOLD=50
+A0.1_A1	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.3_A1	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
++++ new file polyaxon/configs/f4_camp_C2_b_suite.tsv
+# F4.4 C2, order b (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.3_A1	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.1_A1	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.1	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_IDLE_THRESHOLD=50
++++ new file polyaxon/configs/f4_camp_C3_a_suite.tsv
+# F4.4 C3, order a (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.1	PRISM_STEPS=ovl_mix PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50
+A0.1_A1	PRISM_STEPS=ovl_mix PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_mix PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.3_A1	PRISM_STEPS=ovl_mix PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
++++ new file polyaxon/configs/f4_camp_C3_b_suite.tsv
+# F4.4 C3, order b (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.3_A1	PRISM_STEPS=ovl_mix PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_mix PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.1_A1	PRISM_STEPS=ovl_mix PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.1	PRISM_STEPS=ovl_mix PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50
++++ new file polyaxon/configs/f4_camp_C6_a_suite.tsv
+# F4.4 C6, order a (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.1	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50
+A0.1_A1	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.3_A1	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
++++ new file polyaxon/configs/f4_camp_C6_b_suite.tsv
+# F4.4 C6, order b (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.3_A1	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.1_A1	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.1	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50
++++ new file polyaxon/configs/f4_camp_C7_a_suite.tsv
+# F4.4 C7, order a (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.1	PRISM_STEPS=ovl_bursty PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50
+A0.1_A1	PRISM_STEPS=ovl_bursty PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_bursty PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.3_A1	PRISM_STEPS=ovl_bursty PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
++++ new file polyaxon/configs/f4_camp_C7_b_suite.tsv
+# F4.4 C7, order b (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.3_A1	PRISM_STEPS=ovl_bursty PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_bursty PRISM_OVL_RATES=0.2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.1_A1	PRISM_STEPS=ovl_bursty PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.1	PRISM_STEPS=ovl_bursty PRISM_OVL_RATES=0.2 PRISM_IDLE_THRESHOLD=50
++++ new file polyaxon/configs/f4_camp_C8_a_suite.tsv
+# F4.4 C8, order a (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.1	PRISM_STEPS=ovl_diurnal PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50
+A0.1_A1	PRISM_STEPS=ovl_diurnal PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_diurnal PRISM_OVL_RATES=2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.3_A1	PRISM_STEPS=ovl_diurnal PRISM_OVL_RATES=2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
++++ new file polyaxon/configs/f4_camp_C8_b_suite.tsv
+# F4.4 C8, order b (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.3_A1	PRISM_STEPS=ovl_diurnal PRISM_OVL_RATES=2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_diurnal PRISM_OVL_RATES=2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.1_A1	PRISM_STEPS=ovl_diurnal PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.1	PRISM_STEPS=ovl_diurnal PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50
++++ new file polyaxon/configs/f4_camp_T1_a_suite.tsv
+# F4.4 T1, order a (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.1	PRISM_STEPS=ovl_trace_big PRISM_OVL_RATES=1 PRISM_IDLE_THRESHOLD=50
+A0.1_A1	PRISM_STEPS=ovl_trace_big PRISM_OVL_RATES=1 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_trace_big PRISM_OVL_RATES=1 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.3_A1	PRISM_STEPS=ovl_trace_big PRISM_OVL_RATES=1 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
++++ new file polyaxon/configs/f4_camp_T1_b_suite.tsv
+# F4.4 T1, order b (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.3_A1	PRISM_STEPS=ovl_trace_big PRISM_OVL_RATES=1 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_trace_big PRISM_OVL_RATES=1 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.1_A1	PRISM_STEPS=ovl_trace_big PRISM_OVL_RATES=1 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.1	PRISM_STEPS=ovl_trace_big PRISM_OVL_RATES=1 PRISM_IDLE_THRESHOLD=50
++++ new file polyaxon/configs/f4_camp_T3_a_suite.tsv
+# F4.4 T3, order a (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.1	PRISM_STEPS=ovl_tr_azfn PRISM_OVL_RATES=1 PRISM_IDLE_THRESHOLD=50
+A0.1_A1	PRISM_STEPS=ovl_tr_azfn PRISM_OVL_RATES=1 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_tr_azfn PRISM_OVL_RATES=1 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.3_A1	PRISM_STEPS=ovl_tr_azfn PRISM_OVL_RATES=1 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
++++ new file polyaxon/configs/f4_camp_T3_b_suite.tsv
+# F4.4 T3, order b (polyaxon/f4_suites.sh; D34): {A0.1, A0.3 no drain} x {without, with A1}, one rep per job
+A0.3_A1	PRISM_STEPS=ovl_tr_azfn PRISM_OVL_RATES=1 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.3	PRISM_STEPS=ovl_tr_azfn PRISM_OVL_RATES=1 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
+A0.1_A1	PRISM_STEPS=ovl_tr_azfn PRISM_OVL_RATES=1 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+A0.1	PRISM_STEPS=ovl_tr_azfn PRISM_OVL_RATES=1 PRISM_IDLE_THRESHOLD=50
++++ new file polyaxon/configs/f4_smoke_suite.tsv
+# F4 smoke (2026-11-05): A1 = A1.1 b=4 (+ kvcached floor 5%) + A1.2 Δ_imp=30 s + A1.3 T_min=10 s, on the loads whose
+# T1 impasse is reproducible (F3 anomaly 1: C6 froze at 294 s with A0.1; F1.1: C1 with 14 models froze 4/4).
+# A0.3 = throughput swap without drain (D30). One rep; checks mechanics (no impasse, detector log, validator).
+C6_A01_A1	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+C6_A03_A1	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+C1n14_A01_A1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10

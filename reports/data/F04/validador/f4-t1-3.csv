@@ -1,0 +1,5 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/A0.1/ovl_trace_big/ts1,/mnt/scratch/scheduler/prism-raw/F4/f4-t1-3,628819b060914ec49166c7bce4dfd5e5,f4-t1-3/outputs/A0.1/ovl_trace_big/ts1,VALIDA,,,2026-11-05 22:44:10,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.1_A1/ovl_trace_big/ts1,/mnt/scratch/scheduler/prism-raw/F4/f4-t1-3,628819b060914ec49166c7bce4dfd5e5,f4-t1-3/outputs/A0.1_A1/ovl_trace_big/ts1,VALIDA,,,2026-11-05 23:02:41,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.3/ovl_trace_big/ts1,/mnt/scratch/scheduler/prism-raw/F4/f4-t1-3,628819b060914ec49166c7bce4dfd5e5,f4-t1-3/outputs/A0.3/ovl_trace_big/ts1,VALIDA,,,2026-11-05 23:22:35,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.3_A1/ovl_trace_big/ts1,/mnt/scratch/scheduler/prism-raw/F4/f4-t1-3,628819b060914ec49166c7bce4dfd5e5,f4-t1-3/outputs/A0.3_A1/ovl_trace_big/ts1,VALIDA,,,2026-11-05 23:38:00,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK

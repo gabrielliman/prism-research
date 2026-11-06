@@ -67,12 +67,13 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F3.13 Relatório F03 com a proposta de conjunto de cargas (2026-11-05, reports/fases/F03_cargas.md; gate APROVADO em 2026-11-05, D29)
 
 ## F4 — Restrições estruturais (A1) · gate automático
-- [ ] F4.1 A1.1 reserva mínima de KV na ativação + testes unitários
-- [ ] F4.2 A1.2 detector de impasse + testes unitários
-- [ ] F4.3 A1.3 histerese mínima de residência + testes unitários
-- [ ] F4.4 Campanha: C3, C1 (8 e 14 modelos), C2, T1 × {A0.1, A0.3} × {sem, com A1}, 5 repetições
-- [ ] F4.5 Zero impasses; sem piora significativa nos cenários sem impasse
-- [ ] F4.6 Parâmetros `b`, `Δ_imp`, `T_min` registrados; relatório F04
+- [x] F4.1 A1.1 reserva mínima de KV na ativação + testes unitários (2026-11-05, `policy/structural.py` + `_activation_need_gb` em toda estratégia, soma o piso de 5% do kvcached; `tests/policy/test_structural.py`; D34)
+- [x] F4.2 A1.2 detector de impasse + testes unitários (2026-11-05, `PRISM_DEADLOCK_S`, relógio pelos `served_tokens`, vítima pelo critério da A0.3, com preempção; `tests/policy/test_structural.py`; D34)
+- [x] F4.3 A1.3 histerese mínima de residência + testes unitários (2026-11-05, `PRISM_MIN_RESIDENCY` em todo caminho de despejo; `tests/policy/test_structural.py`; D34)
+- [x] F4.3b Smoke: C6 (A0.1, A0.3) e C1 com 14 modelos, com A1 (2026-11-05, job `cbb45bf8`, 3/3 VALIDA, T1 0/0/34 s; C6 atende 1193/1193 nas duas; C1n14 57%, sem congelar, 2 disparos da A1.2, fome da A0.1 nos modelos 12–14; `reports/data/F04/validador/smoke.csv`)
+- [x] F4.4 Campanha: C3, C1 (8 e 14 modelos), C2, T1 × {A0.1, A0.3} × {sem, com A1}, 5 repetições (+ C6, C7, C8, T3, C10 × 2, escopo do Gabriel) (2026-11-06, 35 jobs, 134/140 VALIDA; 6 do C10 por P15, reexecução `f4-c10-1b/2b` em andamento; `reports/data/F04/campanha/`)
+- [x] F4.5 Zero impasses; sem piora significativa nos cenários sem impasse — impasse = T1 ≥ 100 s, 0 de 70 níveis com A1 (C10 refeito com P15, 8/8 VALIDA); leitura (b) (D37): OK para A0.1 + A1; A0.3 + A1 folga 3 GB falha no C7; A0.4 (folga 0) OK em T3/C3/C7/C6 (verificação da folga, 24/24 VALIDA), não testada nas outras 6 cargas; aprovado com a lacuna declarada (D38)
+- [x] F4.6 Parâmetros `b`, `Δ_imp`, `T_min` registrados; relatório F04 — D34, D37; `reports/fases/F04_restricoes.md`; gate APROVADO (D38, 2026-11-06)
 
 ## F5 — Linhas de base na nova metodologia · gate [HUMANO]
 - [ ] F5.1 A0.1–A0.5 (+A1) em todas as cargas aprovadas, níveis de `ρ_mem` definidos, 5 repetições

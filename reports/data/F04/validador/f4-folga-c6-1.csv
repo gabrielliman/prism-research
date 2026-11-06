@@ -1,0 +1,4 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/A0.3/ovl_zipf/rate2,/mnt/scratch/scheduler/prism-raw/F4/f4-folga-c6-1,a00c3577e5d6486d8304c48d7033802d,f4-folga-c6-1/outputs/A0.3/ovl_zipf/rate2,VALIDA,,,2026-11-06 11:12:38,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.3_A1/ovl_zipf/rate2,/mnt/scratch/scheduler/prism-raw/F4/f4-folga-c6-1,a00c3577e5d6486d8304c48d7033802d,f4-folga-c6-1/outputs/A0.3_A1/ovl_zipf/rate2,VALIDA,,,2026-11-06 11:29:24,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.3_A1h0/ovl_zipf/rate2,/mnt/scratch/scheduler/prism-raw/F4/f4-folga-c6-1,a00c3577e5d6486d8304c48d7033802d,f4-folga-c6-1/outputs/A0.3_A1h0/ovl_zipf/rate2,VALIDA,,,2026-11-06 11:45:32,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK

@@ -63,12 +63,11 @@ class EvictStuckTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             run_to_completion(Fake(), evict_stuck=True)
 
-    def test_drain_is_unchanged(self):
-        # the drain (deadline, evict_stuck False) never evicts by itself: it returns at the deadline
+    def test_without_evict_stuck_nothing_is_evicted(self):
+        # outside the deactivation's last step (evict_stuck False), an empty engine just returns
         f = Fake()
-        f.get_next_batch_to_run = lambda: None
         f.waiting_queue = []
-        run_to_completion(f, deadline=time.perf_counter() + 1)
+        run_to_completion(f)
         self.assertEqual(f.evicted, [])
 
 

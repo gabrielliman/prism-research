@@ -252,22 +252,30 @@ class PolicyWiringTest(unittest.TestCase):
             if k.startswith("PRISM_"):
                 del os.environ[k]
 
-    def test_edf_rotates_with_drain_and_logs(self):
+    def test_edf_rotates_without_preemption_and_logs(self):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "dec.jsonl")
-            p = _policy("edf", 2.0, PRISM_SWAP_DRAIN="1", PRISM_MIN_RESIDENCY="10", PRISM_DECISION_LOG=path)
+            p = _policy("edf", 2.0, PRISM_MIN_RESIDENCY="10", PRISM_DECISION_LOG=path)
             acts = _run(p, time.time())
             rec = json.loads(open(path).read().splitlines()[0])
         deact = [a for a in acts if type(a).__name__ == "DeactivateAction"]
         self.assertEqual(len(deact), 1)
         self.assertEqual(deact[0].model_name, "model_3")  # all equal urgency (+inf): active longest
-        self.assertEqual((deact[0].preempt, deact[0].drain_timeout), (False, 15.0))
+        self.assertEqual((deact[0].preempt, deact[0].evict_waiting_requests), (False, True))
+        self.assertFalse(hasattr(deact[0], "drain_timeout"))  # D30: no timed drain
         self.assertEqual(rec["policy"]["name"], "edf")
         self.assertEqual(rec["policy"]["rotated_for"], ["model_4"])
         self.assertEqual(rec["policy"]["scores"]["model_4"]["viable"], 2)
         self.assertIn({"kind": "deactivate", "model": "model_3", "gpu": 0, "reason": "edf rotation for model_4",
-                       "preempt": False, "drain_timeout": 15.0}, rec["actions"])
+                       "preempt": False}, rec["actions"])
         self.assertTrue(p.swap_reservation_until["model_4"] > time.time())
+
+    def test_removed_drain_knobs_fail_loudly(self):
+        # D30: an old suite that still sets the timed drain must not run a different configuration silently
+        for knob in ("PRISM_SWAP_DRAIN", "PRISM_SWAP_DRAIN_TIMEOUT"):
+            with self.assertRaises(ValueError):
+                _policy("edf", 2.0, **{knob: "1"})
+        _policy("edf", 2.0, PRISM_SWAP_DRAIN="0")  # explicitly off is fine
 
     def test_lvf_activates_when_it_fits(self):
         p = _policy("lvf", 40.0)
@@ -276,11 +284,12 @@ class PolicyWiringTest(unittest.TestCase):
 
     def test_kv_reserve_blocks_activation(self):
         # 16.5 GB free: 15 + 1 fits; with A1.1 b = 8 requests of 800 tokens (8·800·128 KiB = 0.78 GB > 1 GB? no:
-        # max(1, 0.78) = 1) it still fits; with b = 16 (1.56 GB) it does not
+        # max(1, 0.78) = 1) it still fits; with b = 16 (1.56 GB) it does not. K_min alone: kvcached's floor, which
+        # A1.1 adds since F4, is set to 0 here (tests/policy/test_structural.py covers it)
         now = time.time()
-        p = _policy("edf", 16.5, PRISM_KV_RESERVE_REQS="8")
+        p = _policy("edf", 16.5, PRISM_KV_RESERVE_REQS="8", PRISM_KV_FLOOR_FRAC="0")
         self.assertEqual([a.model_name for a in _run(p, now) if type(a).__name__ == "ActivateAction"], ["model_4"])
-        p = _policy("edf", 16.5, PRISM_KV_RESERVE_REQS="16")
+        p = _policy("edf", 16.5, PRISM_KV_RESERVE_REQS="16", PRISM_KV_FLOOR_FRAC="0")
         self.assertEqual([a.model_name for a in _run(p, now) if type(a).__name__ == "ActivateAction"], [])
 
     def test_default_is_unchanged_idle(self):

@@ -44,7 +44,7 @@ multi_model_server.py ─ endpoint.py / request_handler*.py   frontend: receives
 | `controller_global.py` | Global controller. Builds the policy (`--policy simple-global` → `SimpleGlobalPolicy`, around line 143), runs `run_scheduling_loop`, executes actions, and handles GPU scheduler events (`handle_model_events`: `model_lost`, `model_activated`, `model_service_lost`) |
 | `policy/base.py`, `policy/base_global.py` | Abstract `BasePolicy` / `GlobalPolicy` with `gen_actions(...)` |
 | `policy/simple_global.py` | **The only policy.** Prism's original algorithm plus our eviction strategies (`PRISM_EVICTION`). See [policies.md](policies.md) |
-| `action.py` | `ActivateAction`, `DeactivateAction` (preempt, drain_timeout), `ResizeAction`: what a policy returns |
+| `action.py` | `ActivateAction`, `DeactivateAction` (preempt), `ResizeAction`: what a policy returns |
 | `state.py` | `ModelInstanceState`, `ModelState` (ACTIVE / INACTIVE / ACTIVATING / DEACTIVATING) |
 | `model_queue_tracker.py` | Per-model queue (`waiting_reqs`, running, `served_tokens`, last arrival/finish): the policy's input |
 | `estimators.py` | Pure estimators for the deadline-aware policies (F2): activation cost Ĉ_at, prefill p̂, queue q̂_r, rate λ̂. Coefficients in `reports/data/F02/cat/cat_model.json` and `reports/registro/latencia_ref.json` |
@@ -54,7 +54,7 @@ multi_model_server.py ─ endpoint.py / request_handler*.py   frontend: receives
 
 ## `python/sglang/srt/`: SGLang files Prism changed
 
-`managers/scheduler.py` (worker loop, activate/deactivate handling, drain, R2.2 `PrefillKVFull` retry, R2.5 TTFT
+`managers/scheduler.py` (worker loop, activate/deactivate handling (preempt or finish the running batch, D30), R2.2 `PrefillKVFull` retry, R2.5 TTFT
 fix in `process_batch_result_prefill`), `managers/tp_worker*.py`, `model_executor/worker_pool_model_runner.py`
 (weight reservation, activation rollback → `ActivationOutOfMemory`), `model_executor/model_runner.py`,
 `single_model_runner.py`, `mem_cache/memory_pool.py` (kvcached elastic pool), `server_args.py`, `utils.py`.

@@ -1,0 +1,5 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/A0.1/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F4/f4-c1n14-2,5c8269d605b746ebbb604ef6f32d03d4,f4-c1n14-2/outputs/A0.1/ovl_mem/rate0.2,VALIDA,,,2026-11-05 19:09:07,,448,OK,OK,OK,OK,OK,N/A,N/A,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.1_A1/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F4/f4-c1n14-2,5c8269d605b746ebbb604ef6f32d03d4,f4-c1n14-2/outputs/A0.1_A1/ovl_mem/rate0.2,VALIDA,,,2026-11-05 18:54:06,,34,OK,OK,OK,OK,OK,N/A,N/A,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.3/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F4/f4-c1n14-2,5c8269d605b746ebbb604ef6f32d03d4,f4-c1n14-2/outputs/A0.3/ovl_mem/rate0.2,VALIDA,,,2026-11-05 18:43:16,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.3_A1/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F4/f4-c1n14-2,5c8269d605b746ebbb604ef6f32d03d4,f4-c1n14-2/outputs/A0.3_A1/ovl_mem/rate0.2,VALIDA,,,2026-11-05 18:31:52,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK

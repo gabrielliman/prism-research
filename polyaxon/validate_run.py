@@ -307,6 +307,28 @@ def validate(d):
                        else "every model starts resident (control level, no memory overload by design)")
     over = sum(g[1] > g[2] for g in gpu)
     free = [(e[0], float(e[4])) for e in ev if e[2] == "free_mem"]
+    # The text log's "GPU 0, mem X" is the controller's AVAILABLE memory (free − pending activations, R2.1), not its
+    # free memory: with long pending activations the gap to nvidia-smi is the promised GB, not a measurement error
+    # (F4, job f4-c1n14-3). Add the pending GB back from the decision log (one record per cycle, epoch clock; the
+    # text log is on the pod's clock, a whole number of hours apart): each line takes the pending GB of the record
+    # within 1 s; lines without one keep the old reading.
+    dpath = os.path.join(d, "decisions.jsonl")
+    if free and t0 and os.path.exists(dpath):
+        recs = []
+        for line in open(dpath, errors="replace"):
+            try:
+                r = json.loads(line)
+                recs.append((r["t"], float(r["gpus"]["0"].get("pending_gb") or 0.0)))
+            except (ValueError, KeyError):
+                continue
+        if recs:
+            shift = round((recs[0][0] - (t0 + free[0][0])) / 3600) * 3600  # decision clock − log clock
+            fixed = []
+            for t, v in free:
+                tt = t0 + t + shift
+                near = min(recs, key=lambda r: abs(r[0] - tt))
+                fixed.append((t, v + near[1]) if abs(near[0] - tt) <= 1.0 else (t, v))
+            free = fixed
     diffs = []
     gi = 0
     for t, v in free:

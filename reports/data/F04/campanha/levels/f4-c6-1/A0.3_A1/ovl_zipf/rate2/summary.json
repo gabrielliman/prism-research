@@ -1,0 +1,178 @@
+{
+ "args": {
+  "base_url": "http://127.0.0.1:30002",
+  "models": [
+   "model_1",
+   "model_2",
+   "model_3",
+   "model_4",
+   "model_5",
+   "model_6",
+   "model_7",
+   "model_8",
+   "model_9",
+   "model_10"
+  ],
+  "pattern": "zipf_drift",
+  "rate": null,
+  "total_rate": 2.0,
+  "model_rates": [],
+  "duration": 600.0,
+  "input_range": [
+   256,
+   1024
+  ],
+  "output_range": [
+   128,
+   512
+  ],
+  "lengths": "empirical:polyaxon/traces/L_azllm_conv.csv.gz",
+  "max_prompt": 4096,
+  "max_output": 1024,
+  "cv": 1.0,
+  "groups": 1,
+  "phase": 150,
+  "zipf_alpha": 1.0,
+  "drift_period": 60.0,
+  "burst_on": 10,
+  "burst_off": 20,
+  "diurnal_amp": 0.8,
+  "diurnal_period": 1200,
+  "trace": null,
+  "batch_frac": 0.0,
+  "batch_slo_ttft": 60.0,
+  "seed": 42,
+  "drain": 300.0,
+  "slo_ttft": 1.0,
+  "slo_tpot": 0.1,
+  "slo_spec": null,
+  "slo_config": null,
+  "slo_scenario": null,
+  "real_trace": null,
+  "time_scale": 1.0,
+  "trace_adapters": 0,
+  "only_model": null,
+  "send_as": null,
+  "out": "/plx-context/artifacts/bbc3f19d47794f7eb77408afc13b3e4b/outputs/A0.3_A1/ovl_zipf/rate2",
+  "workload_info": {
+   "capped_frac": {
+    "prompt": 0.018440905280804692,
+    "output": 0.0
+   }
+  }
+ },
+ "elapsed_s": 635.1704640686512,
+ "sent": 1193,
+ "ok": 1193,
+ "failed": 0,
+ "unserved": 0,
+ "refused": 0,
+ "workload_info": {
+  "capped_frac": {
+   "prompt": 0.018440905280804692,
+   "output": 0.0
+  }
+ },
+ "offered_rps": 1.9883333333333333,
+ "served_rps": 1.8782359500127148,
+ "output_tok_s": 403.1610638184878,
+ "ttft_mean": 27.416022656049833,
+ "ttft_p50": 16.63435411453247,
+ "ttft_p99": 155.54287796974154,
+ "tpot_mean": 0.10320679145762776,
+ "tpot_p99": 0.3530634547479487,
+ "slo_attainment": 0.20536462699077954,
+ "per_model": {
+  "model_1": {
+   "sent": 123,
+   "ok": 123,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 1.419,
+   "ttft_p50": 23.395617723464966,
+   "slo": 0.04878048780487805
+  },
+  "model_2": {
+   "sent": 383,
+   "ok": 383,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 1.543,
+   "ttft_p50": 11.879875659942627,
+   "slo": 0.22193211488250653
+  },
+  "model_3": {
+   "sent": 190,
+   "ok": 190,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 0.95,
+   "ttft_p50": 4.1121145486831665,
+   "slo": 0.38421052631578945
+  },
+  "model_4": {
+   "sent": 142,
+   "ok": 142,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 8.147,
+   "ttft_p50": 15.950259923934937,
+   "slo": 0.23943661971830985
+  },
+  "model_5": {
+   "sent": 90,
+   "ok": 90,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 1.448,
+   "ttft_p50": 16.60087251663208,
+   "slo": 0.16666666666666666
+  },
+  "model_6": {
+   "sent": 73,
+   "ok": 73,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 7.319,
+   "ttft_p50": 16.846739053726196,
+   "slo": 0.1643835616438356
+  },
+  "model_7": {
+   "sent": 51,
+   "ok": 51,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 20.642,
+   "ttft_p50": 32.97972559928894,
+   "slo": 0.19607843137254902
+  },
+  "model_8": {
+   "sent": 51,
+   "ok": 51,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 5.346,
+   "ttft_p50": 63.003992557525635,
+   "slo": 0.09803921568627451
+  },
+  "model_9": {
+   "sent": 49,
+   "ok": 49,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 16.362,
+   "ttft_p50": 45.24730443954468,
+   "slo": 0.061224489795918366
+  },
+  "model_10": {
+   "sent": 41,
+   "ok": 41,
+   "unserved": 0,
+   "failed": 0,
+   "first_ok_arrival": 6.855,
+   "ttft_p50": 73.6751983165741,
+   "slo": 0.04878048780487805
+  }
+ },
+ "load_start_wall": 1793895497.4872916
+}

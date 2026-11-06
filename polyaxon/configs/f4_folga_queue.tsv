@@ -1,0 +1,9 @@
+# F4 headroom check (D37): suffix<TAB>suite
+f4-folga-t3-1	polyaxon/configs/f4_folga_T3_a_suite.tsv
+f4-folga-c3-1	polyaxon/configs/f4_folga_C3_a_suite.tsv
+f4-folga-c7-1	polyaxon/configs/f4_folga_C7_a_suite.tsv
+f4-folga-c6-1	polyaxon/configs/f4_folga_C6_a_suite.tsv
+f4-folga-t3-2	polyaxon/configs/f4_folga_T3_b_suite.tsv
+f4-folga-c3-2	polyaxon/configs/f4_folga_C3_b_suite.tsv
+f4-folga-c7-2	polyaxon/configs/f4_folga_C7_b_suite.tsv
+f4-folga-c6-2	polyaxon/configs/f4_folga_C6_b_suite.tsv

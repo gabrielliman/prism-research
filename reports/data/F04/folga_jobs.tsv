@@ -1,0 +1,9 @@
+suffix	suite	uuid	submitted_utc	status	downloaded
+f4-folga-t3-1	polyaxon/configs/f4_folga_T3_a_suite.tsv	15f0cc369be84c12824914349cd9a8f9	2026-11-06 10:08	succeeded	1
+f4-folga-c3-1	polyaxon/configs/f4_folga_C3_a_suite.tsv	30c56309008c40ea93f712cfdbadf2e4	2026-11-06 10:54	succeeded	1
+f4-folga-c7-1	polyaxon/configs/f4_folga_C7_a_suite.tsv	f2a4d2e263c44e859bda7aaa78e60064	2026-11-06 11:10	succeeded	1
+f4-folga-c6-1	polyaxon/configs/f4_folga_C6_a_suite.tsv	a00c3577e5d6486d8304c48d7033802d	2026-11-06 11:10	succeeded	1
+f4-folga-t3-2	polyaxon/configs/f4_folga_T3_b_suite.tsv	19ba940c60dd4bb890024fa5740b4d2c	2026-11-06 11:29	succeeded	1
+f4-folga-c3-2	polyaxon/configs/f4_folga_C3_b_suite.tsv	58050e8a84b04b9497a75029898e38e9	2026-11-06 12:03	succeeded	1
+f4-folga-c7-2	polyaxon/configs/f4_folga_C7_b_suite.tsv	15403ab9abec499eaa874e48821cc30c	2026-11-06 12:03	succeeded	1
+f4-folga-c6-2	polyaxon/configs/f4_folga_C6_b_suite.tsv	abbffd2d0d1e45019c039a1f660723bc	2026-11-06 12:19	succeeded	1

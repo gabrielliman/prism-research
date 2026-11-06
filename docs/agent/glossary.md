@@ -21,7 +21,7 @@ The reports are in Portuguese. Common words: *sobrecarga* = overload, *ociosidad
 | **Level** | One load point in a step (`rate0.5`, `ts1`, `<level>_ded_<model>`): one fresh server, one directory |
 | **Suite / config line** | A `polyaxon/configs/*_suite.tsv` file / one named configuration in it |
 | **base / original / idle50** | Prism's published policy (`PRISM_EVICTION=idle`, threshold 50) |
-| **tp_PxDy** | Throughput swap with preempt x (0/1) and drain y (0/1), e.g. `tp_P0D1` |
+| **tp_PxDy** | Throughput swap with preempt x (0/1) and drain y (0/1), e.g. `tp_P0D1`. Drain (D1) was removed on 2026-11-05 (D30); only P0/P1 remain, and old D1 runs are not comparable with new ones |
 
 ## Workloads (`reports/registro/cargas.md`)
 

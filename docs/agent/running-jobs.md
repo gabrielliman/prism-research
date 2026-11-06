@@ -76,7 +76,7 @@ files are gitignored: `git add -f polyaxon/configs/<file>`.
 # my_suite.tsv — what it tests, which decision/phase
 base	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5
 idle5	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_IDLE_THRESHOLD=5
-tp_P0D1	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_EVICTION=throughput PRISM_SWAP_DRAIN=1 PRISM_ACTIVATION_HEADROOM_GB=3
+tp_P0	PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3
 ```
 
 ### Steps (`PRISM_STEPS`, space- or comma-separated)

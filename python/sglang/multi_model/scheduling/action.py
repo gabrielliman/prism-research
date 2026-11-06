@@ -81,7 +81,6 @@ class DeactivateAction(BaseAction):
     preempt: bool = True
     preempt_mode: str = "RECOMPUTE"
     evict_waiting_requests: bool = False
-    drain_timeout: Optional[float] = None  # serve the accepted requests up to this long first (Prism drain)
 
     def execute(
         self, url: str, model_instance_state_dict: Dict[str, List[ModelInstanceState]]

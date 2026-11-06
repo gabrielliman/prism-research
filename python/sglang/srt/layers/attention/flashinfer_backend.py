@@ -7,6 +7,7 @@ FlashInfer is faster and Triton is easier to customize.
 Each backend supports two operators: extend (i.e. prefill with cached prefix) and decode.
 """
 
+import os
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
@@ -70,9 +71,19 @@ class FlashInferAttnBackend(AttentionBackend):
             self.dispatch_reason = None
 
         self.device = f"{model_runner.device}:{model_runner.gpu_id}"
+        # Workspace size: an env override arrives as a string (global_config reads FLASHINFER_WORKSPACE_SIZE raw).
+        # P15 (F4, C10): Qwen2 models (Qwen2.5-14B/32B, 8192-token prefill chunks) need 437-468 MB of split-KV
+        # temporaries, more than the 384 MB default ("Failed to allocate memory for batch_prefill_tmp_v ... in
+        # AlignedAllocator", the worker dies). Later SGLang versions give Qwen2 512 MB; same here
+        # (PRISM_FLASHINFER_WS_QWEN2_MB, 0 = the old 384 MB).
+        workspace_size = int(global_config.flashinfer_workspace_size)
+        qwen2_mb = int(os.environ.get("PRISM_FLASHINFER_WS_QWEN2_MB", 512))
+        archs = getattr(model_runner.model_config.hf_config, "architectures", None) or []
+        if qwen2_mb > 0 and "Qwen2ForCausalLM" in archs:
+            workspace_size = max(workspace_size, qwen2_mb * 1024 * 1024)
         # Allocate buffers
         self.workspace_buffer = torch.empty(
-            global_config.flashinfer_workspace_size,
+            workspace_size,
             dtype=torch.uint8,
             device=self.device,
         )

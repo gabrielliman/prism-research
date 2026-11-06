@@ -43,7 +43,14 @@ and the `--policy` choices are in `multi_model_server_args.py` (around line 908,
 | `pressure` | Also evicts the LRU model idle for at least `PRESSURE_MIN_IDLE` when an inactive model with requests doesn't fit | `PRISM_PRESSURE_MIN_IDLE` (2), `PRISM_PRESSURE_COOLDOWN` (10) |
 | `adaptive` | Per-model threshold = K × p90 of its own inter-arrival gaps; under pressure, evicts the most overdue model | `PRISM_ADAPTIVE_K` (3), `PRISM_ADAPTIVE_MIN` (5) |
 | `fair` | `pressure`, plus rotating out the longest-active model when someone has waited `FAIR_QUANTUM` | `PRISM_FAIR_QUANTUM` (30) |
-| `throughput` | Swaps by tokens/s per GB, with aged demand, a margin, a minimum residency and a reservation | `PRISM_SWAP_MARGIN` (0.2), `PRISM_SWAP_MIN_RESIDENCY` (20), `PRISM_SWAP_AGING_S` (30), `PRISM_SWAP_PREEMPT` (P, 0/1), `PRISM_SWAP_DRAIN` (D, 0/1), `PRISM_SWAP_DRAIN_TIMEOUT` (15) |
+| `throughput` | Swaps by tokens/s per GB, with aged demand, a margin, a minimum residency and a reservation | `PRISM_SWAP_MARGIN` (0.2), `PRISM_SWAP_MIN_RESIDENCY` (20), `PRISM_SWAP_AGING_S` (30), `PRISM_SWAP_PREEMPT` (0/1). The timed drain (`PRISM_SWAP_DRAIN`, `PRISM_SWAP_DRAIN_TIMEOUT`) was removed (D30); setting it raises an error |
+
+Structural constraints A1 (F4, `policy/structural.py`; apply to every strategy, all off by default; D34):
+`PRISM_KV_RESERVE_REQS` (A1.1 `b`: activate only with KV for `b` mean-size requests **plus kvcached's 5% floor**,
+`PRISM_KV_FLOOR_FRAC`), `PRISM_DEADLOCK_S` (A1.2 `Δ_imp`: no token served for that long while an active model has
+waiting requests and nothing is in transition → evict the lowest-value active model with preemption; logged as
+`deadlock break for <model>` / decision-log note `deadlock`), `PRISM_MIN_RESIDENCY` (A1.3 `T_min`: no eviction of a
+model resident for less). F4 values: `b=4`, `Δ_imp=30`, `T_min=10`. Tests: `tests/policy/test_structural.py`.
 
 Cross-cutting knobs: `PRISM_ACTIVATION_HEADROOM_GB` (default 0; extra GB beyond the weights needed to activate,
 which avoids the ovl_mix freeze), `PRISM_ACTIVATION_ACCOUNTING` (default 1 = R2.1; 0 = Prism as published),
@@ -63,7 +70,8 @@ It reuses Prism's activation, placement and migration logic and changes only *wh
    that returns a list of `(victim ModelInstanceState, gpu_id, reason str)`. Skip instances already in
    `idle_instance_keys`, and don't evict models that are still activating (`self.pending_activations`).
 3. Add a branch in step 3b of `gen_actions` (the `if self.EVICTION == "throughput": ... elif ...` block) and
-   set `preempt` / `drain_timeout` for the resulting `DeactivateAction`s.
+   set `preempt` for the resulting `DeactivateAction`s. With `preempt=False` the not-yet-started requests go back
+   to the model's queue and the running batch finishes without a time limit; with `True` it is recomputed later (D30).
 4. Keep the `ACTION: deactivate ... Reason: <reason>` log line and the `self.dlog.action(...)` call.
    `extract_ovl.py` parses those lines into `events.csv` with the regex
    `Reason: (pressure eviction|fair rotation|throughput swap) for <model>` (around line 130). Use the form

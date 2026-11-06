@@ -9,6 +9,8 @@ PY=/mnt/scratch/scheduler/opt-env/bin/python
 $PY -m unittest tests/controller/test_decision_log.py      # policy + decision log, SGLang stubbed out (2 tests)
 $PY -m unittest tests/controller/test_estimators.py        # estimators.py on hand-built inputs (7 tests)
 $PY -m unittest tests/robustness/test_model_service_alive.py  # P12 model-service PID liveness (5 tests)
+$PY -m unittest tests/policy/test_deadline.py tests/policy/test_structural.py  # F6a A2.1/A9.1, F4 A1.1-A1.3
+KVCACHED_SRC=/mnt/scratch/scheduler/kvcached $PY test/multi-model/test_memory_robustness.py  # from a worktree, or all 8 skip
 $PY test/multi-model/test_memory_robustness.py             # memory arbiter + kvcached fixes, simulated device (8 tests)
 $PY tests/controller/bench_decision_log.py                 # cost per cycle of the decision log (benchmark, not a test)
 ```

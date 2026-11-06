@@ -297,3 +297,60 @@ Opções e dados em `reports/fases/F02_instrumentacao.md` (seção "Decisão do 
    - Ressalva (agente): a seção 0.2 lista "travamento" como INVALIDA_SISTEMA. Vale para travamento de código (worker preso, driver), não para o T1.
    - Para distinguir os dois, o T1 exige GPU cheia, 0% de uso e workers no ramo ocioso. Um travamento com outra assinatura (sobretudo nas políticas novas da F4 em diante) ainda é investigado como INVALIDA_SISTEMA.
    - Todo relatório traz o tempo congelado T1 por nível.
+
+## D34 — Desenho da A1 e parâmetros `b`, `Δ_imp`, `T_min` (2026-11-05, agente, F4.1–F4.3; gate automático)
+
+Numeração: D30–D33 estão no registro do worktree `apresentacao-prazo` (ainda não commitado); a F4 começa em D34 para não colidir.
+
+- **A1.1 soma o piso do kvcached.** O kvcached nunca mapeia KV nos últimos 5% da GPU (`GPU_UTILIZATION = 0.95`, `kvcached/slab_allocator.py:_physical_free_size`; 7,2 GB numa H200). A conta do controlador (R2.1) não vê esse piso e ativa com `W + 1 GB`, ou seja, pode encher a GPU de pesos até ~1 GB livre, abaixo do piso: nenhum modelo recebe página de KV, e é o T1 (F1.1 já tinha concluído que "a A1.1 deve somar a reserva do kvcached"). Regra: ativar `m` só se `livre − ativações pendentes ≥ W_m + folga + max(KV de ativação, K_min(m)) + 0,05·GPU`. O piso só entra com a A1.1 ligada (`PRISM_KV_FLOOR_FRAC`, padrão 0,05); com `PRISM_KV_RESERVE_REQS=0` a regra é a de antes. A regra vale para toda estratégia (A0.1 `idle`, A0.3 `throughput`, `edf`/`lvf`); na F6a a A1.1 só existia no `edf`/`lvf` e estava desligada (D25), então nenhuma execução anterior muda de sentido.
+- **`b = 4`** (`PRISM_KV_RESERVE_REQS`): mediana do lote em execução por modelo residente com fila, nos níveis da A0.1 sem impasse (C1: 3–6; T1: 2–9; `reports/data/F04/calib/calib_niveis.tsv`, `polyaxon/f4_calib.py`). Com os tamanhos do Azure (prompt + saída ~1250 tokens) e o 8B (128 KiB/token), `K_min` ≈ 0,6 GB < 1 GB: o termo que pesa é o piso. Alternativas: `b = 8` (p75), `b = p90` (16–26, ~2,4–4 GB a mais por ativação, que tira residência de todos os modelos sem motivo medido).
+- **A1.2 pelo contador de tokens.** O detector olha a soma dos `served_tokens` (as engines informam a cada 1 s), não as conclusões: nos níveis sem impasse há trechos de até 281 s sem nenhuma conclusão (saídas longas, ciclos de retirada), mas a GPU nunca fica parada. O relógio só corre enquanto algum modelo ativo tem fila de espera e não há ativação nem desativação em andamento (nem ação da estratégia no mesmo ciclo). Vítima: o ativo de menor valor por GB pelo critério da A0.3 (`_keep_value`, o mesmo código), com residência ≥ `T_min`; empate: o ativo há mais tempo. Desativação com preempção (as requisições dele não progridem). Cada disparo vai para o log de decisões (`notes: deadlock`, com o estado de todos os candidatos) e para o log de texto (`Reason: deadlock break for <modelo>` → `evict_deadlock` no `events.csv`).
+- **`Δ_imp = 30 s`** (`PRISM_DEADLOCK_S`): nos 74 níveis VALIDA sem impasse, o trecho mais longo com GPU > 100 GB, 0% de uso e requisição pendente é 13 s; nos 7 com impasse, 433–1120 s. 30 s é > 2× o maior trecho normal e dispara em 30–35 s (ciclo de 5 s). Alternativas: 15 s (perto do normal), 60 s (perde 1 min de carga por impasse).
+- **`T_min = 10 s`** (`PRISM_MIN_RESIDENCY`), o valor da D25: acima do p99 do `Ĉ_at` do 8B (8,3 s). Vale para todo caminho de despejo (ociosidade, pressão, `fair`, troca por throughput com `max(PRISM_SWAP_MIN_RESIDENCY, T_min)`, `edf`/`lvf`, detector).
+- **O que conta como impasse no critério F4.5 (proposta para revisão do Gabriel):** nível com T1 congelado ≥ 60 s (métrica `t1_frozen_s` do validador). A distribuição observada é bimodal (≤ 13 s × ≥ 433 s), então o limiar não decide nenhum caso real. Não muda a classificação VALIDA do validador (D29, item 6).
+- **"Com A1"** = as três juntas (A1.1 + A1.2 + A1.3), como a F4.4 pede ("sem, com A1").
+
+## D35 — Base de código da F4: código da D30 trazido para este worktree (2026-11-05, agente)
+
+- A F4 compara A0.1 e A0.3 com e sem A1, e desde a D30 a A0.3 é a troca por throughput **sem** drenagem. O código da D30 (remoção da drenagem: `scheduler.py`, `io_struct.py`, `action.py`, `simple_global.py`, testes e docs) estava só no worktree `apresentacao-prazo`, sem commit.
+- O agente aplicou aqui só a parte de código e docs da D30 (diferença do worktree contra o commit `9d1768d`; 18 trechos, aplica sem conflito). Plano, TODO e decisões D30–D33 ficam no outro worktree, que ainda estava sendo editado.
+- Consequência: quando os dois ramos forem juntados, os trechos da D30 são idênticos dos dois lados.
+
+## D36 — Correção de medição do V13 e P15 (2026-11-06, agente, F4)
+
+- **V13:** o validador comparava a linha `GPU 0, mem X` do log (memória **disponível**: livre − ativações pendentes,
+  R2.1) com a memória livre do `nvidia-smi`. Com ativações pendentes por muito tempo, a diferença é a memória
+  prometida, não erro de medição (`f4-c1n14-3` A0.3_A1: 16,6 GB contra 0,68 GB com a memória livre de fato).
+  Correção: soma de volta o `pending_gb` do ciclo do log de decisões (pareado por tempo). O limite (2 GB) não muda.
+  Revalidação: F4 inteira, F3 e F6a; só aquele nível muda (INVALIDA_SISTEMA → VALIDA). Alternativa rejeitada: manter o
+  nível como inválido, o que descartaria uma execução sem falha.
+- **P15:** workspace do flashinfer de 512 MB para `Qwen2ForCausalLM` (`PRISM_FLASHINFER_WS_QWEN2_MB`, 0 = antigo),
+  como as versões seguintes do SGLang; só o C10 usa Qwen. Reexecução dos dois jobs do C10.
+- **Ressalvas que vão ao Gabriel (gate da F4):** critério de impasse T1 ≥ 60 s (D34); leitura do critério "sem piora
+  nos cenários sem impasse" (por carga de controle × por braço), porque a A0.3 + A1 piora o T3 (folga de 3 GB +
+  piso de 7,2 GB somados; relatório F04, anomalia 4).
+
+## D37 — Respostas do Gabriel às três questões do gate da F4 (2026-11-06, Gabriel)
+
+1. **Impasse = T1 ≥ 100 s** (tempo congelado do validador: GPU > 100 GB, 0% de uso, com requisição que fica sem
+   resposta já esperando). Substitui a proposta de 60 s da D34. Um travamento que o detector A1.2 quebra em ~30 s
+   (C1 com 14 modelos: T1 de 30–34 s) não conta como impasse; nenhum dos 46 níveis com A1 chega perto de 100 s, e os
+   impasses sem A1 têm 433–1120 s.
+2. **Critério "sem piora nos cenários sem impasse": leitura (b)**, por braço: todo braço que não travou entra, o que
+   inclui a A0.3 em todas as cargas. (O Gabriel respondeu "use your suggestion"; o agente não tinha recomendado uma
+   leitura explicitamente e entendeu a (b), a que testa o custo real, junto com a correção da folga do item 3. Se a
+   intenção era a (a), o gate muda.)
+3. **Folga da A0.3 com A1 (A0.4):** recomendação do agente aceita: com A1 ligada, a folga de ativação passa a 0 (o piso
+   do kvcached da A1.1 faz o papel dela), ou seja, **A0.4 = A0.3 + A1 com `PRISM_ACTIVATION_HEADROOM_GB=0`**, sujeito à
+   verificação pareada: T3, C3, C7 e C6 × {A0.3; A0.3 + A1 com folga 3; A0.3 + A1 com folga 0} × 2 repetições
+   (`polyaxon/f4_folga_suites.sh`, driver `bash polyaxon/f4_driver_start.sh folga`, 8 jobs).
+
+## D38 — Gate da F4 aprovado com a lacuna da A0.4 declarada (2026-11-06, Gabriel)
+
+- O Gabriel aprovou o gate da F4 ("commit and go to the next stage") na opção (i) do relatório F04: a A0.4
+  (A0.3 + A1 com folga 0) foi verificada em T3, C3, C7 e C6; nas outras seis cargas (C1n8, C1n14, C2, T1, C8, C10)
+  ela não foi rodada na F4 e entra na campanha da F5, que roda a A0.4 em todas as cargas.
+- Valem para a F5 em diante: A1 ligada em toda política (`PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30
+  PRISM_MIN_RESIDENCY=10`), impasse = T1 ≥ 100 s (D37), A0.4 = `PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0
+  PRISM_ACTIVATION_HEADROOM_GB=0` + A1. Os padrões do código continuam os do Prism publicado (regra 0.4); a A0.1 sem
+  A1 continua como referência.

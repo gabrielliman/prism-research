@@ -559,9 +559,9 @@ class Scheduler:
             self.last_batch = None
 
     @torch.inference_mode()
-    def _run_to_completion_normal(self, deadline: Optional[float] = None, evict_stuck: bool = False):
-        """Run the running batch and the waiting queue to completion. With a deadline (perf_counter time,
-        Prism's drain before a swap), stop starting batches once it passes and leave the rest to the caller.
+    def _run_to_completion_normal(self, evict_stuck: bool = False):
+        """Run the running batch and the waiting queue to completion (no time limit; the timed drain before a
+        swap was removed, D30: a deactivation either preempts or lets what is already running finish).
         With evict_stuck (the last step of a deactivation without preemption, P13): when nothing can run (no
         running batch and no prefill possible, e.g. a request retracted by a decode OOM finds no KV because the
         memory went to other models), send the waiting requests back to the model's frontend queue (they restart
@@ -587,12 +587,6 @@ class Scheduler:
                         result = self.run_batch(batch)
                         self.process_batch_result(batch, result)
             self.last_batch = batch
-            if deadline is not None and time.perf_counter() >= deadline:
-                logger.info(
-                    f"Drain deadline reached, waiting queue size: {len(self.waiting_queue)}, "
-                    f"running batch size: {0 if self.running_batch is None else len(self.running_batch.reqs)}"
-                )
-                return
             batch = self.get_next_batch_to_run()
             if (
                 evict_stuck
@@ -1784,15 +1778,8 @@ class Scheduler:
         logger.info(
             f"In handle deactivate request, waiting queue size: {len(self.waiting_queue)}. Running batch size: {0 if self.running_batch is None else len(self.running_batch.reqs)}, last batch size: {0 if self.last_batch is None else len(self.last_batch.reqs)}"
         )
-        if recv_req.drain_timeout is not None:
-            # Drain (Prism eviction strategies): keep serving the requests this engine already accepted for up
-            # to drain_timeout seconds; what is left is then handled as below (evict / preempt).
-            if self.enable_overlap:
-                logger.warning("Drain before deactivation is not implemented with the overlap scheduler")
-            else:
-                self._run_to_completion_normal(deadline=time.perf_counter() + recv_req.drain_timeout)
-                logger.info(f"Drained for {time.perf_counter() - start_time:.2f} s")
-
+        # The choice is only preempt or not (D30): the accepted requests that have not started go back to the
+        # model's frontend queue, and the running batch is either retracted or finishes, without a time limit.
         if recv_req.evict_waiting_requests or (
             recv_req.preempt and recv_req.preempt_mode == PreemptMode.RECOMPUTE
         ):

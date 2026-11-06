@@ -1,0 +1,6 @@
+# F4 smoke (2026-11-05): A1 = A1.1 b=4 (+ kvcached floor 5%) + A1.2 Δ_imp=30 s + A1.3 T_min=10 s, on the loads whose
+# T1 impasse is reproducible (F3 anomaly 1: C6 froze at 294 s with A0.1; F1.1: C1 with 14 models froze 4/4).
+# A0.3 = throughput swap without drain (D30). One rep; checks mechanics (no impasse, detector log, validator).
+C6_A01_A1	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+C6_A03_A1	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+C1n14_A01_A1	PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14 PRISM_IDLE_THRESHOLD=50 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
