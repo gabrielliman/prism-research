@@ -8,7 +8,8 @@ Prints one table to stdout.
 
 Columns: repetitions, served, losses, TTFT p50/p99 and p90, the TTFT-only SLOs of ovl_plots.SLOS_TTFT, the TPOT
 SLO, the combined SLO the load generator reports (TTFT and TPOT, with the limits the test used), worst wait for a
-model's first token, and one extra column (activations, or throughput swaps / preempted requests). Every SLO is
+model's first token, the tail of the wait (D33: p99 and maximum, unserved counted to the end of the run window,
+and the fraction above 10x the level's median), and one extra column (activations, or throughput swaps / preempted requests). Every SLO is
 the fraction of all sent requests, as in overload_load.py: strict "<", unserved and failed requests count as misses.
 Needs pandas.
 """
@@ -35,7 +36,11 @@ EXTRA = {"ativacoes": ("Ativações", lambda x: n(x["ativações"].mean(), 0)),
 
 
 def n(x, d=1):
-    return "nunca" if not np.isfinite(x) else f"{x:.{d}f}".replace(".", ",")
+    return "–" if x is None or (isinstance(x, float) and np.isnan(x)) else "nunca" if not np.isfinite(x) else f"{x:.{d}f}".replace(".", ",")
+
+
+def col(x, k):
+    return x[k].mean() if k in x else np.nan
 
 
 def faixa(v, d=1):
@@ -66,9 +71,10 @@ def main():
     tpot = [c for c in m.columns if c.startswith("SLO TPOT")][0]
     lim_tpot = tpot.removeprefix("SLO TPOT ")
     cols = (["Cenário"] if varios else []) + [
-        "Configuração", "Rep.", "Atendidas", "Perdas", "TTFT p50 / p99 (s)", "TTFT p90 (s)",
+        "Configuração", "Rep.", "Atendidas", "Perdas", "TTFT p50 / p90 (s)",
         *[f"TTFT < {t} s (%)" for t in SLOS_TTFT], f"TPOT {lim_tpot} (%)",
-        f"SLO: TTFT < {SLOS_TTFT[0]} s e TPOT {lim_tpot} (%)", "Pior espera pelo 1º token (s)", EXTRA[a.extra][0]]
+        f"SLO: TTFT < {SLOS_TTFT[0]} s e TPOT {lim_tpot} (%)", "Espera p99 / máx. (s)", "Espera > 10× mediana (%)",
+        "Pior espera pelo 1º token (s)", EXTRA[a.extra][0]]
     print("| " + " | ".join(cols) + " |")
     print("|" + " --- |" * len(cols))
     anterior = None
@@ -81,9 +87,13 @@ def main():
             NOME.get(c, c), str(len(x)),
             f"{x['atendidas'].sum() / x['enviadas'].sum() * 100:.1f}%".replace(".", ","),
             "—" if perdas == 0 else f"{perdas} ({', '.join(str(int(v)) for v in x.perdas)})",
-            f"{n(x['TTFT p50 (s)'].mean(), 2)} / {n(x['TTFT p99 (s)'].mean())}", faixa(x["TTFT p90 (s)"]),
+            f"{n(x['TTFT p50 (s)'].mean(), 2)} / {n(x['TTFT p90 (s)'].mean())}",
             *[n(100 * x[f"SLO TTFT < {t} s"].mean(), 0) for t in SLOS_TTFT], n(100 * x[tpot].mean(), 0),
-            faixa(100 * x["SLO"], 0), faixa(x["pior espera pelo 1º token (s)"], 0), EXTRA[a.extra][1](x)]
+            faixa(100 * x["SLO"], 0),
+            # D33 tail (F5.0e); "–" for metricas.csv written before the columns existed
+            f"{n(col(x, 'espera p99 (s)'), 0)} / {n(col(x, 'espera máx. (s)'), 0)}",
+            n(100 * col(x, "espera > 10× mediana"), 1),
+            faixa(x["pior espera pelo 1º token (s)"], 0), EXTRA[a.extra][1](x)]
         anterior = (cen, niv)
         print("| " + " | ".join(row) + " |")
 

@@ -246,6 +246,8 @@ class SimpleGlobalPolicy(GlobalPolicy):
         self.served_history: DefaultDict[str, deque] = defaultdict(deque)  # (time, served_tokens) per model
         self.served_tput: Dict[str, float] = {}  # tokens/s each active model served over DEMAND_WINDOW
         self.swap_reservation_until: Dict[str, float] = {}
+        self.swap_reservation_start: Dict[str, float] = {}  # F5.0f: when each reservation was made
+        self._reservation_logged: Set[Tuple[str, float]] = set()  # (model, until) already reported as lapsed
         self.PRESSURE_MIN_IDLE = float(os.environ.get("PRISM_PRESSURE_MIN_IDLE", 2))
         self.PRESSURE_COOLDOWN = float(os.environ.get("PRISM_PRESSURE_COOLDOWN", 10))  # s between evictions for one model
         self.ADAPTIVE_K = float(os.environ.get("PRISM_ADAPTIVE_K", 3))
@@ -567,6 +569,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                 )
             self.pressure_cooldown_until[model_name] = now + self.SWAP_RESERVATION
             self.swap_reservation_until[model_name] = now + self.SWAP_RESERVATION
+            self.swap_reservation_start[model_name] = now
         return victims
 
     def _calculate_model_violation_stats(
@@ -1132,6 +1135,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
         for name in dec.rotated_for:
             self.pressure_cooldown_until[name] = now + self.PRESSURE_COOLDOWN
             self.swap_reservation_until[name] = now + self.SWAP_RESERVATION
+            self.swap_reservation_start[name] = now
         for name in dec.unplaced:
             logger.warning(f"No suitable GPU found for inactive model {name}")
             self.dlog.note("no_fit", name, need_gb=snap.models[name].need_gb)
@@ -1141,6 +1145,26 @@ class SimpleGlobalPolicy(GlobalPolicy):
         for name, score in dec.scores.items():
             logger.info(f"{self.EVICTION} score {name}: {score}")
         return activation_plan, evictions
+
+    def _log_lapsed_reservations(self, now: float, active_models: Set[str]):
+        """F5.0f (D30): a model that victims were evicted for keeps priority on the freed memory for SWAP_RESERVATION
+        s. When that expires with the model neither active nor being activated, log it once, with the models
+        activated since the reservation was made (who took the memory). Only logs: the reservations themselves are
+        untouched (the deadline policies count them as rotations in flight)."""
+        pending = {m for (m, _) in self.pending_activations}
+        for name, until in self.swap_reservation_until.items():
+            if until > now or (name, until) in self._reservation_logged:
+                continue
+            self._reservation_logged.add((name, until))
+            if name in active_models or name in pending:
+                continue  # the reservation was used
+            start = self.swap_reservation_start.get(name, until - self.SWAP_RESERVATION)
+            took = sorted(m for m in active_models if self.active_since.get(m, -1.0) >= start)
+            took += sorted(m for m in pending if m != name)
+            self.dlog.note("reservation_lapsed", name, reserved_s=until - start, lapsed_ago_s=now - until,
+                           taken_by=took)
+            logger.info(f"Reservation of {name} lapsed {now - until:.1f} s ago without activation; "
+                        f"activated meanwhile: {took}")
 
     def _deadlock_check(
         self,
@@ -1215,6 +1239,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
         if self.dlog.enabled:
             self.dlog.models(time.time(), model_queues, model_instance_state_dict, self.model_weights_info,
                              self.active_since)
+        self._log_lapsed_reservations(time.time(), active_models)
         end_precompute = time.time()
         logger.info(f"Time for preprocessing data structures: {end_precompute - start_precompute:.4f}s")
 

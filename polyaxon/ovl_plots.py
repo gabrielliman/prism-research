@@ -82,7 +82,15 @@ def metricas(lv):
     slo_ttft, slo_tpot = s["args"]["slo_ttft"], s["args"]["slo_tpot"]
     slos = {f"SLO TTFT < {t} s": float((okm & (req.ttft < t)).mean()) for t in SLOS_TTFT}
     slos[f"SLO TPOT < {slo_tpot * 1000:.0f} ms"] = float((okm & (req.tpot < slo_tpot)).mean())
+    # Tail of the wait (D33, F5.0e): wait = TTFT if served, else the run's end (load + drain window, elapsed_s) minus
+    # the arrival; p99, maximum and the fraction of requests waiting more than 10x the level's median wait.
+    espera = np.where(okm, req.ttft, np.maximum(0.0, s["elapsed_s"] - req.arrival)).astype(float)
+    med = float(np.nanmedian(espera)) if len(espera) else np.nan
+    cauda = {"espera p99 (s)": float(np.nanpercentile(espera, 99)) if len(espera) else np.nan,
+             "espera máx. (s)": float(np.nanmax(espera)) if len(espera) else np.nan,
+             "espera > 10× mediana": float((espera > 10 * med).mean()) if len(espera) else np.nan}
     return {
+        **cauda,
         **slos,
         "oferecido": s["offered_rps"], "em regime": len(regime) / (0.75 * dur),
         "atendidas": s["ok"], "enviadas": s["sent"], "não atendidas": s["unserved"], "falhas": s["failed"],
@@ -92,6 +100,7 @@ def metricas(lv):
         "despejos ociosidade": int(k.get("evict", 0)), "despejos pressão": int(k.get("evict_pressure", 0)),
         "rodízios": int(k.get("evict_fair", 0)), "trocas throughput": int(k.get("evict_swap", 0)),
         "rodízios por prazo": int(k.get("evict_edf", 0)) + int(k.get("evict_lvf", 0)),
+        "despejos detector A1.2": int(k.get("evict_deadlock", 0)),
         "requisições preemptadas": int(pd.to_numeric(eventos(lv, "preempt").value).sum()),
         "ativações falhas (kvcached)": int(k.get("kv_oom", 0)),
         "falhas de driver kvcached": int(k.get("kv_oom", 0)), "torch OOM": int(k.get("oom", 0)),

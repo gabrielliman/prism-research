@@ -13,6 +13,7 @@ SPEC is a family and a level (PLANO_AGENTE.md section 5.4), default S1:ttft=1,tp
   S2:kT=<k>,kD=<k>        TTFT_r = kT · TTFT_base(m), TPOT_r = kD · TPOT_base(m)              (P95 base)
   S2M:kT=<k>,kD=<k>       the same with the P50 base (D21, the stable statistic)
   S3:kA=<k>,kD=<k>        TTFT_r = kA · Ĉ_at(m),      TPOT_r = kD · TPOT_base(m)
+  S6:kR=<k>,kD=<k>        TTFT_r = kR · Ĉ_rot(m),     TPOT_r = kD · TPOT_base(m)   (D32; Ĉ_rot from c_rot.json)
   S2L:kT=<k>,kD=<k>       the first S2 (D18, superseded by D20): TTFT_r = kT · TTFT_iso(m, prompt_len_r),
                           TPOT_r = kD · TPOT_iso(m), from single-request probes (comparison only)
 TTFT_base / TPOT_base (D20, the Prism paper's §7.1) are the P95 (S2, S3) or P50 (S2M) TTFT and TPOT of the requests
@@ -45,15 +46,18 @@ ROOT = HERE.parent
 REF = ROOT / "reports" / "registro" / "latencia_ref.json"
 DED = ROOT / "reports" / "registro" / "latencia_ded.json"
 CAT = ROOT / "reports" / "data" / "F02" / "cat" / "cat_model.json"
+CROT = ROOT / "reports" / "registro" / "c_rot.json"  # F5.0a/b: S6 base, Ĉ_rot(m) = overhead_s + Ĉ_at(m)
 MODEL_INFO = ROOT / "python" / "sglang" / "multi_model" / "utils" / "model_info.json"
-PROFILED = {"meta-llama/Llama-3.1-8B-Instruct": 14.95755871385336}  # profiled at run time, not in model_info.json
+PROFILED = {"meta-llama/Llama-3.1-8B-Instruct": 14.95755871385336,  # profiled at run time, not in model_info.json
+            "Qwen/Qwen2.5-14B-Instruct": 27.511393651366234,  # C10 (run.log of f4-c10-1b, estimate_model_info)
+            "Qwen/Qwen2.5-32B-Instruct": 61.027558386325836}
 DEFAULT_SLO = "S1:ttft=1,tpot=0.1"
 
 
 def parse_slo(spec):
     fam, _, rest = spec.partition(":")
     params = {k: float(v) for k, v in (kv.split("=") for kv in rest.split(",") if kv)}
-    need = {"S1": {"ttft", "tpot"}, "S2": {"kT", "kD"}, "S2M": {"kT", "kD"}, "S2L": {"kT", "kD"}, "S3": {"kA", "kD"},
+    need = {"S1": {"ttft", "tpot"}, "S2": {"kT", "kD"}, "S2M": {"kT", "kD"}, "S2L": {"kT", "kD"}, "S3": {"kA", "kD"}, "S6": {"kR", "kD"},
             "S4": {"kT", "kD", "bT"}}[fam]
     if set(params) != need:
         raise ValueError(f"{spec}: {fam} takes {sorted(need)}")
@@ -65,6 +69,7 @@ class Refs:
         self.lat = json.load(open(ref)) if os.path.exists(ref) else None
         self.ded = json.load(open(ded)) if os.path.exists(ded) else None
         self.cat = json.load(open(cat)) if os.path.exists(cat) else None
+        self.rot = json.load(open(CROT)) if os.path.exists(CROT) else None
         info = json.load(open(MODEL_INFO))
         self.weights = {k: v["model_size"] for k, v in info.items()} | PROFILED
 
@@ -72,6 +77,12 @@ class Refs:
         if self.cat is None:
             raise FileNotFoundError(f"{CAT} (F2.3) is needed for S3 and the avoidable/unavoidable split")
         return self.cat["a"] + self.cat["b"] * self.weights[path]
+
+    def c_rot(self, path):
+        """S6 (D32, F5.0b): real rotation time = preempted victim's exit + wait for a controller cycle + Ĉ_at(m)."""
+        if self.rot is None:
+            raise FileNotFoundError(f"{CROT} (F5.0a, polyaxon/swap_cost.py) is needed for S6")
+        return self.rot["overhead_s"] + self.c_at(path)
 
     def iso(self, path):
         if self.lat is None or path not in self.lat:
@@ -104,6 +115,8 @@ def slo_of(req, path, fam, p, refs, base=None):
         return p["kT"] * base[0], p["kD"] * base[1]
     if fam in ("S2", "S2M"):
         return p["kT"] * base[0], p["kD"] * base[1]
+    if fam == "S6":
+        return p["kR"] * refs.c_rot(path), p["kD"] * base[1]
     return p["kA"] * refs.c_at(path), p["kD"] * base[1]
 
 

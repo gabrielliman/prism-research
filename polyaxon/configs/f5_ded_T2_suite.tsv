@@ -1,0 +1,2 @@
+# F5 dedicated base T2 (polyaxon/f5_ded_suites.sh)
+T2	PRISM_STEPS=ovl_tr_lmsys PRISM_OVL_RATES=1 PRISM_OVL_DEDICATED=all PRISM_IDLE_THRESHOLD=100000

@@ -1,0 +1,32 @@
+{
+  "formula": "C_rot(m) = overhead_s + C_at(m); C_at = a + b*weights_gb (reports/data/F02/cat/cat_model.json, nothing ahead)",
+  "overhead_s": 5.026,
+  "n_preempt": 712,
+  "fonte": "F5.0a, polyaxon/swap_cost.py over F4 + F6a + 2026-10-28 VALIDA levels (reports/data/F05/swap_cost/); overhead = median exit of a preempted victim + median wait for a controller cycle",
+  "por_pesos_gb": {
+    "5.9": {
+      "c_at": 0.833,
+      "c_rot": 5.859,
+      "medido_preempt_p50": 6.911,
+      "n_preempt": 3
+    },
+    "15.0": {
+      "c_at": 1.404,
+      "c_rot": 6.43,
+      "medido_preempt_p50": 6.453,
+      "n_preempt": 709
+    },
+    "27.5": {
+      "c_at": 2.189,
+      "c_rot": 7.215,
+      "medido_preempt_p50": null,
+      "n_preempt": 0
+    },
+    "61.0": {
+      "c_at": 4.292,
+      "c_rot": 9.318,
+      "medido_preempt_p50": null,
+      "n_preempt": 0
+    }
+  }
+}

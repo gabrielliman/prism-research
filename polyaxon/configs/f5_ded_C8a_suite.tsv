@@ -1,0 +1,2 @@
+# F5 dedicated base C8a (polyaxon/f5_ded_suites.sh)
+C8a	PRISM_STEPS=ovl_diurnal PRISM_OVL_RATES=2 PRISM_OVL_DEDICATED='model_1 model_2 model_3 model_4 model_5' PRISM_IDLE_THRESHOLD=100000

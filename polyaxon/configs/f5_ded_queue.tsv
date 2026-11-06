@@ -1,0 +1,8 @@
+# F5 dedicated base (S2/S2M): suffix<TAB>suite
+f5-ded-c8a	polyaxon/configs/f5_ded_C8a_suite.tsv
+f5-ded-c8b	polyaxon/configs/f5_ded_C8b_suite.tsv
+f5-ded-c10	polyaxon/configs/f5_ded_C10_suite.tsv
+f5-ded-c6	polyaxon/configs/f5_ded_C6_suite.tsv
+f5-ded-c7	polyaxon/configs/f5_ded_C7_suite.tsv
+f5-ded-t3	polyaxon/configs/f5_ded_T3_suite.tsv
+f5-ded-t2	polyaxon/configs/f5_ded_T2_suite.tsv

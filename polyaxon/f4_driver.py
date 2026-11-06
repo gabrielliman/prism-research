@@ -17,12 +17,12 @@ import time
 
 PLX = "/mnt/scratch/scheduler/polyax-env/bin/polyaxon"
 PROJ = "kunumi/hpc4ai"
-RAW = "/mnt/scratch/scheduler/prism-raw/F4"
+RAW = os.environ.get("F4_RAW", "/mnt/scratch/scheduler/prism-raw/F4")
 STATE = os.environ.get("F4_STATE", "reports/data/F04/campanha_jobs.tsv")
 QUEUE = os.environ.get("F4_QUEUE")  # optional TSV "suffix<TAB>suite" (e.g. the headroom check, D37); default: F4.4
-VAL = "reports/data/F04/validador"
+VAL = os.environ.get("F4_VAL", "reports/data/F04/validador")
 MAX_ACTIVE = 3
-TIMEOUT = 10800  # 4 levels of up to ~25 min plus start-ups
+TIMEOUT = int(os.environ.get("F4_TIMEOUT", 10800))  # 4 levels of up to ~25 min plus start-ups
 FINAL = {"succeeded", "failed", "stopped", "upstream_failed", "skipped", "done"}
 PLAN = ["C3", "C1n8", "C1n14", "C2", "T1"]  # 5 reps (PLANO_AGENTE F4.4)
 D29 = ["C6", "C7", "C8", "T3", "C10"]  # 2 reps (D29 item 4, Gabriel's scope 2026-11-05)

@@ -28,7 +28,7 @@ rsync -a "$HERE/configs" "$STAGE/polyaxon/"
 [ -d "$HERE/traces" ] && rsync -a --include '*.csv.gz' --exclude '*' "$HERE/traces/" "$STAGE/polyaxon/traces/"
 # SLO bases for overload_load.py --slo-spec (F6a.1, slo_metrics.py reads them at these paths)
 mkdir -p "$STAGE/reports/registro" "$STAGE/reports/data/F02/cat"
-cp "$REPO/reports/registro/"{latencia_ded.json,latencia_ref.json} "$STAGE/reports/registro/"
+cp "$REPO/reports/registro/"{latencia_ded.json,latencia_ref.json,c_rot.json} "$STAGE/reports/registro/"
 cp "$REPO/reports/data/F02/cat/cat_model.json" "$STAGE/reports/data/F02/cat/"
 cp "$HERE/$JOB.yaml" "$STAGE/"
 

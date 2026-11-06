@@ -1,0 +1,6 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/base/ovl_mix/rate0.2,/mnt/scratch/scheduler/prism-raw/2026-10-28/fix2/tp-mix-1b,68d4c54978994d50961d18268bfb71a4,tp-mix-1b/outputs/base/ovl_mix/rate0.2,VALIDA,,,2026-10-26 22:47:59,,561,OK,OK,OK,OK,OK,N/A,N/A,OK,N/A,OK,N/A,OK,OK,OK,OK
+outputs/tp_P0D0/ovl_mix/rate0.2,/mnt/scratch/scheduler/prism-raw/2026-10-28/fix2/tp-mix-1b,68d4c54978994d50961d18268bfb71a4,tp-mix-1b/outputs/tp_P0D0/ovl_mix/rate0.2,VALIDA,,,2026-10-26 22:59:25,,12,OK,OK,OK,OK,OK,N/A,N/A,OK,N/A,OK,N/A,OK,OK,OK,OK
+outputs/tp_P0D1/ovl_mix/rate0.2,/mnt/scratch/scheduler/prism-raw/2026-10-28/fix2/tp-mix-1b,68d4c54978994d50961d18268bfb71a4,tp-mix-1b/outputs/tp_P0D1/ovl_mix/rate0.2,VALIDA,,,2026-10-26 23:10:56,,10,OK,OK,OK,OK,OK,N/A,N/A,OK,N/A,OK,N/A,OK,OK,OK,OK
+outputs/tp_P1D0/ovl_mix/rate0.2,/mnt/scratch/scheduler/prism-raw/2026-10-28/fix2/tp-mix-1b,68d4c54978994d50961d18268bfb71a4,tp-mix-1b/outputs/tp_P1D0/ovl_mix/rate0.2,VALIDA,,,2026-10-26 23:22:29,,0,OK,OK,OK,OK,OK,N/A,OK,OK,N/A,OK,N/A,OK,OK,OK,OK
+outputs/tp_P1D1/ovl_mix/rate0.2,/mnt/scratch/scheduler/prism-raw/2026-10-28/fix2/tp-mix-1b,68d4c54978994d50961d18268bfb71a4,tp-mix-1b/outputs/tp_P1D1/ovl_mix/rate0.2,VALIDA,,,2026-10-26 23:29:42,,10,OK,OK,OK,OK,OK,N/A,N/A,OK,N/A,OK,N/A,OK,OK,OK,OK

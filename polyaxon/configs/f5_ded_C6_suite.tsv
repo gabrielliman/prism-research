@@ -1,0 +1,2 @@
+# F5 dedicated base C6 (polyaxon/f5_ded_suites.sh)
+C6	PRISM_STEPS=ovl_zipf PRISM_OVL_RATES=2 PRISM_OVL_DEDICATED=all PRISM_IDLE_THRESHOLD=100000

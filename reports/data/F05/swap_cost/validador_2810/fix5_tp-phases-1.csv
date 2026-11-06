@@ -1,0 +1,5 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/tp_P0D0/ovl_phases/rate0.5,/mnt/scratch/scheduler/prism-raw/2026-10-28/fix5/tp-phases-1,434a61e4a1504ab0bd6aee2817df0be2,tp-phases-1/outputs/tp_P0D0/ovl_phases/rate0.5,VALIDA,,,2026-10-28 10:04:21,,0,OK,OK,OK,OK,OK,N/A,OK,OK,N/A,OK,N/A,OK,OK,OK,OK
+outputs/tp_P0D1/ovl_phases/rate0.5,/mnt/scratch/scheduler/prism-raw/2026-10-28/fix5/tp-phases-1,434a61e4a1504ab0bd6aee2817df0be2,tp-phases-1/outputs/tp_P0D1/ovl_phases/rate0.5,VALIDA,,,2026-10-28 10:16:21,,0,OK,OK,OK,OK,OK,N/A,OK,OK,N/A,OK,N/A,OK,OK,OK,OK
+outputs/tp_P1D0/ovl_phases/rate0.5,/mnt/scratch/scheduler/prism-raw/2026-10-28/fix5/tp-phases-1,434a61e4a1504ab0bd6aee2817df0be2,tp-phases-1/outputs/tp_P1D0/ovl_phases/rate0.5,VALIDA,,,2026-10-28 10:28:26,,0,OK,OK,OK,OK,OK,N/A,OK,OK,N/A,OK,N/A,OK,OK,OK,OK
+outputs/tp_P1D1/ovl_phases/rate0.5,/mnt/scratch/scheduler/prism-raw/2026-10-28/fix5/tp-phases-1,434a61e4a1504ab0bd6aee2817df0be2,tp-phases-1/outputs/tp_P1D1/ovl_phases/rate0.5,VALIDA,,,2026-10-28 10:40:29,,0,OK,OK,OK,OK,OK,N/A,OK,OK,N/A,OK,N/A,OK,OK,OK,OK
