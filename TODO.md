@@ -50,6 +50,7 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F6a.7 [HUMANO] (2026-11-05, D27: opção 1, sem confirmação) Gabriel escolhe o que vai para a confirmação
 - [-] F6a.8 (não executada, D27: nada passou na triagem) Confirmação: 5 rep. pareadas contra A0.1 e a melhor linha de base, + C2 como controle; IC 95% nas três vistas
 - [x] F6a.9 (2026-11-05, `reports/fases/F06a_prazo_primeira_rodada.md`, APROVADO) Relatório F06a; gate [HUMANO]
+- [x] F6a.10 (2026-11-05, D30, branch `apresentacao-prazo`; código trazido para a F4 na D35) Drenagem com prazo removida do código (`PRISM_SWAP_DRAIN`, `drain_timeout`); desativação = preemptar ou não; variáveis antigas dão erro; 46 testes passam. A0.3 redefinida sem drenagem
 
 ## F3 — Catálogo de cargas · gate [HUMANO]
 - [x] F3.1 `overload_load.py`: leitura de trace, classes de SLO, recusa como estado final, sementes (2026-11-05, `polyaxon/workloads.py`, `tests/workloads/`; C1–C5 com o mesmo hash)
@@ -76,18 +77,27 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F4.6 Parâmetros `b`, `Δ_imp`, `T_min` registrados; relatório F04 — D34, D37; `reports/fases/F04_restricoes.md`; gate APROVADO (D38, 2026-11-06)
 
 ## F5 — Linhas de base na nova metodologia · gate [HUMANO]
-- [ ] F5.1 A0.1–A0.5 (+A1) em todas as cargas aprovadas, níveis de `ρ_mem` definidos, 5 repetições
-- [ ] F5.2 Tabelas e figuras de referência (SLO total, evitáveis/inevitáveis, pior modelo, trocas, perdas)
+- [ ] F5.0a (D32, vinha da F6b) `polyaxon/swap_cost.py`: custo real da troca (decisão → vítima fora → pedido de ativação → modelo pronto), decisão ligada à ativação pelo `decisions.jsonl`, dados da F6a e de 28/10; `Ĉ_rot(m)` com e sem preempção; comparação com `ê_r` (só análise)
+- [ ] F5.0b Família S6 (`k_R · Ĉ_rot`) no `slo_metrics.py` e no `overload_load.py --slo-spec`
+- [ ] F5.0c Violações inevitáveis pela ativação × pela rotação × evitáveis só com residência prévia × evitáveis (`slo_metrics.py`), com a classificação antiga ao lado
+- [ ] F5.0d Métrica de ociosidade da GPU: residência ociosa com demanda pendente; ociosidade esperada pela carga (`ρ_m` de `latencia_ded.json`) × observada (`gpu.csv`)
+- [ ] F5.0e `report_tables.py`: TTFT p50 e p90 e cauda de espera (p99, máximo, fração > 10× a mediana; D33) nas tabelas, ao lado das três vistas de SLO
+- [ ] F5.0f Log de decisões: reserva de memória vencida sem ativação, e quem ficou com a memória (D30)
+- [ ] F5.1 A0.1–A0.5 (+A1), com A0.3 e A0.3p (sem e com preempção) e a melhor ociosidade de valor arbitrário (seção 0.10), em todas as cargas aprovadas, níveis de `ρ_mem` definidos, 5 repetições
+- [ ] F5.2 Tabelas e figuras de referência (SLO total, TTFT p50/p90, evitáveis/inevitáveis pela classificação nova, ociosidade da GPU, pior modelo, trocas, perdas)
 - [ ] F5.2a Curvas de todas as famílias de SLO calculadas pós-execução; SLO mínimo atingível (90% e 99%) por política e carga, nas três vistas
 - [ ] F5.2c Decomposição das violações (ambos / só TTFT / só TPOT / nenhum) e CDFs de TTFT e TPOT normalizados, por política e por modelo
 - [ ] F5.2b Escolher o subconjunto de níveis de SLO para as políticas por prazo (alto, meio da queda, baixo) e registrar em `decisoes.md`
 - [ ] F5.3 C-V1 e C-V2 satisfeitos; relatório F05 com proposta de conteúdo do artigo parcial
 
 ## F6 — Ativação e despejo por folga (A2–A4) e por atraso virtual (A9) · gate [HUMANO]
+- Prioridades (D31, D32, `PLANO_AGENTE.md` seção F6): custo real da troca → A3.1 → A10 (throughput × prazo × fila) → A2.3 → A4 → classes de prazo (F8) → A9.2; ciclo 1 s e A5 fora de prioridade; pior modelo só como observação; objetivo SLO + TTFT p50/p90 + nenhuma espera absurda (D33); SLOs ≥ tempo de rotação (S3 kA=5, S6 kR ∈ {1, 2})
+- [ ] F6.0 (D31, D32; primeira tarefa da F6) Repetição da triagem da F6a sem drenagem, **com e sem preempção**: C1 0,2 e T1 ts1, 2 rep., ≤ 3 jobs; por job A0.1, A0.2, A0.3, A0.3p, `fair` + A2.1 e A9.1 × {S3 kA=5, S6 kR=1, S6 kR=2} × {P0, P1} (17 níveis, 4 jobs); smoke antes; comparação com a F6a só pela diferença pareada no mesmo job; relatório `reports/fases/F06_0_repeticao_sem_drenagem.md`; gate [HUMANO]
 - [ ] F6.1 A2.1 EDF entre modelos + testes
 - [ ] F6.2 A2.2 menor folga com antecipação (+ variação do ciclo do controlador) + testes
 - [ ] F6.3 A2.3 residência preditiva (`λ̂`, horizonte `H`) + testes
-- [ ] F6.4 A3.1–A3.3 despejo por perda esperada, drenar × preemptar + testes
+- [ ] F6.4 A3.1–A3.3 despejo por perda esperada, preemptar × não preemptar (D30: sem drenagem com prazo) + testes
+- [ ] F6.13 (D32) A10.1–A10.3 troca por valor (throughput × prazo × fila), `PRISM_EVICTION=value` + testes; entra na ablação e na sensibilidade dos pesos
 - [ ] F6.5 A4 política combinada
 - [ ] F6.6 Ablação em C1, C2, C3, C6, C7, C11, T1 contra A0.1 e a melhor linha de base, 5 repetições
 - [ ] F6.7 Sensibilidade de margem, `H`, `θ`, ciclo; escolha registrada

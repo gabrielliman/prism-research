@@ -1,7 +1,7 @@
 # F04 — Restrições estruturais (A1): reserva de KV, detector de impasse e residência mínima
 
 Data de início: 2026-11-05 / fim: 2026-11-06
-Commits: nenhum ainda. Código sobre `d6afc63` (F3) + código da D30 (D35) + mudanças da F4, no worktree `f3-cargas`; versão
+Commits: `59f55ea` (F4.1–F4.6). Código sobre `d6afc63` (F3) + código da D30 (D35) + mudanças da F4, no worktree `f3-cargas`; versão
 congelada em `reports/data/F04/codigo/f4_smoke.diff` (sha256 `d7f2c4d2…`) e `f4_camp.diff` (sha256 `11bb052c…`, mesmo
 código de política, mais suítes e o driver).
 

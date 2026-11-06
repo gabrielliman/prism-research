@@ -93,6 +93,16 @@ Antes de submeter qualquer execução ao Polyaxon, o agente justifica, para cada
 - Execuções de linha de base reaproveitáveis não são refeitas sem motivo. Os motivos válidos são deriva do nó, código diferente ou pareamento exigido pela comparação.
 - A justificativa vai para o relatório da fase, na seção "Configurações executadas".
 
+### 0.10 Resultados de políticas novas: sempre contra as anteriores (D32)
+
+Em todo relatório e toda apresentação com resultados de uma política nova:
+- **comparar com as políticas que já temos, rodadas na mesma janela**, e não só com a A0.1:
+  - a melhor ociosidade de valor arbitrário (a A0.2 ou o melhor limiar da varredura mais recente);
+  - a troca por throughput/GB **sem e com preempção** (A0.3 e A0.3p);
+  - as políticas novas anteriores (ex.: EDF e VLT da F6a), quando a pergunta for a mesma;
+- as tabelas mostram, além da fração dentro do SLO (três vistas, seção 7.1), o **TTFT p50 e p90** e a **cauda de espera** (TTFT p99, máximo e fração acima de 10× a mediana; seção 7, D33);
+- uma apresentação nunca mostra só a política nova isolada.
+
 ---
 
 ## 1. Ponto de partida (o que já existe)
@@ -131,6 +141,15 @@ O agente deve confirmar cada item em F0 em vez de assumir.
 - as tarefas da F6a passam na frente de qualquer outra;
 - o restante da F6 (A2.2, A2.3, A3, A4, A9.2) continua depois da F5, como antes;
 - a F3 começa depois do gate da F6a.
+
+**Depois da F6a (D30, D31, Gabriel, 2026-11-05):**
+- a drenagem de 15 s foi removida (D30); a desativação de uma vítima é só preemptar ou não;
+- a F6 ganha uma ordem de prioridade (seção F6, "Prioridades").
+
+**Revisão de 2026-11-05 (D32, Gabriel):** a F6b (D31) deixa de ser uma fase própria e vem depois da F4:
+- a medição do custo real da troca e as métricas novas (violações inevitáveis pela rotação, ociosidade da GPU, TTFT p50/p90 como objetivo, família de SLO pela rotação) entram na **F5** (F5.0), porque a campanha de linhas de base precisa delas;
+- a repetição da triagem da F6a sem drenagem, **com e sem preempção**, entra na **F6** (F6.0);
+- entra a família de políticas A10 (throughput × prazo × fila) na F6.
 
 Marcos externos: F0–F5 sustentam o artigo de resultados parciais (metodologia de sobrecarga + fragilidades + linhas de base), com submissão prevista para fevereiro de 2027 (EuroMLSys) ou maio–junho de 2027 (SBAC-PAD). F10 sustenta o artigo final (EuroSys 2028, setembro de 2027, ou MLSys 2028, outubro de 2027).
 
@@ -204,9 +223,16 @@ O agente deve confirmar essa observação com os dados de F2 (medir `C_at` real 
 | --- | --- | --- |
 | A0.1 | Original do Prism | `PRISM_IDLE_THRESHOLD=50` |
 | A0.2 | Limiar curto | `PRISM_IDLE_THRESHOLD=10` |
-| A0.3 | Troca por throughput/GB com drenagem | melhor variante D de 28/10 |
-| A0.4 | A0.3 + folga de KV | `PRISM_ACTIVATION_HEADROOM_GB` escolhido em F4 |
+| A0.3 | Troca por throughput/GB, sem preempção | `PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=3`. Até a D30 era a variante com drenagem de 15 s (P0D1): execuções da A0.3 anteriores à D30 não se comparam com as novas |
+| A0.3p | Troca por throughput/GB, com preempção | `PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=1 PRISM_ACTIVATION_HEADROOM_GB=3` (D32: entra em toda comparação junto com a A0.3) |
+| A0.4 | A0.3 + A1, sem a folga fixa | `PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=0` + A1 (`PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10`). Escolhido na F4 (D37, D38): com a A1, a folga de 3 GB se soma ao piso do kvcached sem função; verificada em T3, C3, C7, C6 |
 | A0.5 | Arbitragem Moore-Hodgson do Prism | só se F0 confirmar que existe no código aberto |
+
+**Desativação de uma vítima (D30, vale para toda política que tira modelos ocupados).** A drenagem com prazo (`PRISM_SWAP_DRAIN`, 15 s) foi removida do código. A escolha é só entre:
+- **não preemptar** (`PRISM_SWAP_PREEMPT=0`): as requisições aceitas e ainda não iniciadas voltam na hora para a fila do modelo, e o lote que já está em execução (KV na memória) termina, sem limite de tempo;
+- **preemptar** (`PRISM_SWAP_PREEMPT=1`): o lote em execução também é retirado e recomeça do prompt depois (recomputação).
+
+Motivo: nos logs da F6a, a drenagem chegava quase sempre ao teto de 15 s (a fila de espera alimentava novos prefills), e a vítima levava 22,7 s (mediana) para sair, incompatível com prazos de 0,7–7 s. O tempo para a vítima sair passa a ser o da requisição mais longa do lote em execução, e entra no custo da troca de toda política por prazo.
 
 ### A1. Restrições estruturais (F4)
 
@@ -235,7 +261,7 @@ O agente deve confirmar essa observação com os dados de F2 (medir `C_at` real 
 - Para cada modelo ativo `j`, perda esperada de despejá-lo: `L_j = (requisições de j em andamento que não terminariam antes do prazo se preemptadas, ou trabalho descartado) + λ̂_j · C_at(j) · w_j` (chegadas que perderiam o prazo enquanto `j` não volta) + custo de reativação se `j` tiver fila.
 - Para cada candidato a entrar `i`, ganho esperado: `G_i = (requisições viáveis na fila de i) + λ̂_i · H · w_i`.
 - **Troca** quando `G_i − Σ_{j∈V} L_j > θ`, em que `V` é o menor conjunto de vítimas que libera `W_i + K_min(i)`; escolha de `V` gulosa por `L_j / (W_j + KV_j)` (perda por GB liberado). `θ` é a histerese.
-- **Drenar ou preemptar:** drenar se a folga das requisições em andamento de `j` permite terminar antes do prazo de `i`; preemptar caso contrário, com devolução ao Redis (P6).
+- **Preemptar ou não (D30):** não preemptar se as requisições em execução de `j` terminam (tokens restantes × TPOT) dentro da folga de `i`; preemptar caso contrário, com devolução ao Redis (P6). Variante a avaliar: decidir por requisição (terminar as que cabem na folga, preemptar o resto).
 - Variantes: A3.1 só fila atual (sem `λ̂`); A3.2 com `λ̂`; A3.3 com escolha de vítimas ótima por mochila pequena (número de modelos é pequeno, enumeração exata é barata).
 
 ### A4. Política combinada (F6)
@@ -311,13 +337,34 @@ O LVF, a cada iteração: (1) se tudo cabe na HBM, FCFS; (2) ordena todas as req
 
 **Variantes.**
 - **A9.1 LVF entre modelos (fiel ao artigo).** Mapeamento da tabela acima; vítima = modelo ativo há mais tempo (VLT mais negativo), só se tiver residência ≥ `T_min` (A1.3); no máximo `B_rot` ativações iniciadas por ciclo.
-- **A9.2 LVF com custo de ativação.** Igual à A9.1, mas um modelo inativo só entra se `VLT_m` superar o custo da troca (`Ĉ_at(m)` mais a drenagem das vítimas) por uma margem; a vítima é escolhida pelo menor (VLT da vítima) × GB liberado. Usa `Ĉ_at` da F2.
+- **A9.2 LVF com custo de ativação.** Igual à A9.1, mas um modelo inativo só entra se `VLT_m` superar o custo da troca (`Ĉ_at(m)` mais o tempo para as vítimas terminarem o lote em execução, ou zero com preempção; D30) por uma margem; a vítima é escolhida pelo menor (VLT da vítima) × GB liberado. Usa `Ĉ_at` da F2.
 - **A9.3 LVF entre requisições dentro do worker (opcional).** Troca a fila FCFS do `scheduler.py` por LVF com preempção proativa por recomputação. Só se A9.1/A9.2 mostrarem ganho e se a carga tiver sobrecarga de computação (C4, C5), porque o SGLang 0.3.4 não troca KV para a CPU.
 - Não incluímos o LVF na fila do GPU scheduler (`request_queue.py`): com SLO único, ordenar por VLT é FCFS; com classes, é EDF sobre `a_r + β_F·S`, que a prioridade atual já aproxima.
 
 **Implementação.** `PRISM_EVICTION=lvf` (padrão continua `idle`), com `PRISM_LVF_ALPHA` (3), `PRISM_LVF_BETA_F` (0,5), `PRISM_LVF_BETA_B` (0), `PRISM_LVF_BUDGET` (1 ativação por ciclo) e `PRISM_LVF_COST_AWARE` (0 = A9.1, 1 = A9.2). A decisão é uma função pura `lvf_select(estado, agora, parâmetros) → (vítimas, ativações)` com testes em `tests/policy/` (seção 0.6), incluindo: tudo cabe (nenhuma rotação), fome de C1, troca de grupo de C2, impasse de C3, modelo rotativo com `α` alto vencendo um em espera, orçamento esgotado e vítima com residência abaixo de `T_min`. Os dados por requisição já existem no controlador (`model_queue_tracker.py`: `arrival_time`, `start_running_time`, `preempted_time`).
 
 **Avaliação (F6.10–F6.12).** Na campanha de ablação da F6 (mesmas cargas, níveis de SLO e repetições), contra `fair` (o antecessor de quantum fixo), A0.1, a melhor linha de base da F5 e A2/A4. Sensibilidade: `α ∈ {1, 3}`, `β_F ∈ {0; 0,5; 2}`, `β_B ∈ {−0,5; 0}`, `B_rot ∈ {1, 2}`. Métricas nas três vistas da seção 7.1, mais o pior modelo e o número de trocas. **Critério de interesse:** A9 entra na política candidata (A4) só se ganhar da melhor linha de base com IC 95% pareado que exclui 0 em pelo menos uma vista sem piorar outra; caso contrário, o resultado negativo é reportado e explicado pelos logs de decisão.
+
+### A10. Troca por valor: throughput, prazo e tamanho da fila (F6, D32)
+
+**Motivação.** As políticas da F6a olharam só para o prazo, e a troca por throughput/GB (A0.3) só para o throughput. Na F6a, a EDF tirou modelos ocupados porque não pesava o que eles serviam, e a A0.3 não sabe se alguma requisição ainda pode ser salva. A A10 junta os dois critérios e acrescenta o tamanho da fila, que mede a pressão acumulada de cada modelo.
+
+**Retrato por modelo** (o mesmo das funções de `deadline.py`, mais o throughput servido que a A0.3 já mede):
+- `V_m`: requisições viáveis na fila (folga ≥ 0, com o custo real da troca medido na F5.0, não só `Ĉ_at`);
+- `Q_m`: tamanho da fila (requisições e tokens de prompt + saída pedida);
+- `X_m`: throughput servido nos últimos 30 s (tokens/s), por GB ocupado;
+- `R_m`: requisições em execução e o tempo restante delas (tokens restantes × TPOT).
+
+**Variantes.**
+- **A10.1 Filtro por prazo, escolha por throughput.** Só entra quem tem `V_m > 0`. Entre esses, a escolha e as vítimas seguem a A0.3 (demanda × throughput por GB), com a vítima precisando ter `X_j` menor que a demanda de quem entra pela margem `PRISM_SWAP_MARGIN`.
+- **A10.2 Pontuação ponderada.** Valor de entrar `G_i = w_V·V_i + w_Q·Q_i/Q̄`, valor de ficar `L_j = w_X·X_j/X̄ + w_R·R_j + w_V·V_j`, com termos normalizados pela média dos modelos; troca se `G_i − Σ L_j > θ`. Pesos por variável de ambiente; sensibilidade na F6.5.
+- **A10.3 Pressão de fila com prazo.** Como a A10.2, mas `Q` entra como fila ponderada pela folga (`Σ_r 1/max(folga_r, ε)`), para que uma fila grande e urgente pese mais que uma fila grande e folgada.
+
+**Relação com A3 e A4.** A A3 é o caso em que só o prazo conta na perda; a A10 acrescenta o throughput e a fila. Se a A10.2 com `w_X = w_Q = 0` se reduzir à A3.1, as duas compartilham o código (verificar na implementação).
+
+**Implementação.** `PRISM_EVICTION=value`, `PRISM_VALUE_VARIANT` (1, 2, 3) e os pesos; função pura `value_select(retrato, params)` em `policy/deadline.py` ou num módulo novo, com testes em `tests/policy/` (fome do C1, vítima ocupada × ociosa, fila grande e folgada × pequena e urgente, tudo cabe).
+
+**Avaliação.** Na campanha da F6, contra a melhor ociosidade, a A0.3 e a A0.3p, a A3 e a A4, nas três vistas, no TTFT p50/p90 e na cauda de espera (objetivo da seção 7).
 
 ---
 
@@ -386,6 +433,7 @@ O SLO fixo usado até aqui (TTFT < 1 s e TPOT < 100 ms para todos os modelos e r
 | S2 | Escalonado pela latência isolada | `k_T · TTFT_iso(m, L_r)` | `k_D · TPOT_iso(m)` | SLO justo entre tamanhos de modelo e de prompt; é a família principal |
 | S3 | Relativo ao custo de ativação | `k_A · Ĉ_at(m)` | `k_D · TPOT_iso(m)` | observação 4.0: quando a ativação sob demanda passa a caber no prazo |
 | S4 | Classes por requisição | interativa: S2 com `k_T` baixo; lote: S2 com `k_T` alto ou absoluto folgado | interativa: `k_D` baixo; lote: sem limite de TPOT | carga C9 e política A7 |
+| S6 | Relativo ao tempo de rotação (D32) | `k_R · Ĉ_rot(m)`, em que `Ĉ_rot` é o tempo real de uma troca (decisão → modelo que entra pronto, mediana medida na F5.0 por tamanho de modelo) | `k_D` × base do S2 | prazos que cabem numa troca real: em sobrecarga, reagir à chegada só serve se o prazo cobre a rotação |
 | S5 | Heterogêneo por modelo | `k_T` sorteado ou definido por modelo (ex.: modelos pequenos estritos, grandes folgados) | idem com `k_D` | provedores com SLOs diferentes por modelo |
 
 **Revisão depois do gate da F2 (D20–D23):**
@@ -395,6 +443,10 @@ O SLO fixo usado até aqui (TTFT < 1 s e TPOT < 100 ms para todos os modelos e r
   - S2M: `k_T ∈ {5, 10, 25, 50}`, `k_D ∈ {3, 5, 10, 20}`;
   - S3: `k_A ∈ {2, 5, 10, 25, 50}`.
 - As tabelas e os níveis iniciais abaixo ficam como registro do plano original.
+
+**SLOs maiores para as políticas por prazo (D32).** Estamos em sobrecarga, e na F6a os prazos de 0,6–1,75 s ficaram abaixo até da ativação. A partir da F6, as execuções das políticas que usam o prazo rodam com níveis **iguais ou acima do tempo de rotação**:
+- proposta (confirmar com o Gabriel depois da F5.0): S3 `k_A` = 5 (continuidade com a F6a) e S6 `k_R` ∈ {1, 2};
+- o S2 `k_T` = 10 continua nas métricas (reavaliação depois da execução, sem custo) como referência estrita, não como nível de execução das políticas por prazo.
 
 **Níveis iniciais** (ajustáveis no gate de F2, com o motivo registrado): `k_T ∈ {2, 5, 10, 25, 50}`, `k_D ∈ {1,5; 2; 3; 5}`, `k_A ∈ {0,5; 1; 2; 5}`. TTFT e TPOT variam **separadamente** (uma grade, não uma diagonal), porque estressam mecanismos diferentes: o TTFT depende de residência e fila, o TPOT depende da pressão de KV e da partilha de computação entre modelos residentes.
 
@@ -571,7 +623,15 @@ São 48 níveis no total.
 As linhas de base não usam o SLO, então cada execução desta campanha gera as curvas completas de todas as famílias da seção 5.4 sem execuções extras. Os níveis escolhidos para as políticas por prazo (F6–F8) saem destas curvas.
 
 
-**Tarefas:** rodar A0.1–A0.5 (+A1) em todas as cargas aprovadas em F3, com os níveis de `ρ_mem` definidos, 5 repetições; produzir as tabelas e figuras de referência (SLO total, violações evitáveis e inevitáveis, pior espera por modelo, trocas, perdas). Esta campanha é a referência de C-V3 para as fases seguintes e o núcleo do artigo de resultados parciais.
+**F5.0 Medições e métricas antes da campanha (D32; vinham da F6b, D31).** Só análise e código de métricas, sem job novo:
+- **custo real da troca:** script `polyaxon/swap_cost.py` decompõe cada rotação (decisão → vítima fora → pedido de ativação → modelo pronto, mais a espera pelo ciclo e pela fila do carregador), ligando decisão e ativação pelo `decisions.jsonl`, nos dados da F6a e de 28/10. Resultado: `Ĉ_rot(m)` por tamanho de modelo, com e sem preempção, e a comparação com `ê_r`;
+- **família S6** no `slo_metrics.py` e no `overload_load.py --slo-spec`;
+- **violações inevitáveis pela ativação × pela rotação × evitáveis só com residência prévia** (seção 7) no `slo_metrics.py`;
+- **ociosidade da GPU** (seção 7), a partir de `events.csv`, `requests.csv`, `gpu.csv` e `latencia_ded.json`;
+- **tabelas com TTFT p50 e p90 e a cauda de espera** (p99, máximo, fração acima de 10× a mediana; não atendidas contadas até o fim do prazo extra) em `polyaxon/report_tables.py`;
+- **log de decisões:** registrar quando a reserva de memória de um modelo vence sem ele ter sido ativado, e quem ficou com a memória (D30).
+
+**Tarefas:** rodar A0.1–A0.5 (+A1), incluindo a A0.3 e a A0.3p e a melhor ociosidade de valor arbitrário (seção 0.10), em todas as cargas aprovadas em F3, com os níveis de `ρ_mem` definidos, 5 repetições; produzir as tabelas e figuras de referência (SLO total, TTFT p50/p90, violações evitáveis e inevitáveis pela classificação nova, ociosidade da GPU, pior espera por modelo, trocas, perdas). Esta campanha é a referência de C-V3 para as fases seguintes e o núcleo do artigo de resultados parciais.
 
 **Critérios de aceitação:** C-V1–C-V2 satisfeitos; todas as execuções válidas ou explicadas; tabelas, curvas e decomposição de violações nas três vistas da seção 7.1.
 
@@ -579,14 +639,39 @@ As linhas de base não usam o SLO, então cada execução desta campanha gera as
 
 ### F6 — Ativação e despejo por folga (A2, A3, A4) e por atraso virtual (A9)
 
+**Prioridades (D31, D32, depois da F6a e da apresentação de 2026-11-05).** Cada item ataca uma lição da F6a:
+1. **Custo real da troca** (medido na F5.0; reduções escolhidas no gate da F6.0: ativação no mesmo ciclo em que a memória é liberada, controlador orientado a evento, `ê_r` com o custo medido). Nenhum critério salva prazos de segundos se uma troca leva 13–17 s. É pré-requisito dos outros.
+2. **A3, despejo por perda esperada** (começar pela A3.1, sem `λ̂`). Ataca a A2.1 com prazo folgado, que tirou modelos ocupados. A decisão "preemptar ou não" (D30) faz parte da troca. Expectativa declarada: com prazos curtos, tende a "não trocar" e empatar com as linhas de base de ociosidade; o ganho, se vier, vem dos prazos folgados.
+3. **A10, throughput × prazo × fila** (seção A10, D32), em paralelo à A3, porque usa o mesmo retrato e ataca o mesmo defeito (vítimas ocupadas) pelo lado do throughput.
+4. **A2.3, residência preditiva.** É a única resposta da observação 4.0 para prazos menores que a ativação. A barra é a A0.2 (o limiar curto já é um preditor rudimentar), não só a A0.1. O ganho esperado está em cargas com popularidade desigual e rajadas (T1, C6, C7), não no C1.
+5. **A4, política combinada:** a A2.3 decide quem deveria estar residente, a A3 decide se a troca compensa, e o despejo por ociosidade continua como caminho barato.
+6. **Prazos diferentes na mesma carga** (classes interativa + lote, A7/F8). Com um único tipo de prazo, ordenar por prazo tem pouco efeito; com classes, o lote dá a folga que a A2 precisa.
+7. **A9.2, VLT com custo de troca:** prioridade menor, porque com custo de troca e vítima pelo valor fica parecida com a A3. Vale como variante depois do resultado da A3.
+
+Fora de prioridade: o ciclo de 1 s (só com histerese maior) e a A5 (recusa conta como violação na métrica atual; ganho só indireto). O pior modelo (justiça) é acompanhado como **observação** nas métricas, não como objetivo das políticas (D31).
+
 **Tarefas**
 - (A2.1 e A9.1, com A1.1 e A1.3, vêm da F6a.)
+- **F6.0 Repetição da triagem da F6a sem drenagem, com e sem preempção (D31, D32).** Primeira tarefa da F6.
+  - **Perguntas:** sem a drenagem de 15 s (D30), EDF e VLT ainda perdem para as linhas de base? A preempção (a vítima sai na hora, e o que estava rodando recomeça depois) ajuda ou atrapalha as políticas por prazo?
+  - **Hipóteses:** (H1) sem drenagem, a vítima sai em 5–10 s em vez de 22,7 s, e as violações evitáveis caem; (H2) a EDF com prazo folgado continua perdendo, porque não pesa a perda da vítima; (H3) com preempção, quem entra espera menos, mas o trabalho descartado cresce, e o saldo depende do prazo; (H4) a reserva de memória de 15 s às vezes vence antes de a vítima sair (log da F5.0).
+  - **Cargas:** C1 `ovl_mem` 0,2 e T1 `ovl_trace_big` ts1, as mesmas da F6a, porque a mudança só aparece onde há rotação de modelos ocupados (seção 0.9).
+  - **Matriz por job (17 níveis):**
+    - linhas de base (seção 0.10): A0.1, A0.2, A0.3, A0.3p e `fair`;
+    - A2.1 e A9.1 × 3 níveis de SLO (seção 5.4, "SLOs maiores": S3 `k_A` = 5 e S6 `k_R` ∈ {1, 2}) × {sem preempção, com preempção};
+    - 2 cargas × 2 repetições = 4 jobs, no máximo 3 simultâneos;
+    - sem ciclo de 1 s.
+  - **Parâmetros:** os da F6a (D25), sem drenagem: `T_min` = 10 s, orçamento de 1 rotação, folga de 3 GB, A1.1 desligada.
+  - **Comparação com a F6a:** só pela diferença pareada contra a melhor ociosidade do mesmo job (A0.1/A0.2 não mudaram), nunca pelos valores absolutos (regra 3; o braço com drenagem não existe mais). A A0.3 e o `fair` não se comparam com os da F6a.
+  - **Métricas:** as da seção 7, com o objetivo da seção 7 (SLO, TTFT p50/p90 e cauda de espera), a classificação nova de violações, a ociosidade da GPU e, por rotação, decisão → vítima fora e decisão → modelo que entra pronto.
+  - **Sinal e gate [HUMANO]:** > ~8 pontos sobre a melhor linha de base do mesmo job, ou melhora clara no TTFT p50/p90 sem piorar o SLO nem a cauda de espera. O Gabriel decide o que vai para a confirmação (5 repetições, IC 95%), quais reduções do custo da troca implementar e se a ordem das prioridades muda. Relatório `reports/fases/F06_0_repeticao_sem_drenagem.md`.
 - F6.1 Implementar A2.1, A2.2, A2.3 com testes unitários (incluindo os estados de fome de C1 e de troca de grupo de C2).
-- F6.2 Implementar A3.1–A3.3 com testes unitários (incluindo escolha de vítimas e drenar × preemptar).
+- F6.2 Implementar A3.1–A3.3 com testes unitários (incluindo escolha de vítimas e preemptar × não preemptar, D30).
 - F6.3 Implementar A4 combinando A1, A2 e A3.
 - F6.4 Campanha de ablação: cada componente isolado e a combinação, contra A0.1 e a melhor linha de base de F5, nas cargas C1, C2, C3, C6, C7, C11 e T1; 5 repetições; para as políticas por prazo, uma execução por nível de SLO do subconjunto escolhido em F5 (seção 5.4).
 - F6.5 Varredura de sensibilidade dos parâmetros principais (margem, `H`, `θ`, ciclo do controlador), registrando a escolha final e o motivo.
 - F6.10–F6.12 A9 (seção A9): implementar A9.1 e A9.2 com testes; incluí-las na campanha de ablação e na varredura de sensibilidade; A9.3 só se A9.1/A9.2 mostrarem ganho.
+- F6.13 A10 (seção A10): implementar A10.1–A10.3 com testes; incluí-las na campanha de ablação (F6.4) e na sensibilidade dos pesos (F6.5).
 
 **Critérios de aceitação**
 - Testes unitários passando.
@@ -656,10 +741,25 @@ Regras:
 - **Decomposição das violações** em quatro grupos disjuntos para cada execução e política: atende ambos; viola só TTFT; viola só TPOT; viola ambos (incluindo recusadas e expiradas, reportadas à parte). A soma fecha em 100%.
 - A separação entre violações evitáveis e inevitáveis (acima) vale para a vista só TTFT. Para o TPOT, reportar a fração das violações que ocorrem enquanto há troca de modelo em andamento ou memória livre abaixo de um limite, para ligar a violação a uma causa.
 - Na vista só TPOT, considerar apenas requisições que geraram pelo menos dois tokens; as demais ficam fora do cálculo e o número delas é reportado.
-- Toda comparação entre políticas (IC 95% pareado por semente) é feita nas três vistas. Uma política só é descrita como melhor quando melhora a vista combinada; se ela piorar uma das vistas separadas, isso é dito explicitamente, com o mecanismo encontrado nos logs de decisão.
+- Toda comparação entre políticas (IC 95% pareado por semente) é feita nas três vistas e no TTFT p50/p90. Uma política é descrita como melhor quando melhora a vista combinada ou o TTFT p50/p90 sem piorar o outro nem a cauda de espera (objetivo da seção 7, D32/D33); se ela piorar uma das vistas separadas, isso é dito explicitamente, com o mecanismo encontrado nos logs de decisão.
 - O "SLO mínimo atingível" é reportado nas três vistas.
 - Por modelo: as três vistas também por modelo, para não esconder um modelo que perde TPOT enquanto os demais ganham TTFT.
-- **Violações inevitáveis / evitáveis:** inevitável se a requisição chegou a um modelo inativo e `S_m < Ĉ_at(m)` (ou recusada por A5.1 com `s_r(a_r) < −τ` sem nenhuma fila); evitável caso contrário.
+- **Violações inevitáveis / evitáveis (revisto na D32, implementado na F5.0).** Para uma requisição que chegou a um modelo inativo:
+  - **inevitável pela ativação:** havia memória livre para o modelo na chegada e `S_m < Ĉ_at(m)`;
+  - **inevitável pela rotação:** não havia memória livre, então era preciso tirar alguém, e `S_m < Ĉ_rot(m)` (o tempo real de uma troca: espera pelo ciclo, saída da vítima, fila do carregador e ativação, medido na F5.0);
+  - **evitável só com residência prévia:** `S_m` cobre a ativação ou a rotação, mas só se a decisão tivesse sido tomada antes da chegada (ex.: menor que `Ĉ_rot` + um ciclo);
+  - **evitável:** os demais casos, mais toda violação de requisição que chegou a modelo ativo;
+  - recusadas por A5.1 com `s_r(a_r) < −τ` sem nenhuma fila continuam como inevitáveis.
+  A classificação antiga (só `Ĉ_at`) é reportada ao lado na F5, para continuidade com a F6a.
+- **Ociosidade da GPU (D32, implementado na F5.0).** Mede quanto da GPU fica parado com modelos que não estão servindo, considerando os modelos em execução e a carga deles:
+  - **residência ociosa com demanda pendente:** GB·s de modelos residentes sem requisição em execução nem na fila, nos instantes em que algum modelo inativo tem fila, dividido pelo total de GB·s da GPU. É memória que poderia estar com quem espera;
+  - **ociosidade esperada pela carga:** para cada modelo, a carga oferecida `ρ_m = λ_m · E[tempo de serviço]` (taxa de chegada da carga × tempo de serviço medido na GPU dedicada, `latencia_ded.json`). Para o conjunto residente em cada instante, `1 − min(1, Σ ρ_m)` é a ociosidade que a própria carga impõe; a diferença para a ociosidade observada (utilização do `nvidia-smi`, `gpu.csv`) separa ociosidade da carga de ociosidade da política;
+  - reportada por política e por carga, ao lado das trocas por minuto.
+- **Objetivo (D32, D33): fração dentro do SLO, TTFT típico e nenhuma espera absurda.** As políticas são avaliadas por três critérios, sempre juntos:
+  1. a fração dentro do SLO (três vistas);
+  2. o **TTFT típico**: p50 e p90 das concluídas, com as não atendidas reportadas à parte;
+  3. a **cauda de espera**: nenhuma requisição deve esperar absurdamente mais que as outras. Medida pelo TTFT p99, pelo TTFT máximo e pela fração de requisições com TTFT acima de 10× a mediana da própria execução, todas contando as não atendidas como espera até o fim do prazo extra; mais a pior espera pelo 1º token por modelo, que já existia.
+  Uma política que melhora o critério 1 ou o 2 sem piorar os outros conta como ganho. **Uma melhora no SLO ou no TTFT típico conseguida à custa de uma cauda absurda (ex.: algumas requisições esperando centenas de segundos) não conta como ganho**, e isso é dito explicitamente. Se um critério melhora e outro piora, isso também é dito, com o mecanismo nos logs de decisão. Diferente da justiça entre modelos (pior modelo), que continua só como observação, o critério 3 é sobre requisições.
 - **Goodput:** requisições dentro do SLO por segundo.
 - **Pior espera pelo 1º token por modelo** e **fração dentro do SLO do pior modelo** (justiça).
 - **Cauda:** p50, p90, p99 de TTFT das concluídas.

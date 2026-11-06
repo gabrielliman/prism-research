@@ -298,9 +298,85 @@ Opções e dados em `reports/fases/F02_instrumentacao.md` (seção "Decisão do 
    - Para distinguir os dois, o T1 exige GPU cheia, 0% de uso e workers no ramo ocioso. Um travamento com outra assinatura (sobretudo nas políticas novas da F4 em diante) ainda é investigado como INVALIDA_SISTEMA.
    - Todo relatório traz o tempo congelado T1 por nível.
 
+## D30 — Drenagem com prazo removida: a desativação de uma vítima é só preemptar ou não (2026-11-05, Gabriel)
+
+- **Contexto:** ao preparar a apresentação da F6a, os logs da triagem (trace real, `T1` ts1, S3 `k_A`=5, job `21f31370`; `polyaxon/apresentacao_prazo_figs.py`) mostraram:
+  - a drenagem de 15 s (`PRISM_SWAP_DRAIN=1`) chegava quase sempre ao teto: mediana de 15,0 s e p90 de 15,5 s (52 rotações EDF, 40 LVF). Durante a drenagem o worker continuava servindo a fila de espera, inclusive com novos prefills;
+  - da decisão de rotação até a vítima sair: mediana de 22,7 s e p90 de 88 s (EDF); 16,5 s e 55 s (LVF). Da decisão até o modelo que entra ficar pronto: 16,8 s e 12,6 s (mediana), contra o `Ĉ_at` de ~1,4 s que a A2.1 usa;
+  - com prazos de 0,7–7 s, a drenagem protege a vítima à custa de quem entra: a requisição que motivou a troca já está perdida quando a memória é liberada.
+- **Origem da drenagem:** desenho de 22/10 (troca por throughput, 15 s fixos, nunca variados). Em 28/10, com o critério por throughput e sem prazos, a drenagem empatou ou ganhou um pouco da variante sem drenagem (P0D0); o resultado continua válido para aquela pergunta, não para políticas por prazo.
+- **Decisão (Gabriel):** tirar a drenagem com prazo, inclusive do código. A desativação de uma vítima passa a ter só duas opções:
+  - **não preemptar** (`PRISM_SWAP_PREEMPT=0`, padrão): as requisições aceitas e não iniciadas voltam na hora para a fila do modelo; o lote em execução (KV já na memória) termina, sem limite de tempo;
+  - **preemptar** (`PRISM_SWAP_PREEMPT=1`): o lote em execução também é retirado e recomputado depois.
+- **Código** (branch `apresentacao-prazo`, sem commit):
+  - `scheduler.py`: removido o bloco de drenagem de `handle_deactivate_request` e o parâmetro `deadline` de `_run_to_completion_normal`;
+  - `io_struct.py` (`DeactivateReqInput`) e `action.py` (`DeactivateAction`): removido `drain_timeout`;
+  - `simple_global.py`: removidos `PRISM_SWAP_DRAIN` e `PRISM_SWAP_DRAIN_TIMEOUT`; se uma suíte ainda definir um deles com valor ≠ 0, o controlador aborta com erro (para nenhuma suíte antiga rodar outra configuração sem perceber). A reserva de memória do modelo que entra na EDF/LVF passa de 15 s + 15 s de drenagem para 15 s (`SWAP_RESERVATION`);
+  - testes: `tests/policy/test_deadline.py` (rotação sem drenagem; variáveis antigas dão erro) e `tests/robustness/test_deactivate_evict_stuck.py`. 46 testes passam.
+  - `extract_ovl.py` e `activation_cost.py` continuam lendo o evento `drain` dos logs antigos.
+- **Efeitos:**
+  - **A0.3** passa a ser a troca por throughput **sem preempção e sem drenagem** (o antigo P0D0). As execuções da A0.3 anteriores à D30 (F0.4, F6a e 28/10) não se comparam com as novas;
+  - as suítes antigas com `PRISM_SWAP_DRAIN=1` (`polyaxon/configs/`, gitignored: F0.4, F6a, 28/10) não rodam mais; para reproduzi-las, usar o commit anterior à D30;
+  - os resultados da F6a continuam válidos como estão (rodaram com drenagem, como diz o relatório); a apresentação de 2026-11-05 registra isso;
+  - na A3 e na A9.2, o custo da troca inclui o tempo para a vítima terminar o lote em execução (zero com preempção), e a decisão "preemptar ou não" pode ser tomada por troca (A3, `PLANO_AGENTE.md`).
+- **Pendente:**
+  - medir o tempo de saída da vítima sem drenagem;
+  - verificar se a reserva de 15 s basta: se a vítima demorar mais para terminar o lote, o modelo que entra perde a prioridade na memória, que é o desvio corrigido na D26;
+  - nenhuma execução nova foi feita.
+- **Numeração:** a D28 e a D29 estão no worktree da F3 (`f3-cargas`), ainda sem commit; esta decisão é a D30 para não colidir.
+
+## D31 — Próximos passos depois da F6a: F6b (custo da troca e repetição sem drenagem) e prioridades da F6 (2026-11-05, Gabriel)
+
+- **Contexto:** na preparação da apresentação da F6a (`reports/2026-11-05 APRESENTAÇÃO Políticas por prazo no Prism, primeira rodada (SGLang).md`), o agente propôs os próximos passos com a evidência de cada um, e o Gabriel aprovou. Achados usados:
+  - uma troca real leva 16,8 s (EDF) e 12,6 s (VLT) da decisão até o modelo que entra ficar pronto, na mediana; só a ativação, ~4–5 s sob carga, contra o `Ĉ_at` de ~1,4 s (preliminar: 1 execução, ligação decisão → ativação pelo próximo evento);
+  - a drenagem de 15 s chegava quase sempre ao teto, e por isso foi removida (D30).
+- **Decisão (Gabriel):**
+  1. **Nova fase F6b** (`PLANO_AGENTE.md`, seção 6):
+     - medir o custo real da troca nos dados existentes, ligando decisão e ativação pelo log de decisões;
+     - instrumentar a reserva de memória;
+     - **repetir a triagem da F6a sem drenagem** (C1 e T1, 2 repetições, mesmas linhas de base e níveis de SLO, sem o ciclo de 1 s);
+     - o braço com preempção fica como pergunta ao Gabriel antes de submeter;
+     - gate [HUMANO].
+  2. **Prioridades da F6**, cada uma ligada a uma lição da F6a: custo real da troca → A3.1 (perda esperada) → A2.3 (residência preditiva, com a A0.2 como barra) → A4 → classes de prazo (A7/F8) → A9.2 (prioridade menor).
+  3. **O ciclo de 1 s e a A5 ficam fora de prioridade.**
+  4. **O pior modelo (justiça) é observação, não objetivo das políticas.** Revisa o último item da D27 ("a justiça como objetivo possível da A7/F8").
+- **Ordem da F6b em relação à F3 (gate em aberto) e à F4:** não definida; o Gabriel decide.
+- **Limitação declarada:** o braço "com drenagem" não pode mais rodar (código removido, D30). A comparação F6a × F6b é feita só pela diferença pareada contra a melhor linha de base de ociosidade do mesmo job (A0.1/A0.2 não mudaram), nunca pelos valores absolutos (regra 3).
+- **Numeração:** D28 e D29 estão no worktree da F3, sem commit.
+
+## D32 — F6b dissolvida em F5/F6, preempção nas políticas por prazo, família A10, métricas novas e SLOs maiores (2026-11-05, Gabriel)
+
+- **Contexto:** revisão dos próximos passos da D31, pedida pelo Gabriel. Onde encaixar cada item no plano foi escolha do agente, com o Gabriel tendo dito "onde você achar melhor".
+- **Decisões do Gabriel e onde entraram:**
+  1. **Testar as políticas por prazo também com preempção.** A repetição da triagem da F6a sem drenagem passa a ter os dois braços, sem e com preempção, e entra na **F6**, como primeira tarefa (F6.0). Não é mais uma fase própria: a F6b sai da tabela de fases. Matriz: C1 e T1, 2 repetições, 17 níveis por job (A0.1, A0.2, A0.3, A0.3p, `fair` + A2.1 e A9.1 × 3 níveis de SLO × {P0, P1}), 4 jobs.
+  2. **Políticas que combinam throughput, prazo e tamanho da fila.** Nova família **A10** (seção 4 do plano): A10.1 (filtro por prazo, escolha por throughput), A10.2 (pontuação ponderada), A10.3 (fila ponderada pela folga). Entra na F6 como F6.13 e como prioridade 3, em paralelo à A3.
+  3. **Análise de violações inevitáveis levando em conta a rotação.** Seção 7 do plano: inevitável pela ativação (havia memória livre) × inevitável pela rotação (era preciso tirar alguém, prazo < `Ĉ_rot`) × evitável só com residência prévia × evitável. Implementação na **F5.0**, porque a campanha de linhas de base precisa dela, com a classificação antiga ao lado.
+  4. **Métrica de ociosidade da GPU, baseada nos modelos em execução e na carga deles.** Seção 7: residência ociosa com demanda pendente (GB·s de modelos sem trabalho enquanto outro espera) e ociosidade esperada pela carga (`ρ_m` = taxa × tempo de serviço dedicado) × observada (`nvidia-smi`). Implementação na F5.0.
+  5. **Apresentações e relatórios sempre comparam com as políticas anteriores:** a melhor ociosidade de valor arbitrário e a troca por throughput sem e com preempção (A0.3 e a nova linha de base **A0.3p**), com TTFT p50 e p90 nas tabelas. Nova regra 0.10 do plano.
+  6. **Objetivo duplo: SLO e TTFT.** Uma política é descrita como melhor quando melhora a fração dentro do SLO ou o TTFT p50/p90 sem piorar o outro (seção 7 e seção 7.1, que antes exigiam só a vista combinada). Interpretação do agente para "tornando mais justo nossa versão": uma avaliação mais justa das nossas políticas, que não olhe só o atingimento de SLO. Confirmar com o Gabriel se a intenção era outra.
+  7. **SLOs maiores, em sobrecarga, com base no tempo de rotação.**
+     - nova família **S6**: `SLO_TTFT = k_R · Ĉ_rot(m)`, com `Ĉ_rot` medido na F5.0;
+     - proposta para as execuções das políticas por prazo: S3 `k_A` = 5 (continuidade com a F6a) e S6 `k_R` ∈ {1, 2}, a confirmar depois da F5.0;
+     - o S2 `k_T` = 10 continua só nas métricas (reavaliação depois da execução).
+- **Também passa para a F5.0 (antes era a F6b):** a medição do custo real da troca (`polyaxon/swap_cost.py`, só análise) e o registro de reservas de memória vencidas. Motivo: a família S6 e a classificação nova de violações dependem de `Ĉ_rot`.
+- **Ordem:** F5.0 antes da campanha da F5; F6.0 como primeira tarefa da F6. As dependências de fase não mudam (F4 → F5 → F6).
+- **Mudança de critério registrada:** a regra "melhor = melhora a vista combinada" da seção 7.1 passa a ser o objetivo duplo. A mudança é do Gabriel; o agente não alterou nenhum outro critério de aceitação.
+
+## D33 — Objetivo inclui a cauda de espera: nenhuma requisição esperando absurdamente mais que as outras (2026-11-05, Gabriel)
+
+- **Contexto:** sobre o item 6 da D32 ("tornando mais justo nossa versão"), o Gabriel confirmou a leitura do agente (avaliar também pelo TTFT, não só pelo SLO) e acrescentou: não pode haver requisições esperando absurdamente mais que outras. Os níveis de S6 propostos (`k_R` ∈ {1, 2}) também foram aceitos como proposta, a fechar depois da F5.0.
+- **Decisão:** o objetivo das políticas (seção 7 do plano) passa a ter três critérios, sempre juntos:
+  1. fração dentro do SLO (três vistas);
+  2. TTFT típico (p50, p90);
+  3. **cauda de espera**: TTFT p99, TTFT máximo e fração de requisições com TTFT acima de 10× a mediana da execução, contando as não atendidas como espera até o fim do prazo extra; mais a pior espera pelo 1º token por modelo.
+- **Regra:** uma melhora no SLO ou no TTFT típico conseguida à custa de uma cauda absurda não conta como ganho, e isso é dito explicitamente.
+- **Distinção:** o critério 3 é sobre **requisições**. A justiça entre **modelos** (fração no SLO do pior modelo) continua só como observação (D31).
+- **Onde entrou:** seção 7 e 7.1, regra 0.10 (tabelas), F5.0 (`report_tables.py`), F6.0 (métricas e sinal), seção A10 (avaliação), `TODO.md` (F5.0e, prioridades da F6).
+- **Escolha do agente:** o limiar de "absurdo" de 10× a mediana. É ajustável no gate da F5, com os dados da campanha.
+
 ## D34 — Desenho da A1 e parâmetros `b`, `Δ_imp`, `T_min` (2026-11-05, agente, F4.1–F4.3; gate automático)
 
-Numeração: D30–D33 estão no registro do worktree `apresentacao-prazo` (ainda não commitado); a F4 começa em D34 para não colidir.
+Numeração: D30–D33 vieram do worktree `apresentacao-prazo` (juntadas a este registro em 2026-11-06, no início da F5); a F4 começa em D34.
 
 - **A1.1 soma o piso do kvcached.** O kvcached nunca mapeia KV nos últimos 5% da GPU (`GPU_UTILIZATION = 0.95`, `kvcached/slab_allocator.py:_physical_free_size`; 7,2 GB numa H200). A conta do controlador (R2.1) não vê esse piso e ativa com `W + 1 GB`, ou seja, pode encher a GPU de pesos até ~1 GB livre, abaixo do piso: nenhum modelo recebe página de KV, e é o T1 (F1.1 já tinha concluído que "a A1.1 deve somar a reserva do kvcached"). Regra: ativar `m` só se `livre − ativações pendentes ≥ W_m + folga + max(KV de ativação, K_min(m)) + 0,05·GPU`. O piso só entra com a A1.1 ligada (`PRISM_KV_FLOOR_FRAC`, padrão 0,05); com `PRISM_KV_RESERVE_REQS=0` a regra é a de antes. A regra vale para toda estratégia (A0.1 `idle`, A0.3 `throughput`, `edf`/`lvf`); na F6a a A1.1 só existia no `edf`/`lvf` e estava desligada (D25), então nenhuma execução anterior muda de sentido.
 - **`b = 4`** (`PRISM_KV_RESERVE_REQS`): mediana do lote em execução por modelo residente com fila, nos níveis da A0.1 sem impasse (C1: 3–6; T1: 2–9; `reports/data/F04/calib/calib_niveis.tsv`, `polyaxon/f4_calib.py`). Com os tamanhos do Azure (prompt + saída ~1250 tokens) e o 8B (128 KiB/token), `K_min` ≈ 0,6 GB < 1 GB: o termo que pesa é o piso. Alternativas: `b = 8` (p75), `b = p90` (16–26, ~2,4–4 GB a mais por ativação, que tira residência de todos os modelos sem motivo medido).
