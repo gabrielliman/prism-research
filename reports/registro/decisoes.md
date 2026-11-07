@@ -554,6 +554,11 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
    rodadas com este código não são comparáveis com execuções anteriores; comparar só dentro da mesma janela (regra 3).
    Para reproduzir o comportamento anterior: `PRISM_SWAP_RESERVATION_END=timer` (a residência a partir do carregamento
    não tem chave).
-6. **Código e testes:** `state.py`, `action.py`, `controller_global.py`, `gpu/gpu_scheduler.py`, `constants.py`,
+6. **Literatura** (`reports/registro/referencias.md`): estado explícito de cargas/descargas atualizado pelo resultado
+   reportado pelo worker, com prazo só como limite de segurança — Clockwork (R2, §4.4–4.5); reserva de memória do
+   modelo que entra concedida/encerrada por evento (memória realmente liberada), não por tempo — SwapServeLLM (R3,
+   §3.3–3.5); o Prism publicado não descreve estados de transição nem reserva, mas na migração espera "target is
+   ready" (R1, §6.1).
+7. **Código e testes:** `state.py`, `action.py`, `controller_global.py`, `gpu/gpu_scheduler.py`, `constants.py`,
    `decision_log.py`, `policy/simple_global.py`; `tests/controller/test_lifecycle.py` (13 testes) e a suíte existente
    (125 testes) passam.

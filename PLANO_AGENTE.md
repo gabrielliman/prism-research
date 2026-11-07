@@ -374,6 +374,8 @@ O LVF, a cada iteração: (1) se tudo cabe na HBM, FCFS; (2) ordena todas as req
 
 **Opção.** Em vez de reativar noutro worker, cancelar a desativação em curso: a vítima fica com os pesos e o lote, sem recarga (economiza `Ĉ_at`). Custos: a memória não é liberada, então a troca que a despejou se desfaz e o modelo para quem ela saiu não entra; e o engine precisa de suporte (durante a desativação o worker fica em `_run_to_completion_normal` sem ler mensagens; seria preciso checar um pedido de cancelamento entre lotes e pular a liberação dos pesos).
 
+**Terceira alternativa (literatura):** o SwapServeLLM (`referencias.md` R3, §3.5) bloqueia a vítima durante o swap-out: nenhuma requisição nova vai para ela e o modelo só volta depois de sair.
+
 **Avaliar** como opção de política (ligável por variável de ambiente), pareada com a mesma política sem ela, nas cargas em que a reativação de vítimas é frequente; métricas: recargas evitadas, TTFT p50/p90 do modelo reativado e do que esperava a memória.
 
 ---
