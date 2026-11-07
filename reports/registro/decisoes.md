@@ -430,3 +430,44 @@ Numeração: D30–D33 vieram do worktree `apresentacao-prazo` (juntadas a este 
   PRISM_MIN_RESIDENCY=10`), impasse = T1 ≥ 100 s (D37), A0.4 = `PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=0
   PRISM_ACTIVATION_HEADROOM_GB=0` + A1. Os padrões do código continuam os do Prism publicado (regra 0.4); a A0.1 sem
   A1 continua como referência.
+
+## D39 — Escopo da campanha da F5 e base do S6 (2026-11-06, Gabriel)
+
+1. **Configurações (5):** A0.1 sem A1 (referência do travamento); A0.1 + A1; A0.2 + A1 (limiar de 10 s); A0.4
+   (troca por throughput sem preempção, `PRISM_ACTIVATION_HEADROOM_GB=0` + A1); A0.4p (idem com preempção). A0.3 com
+   folga fixa de 3 GB fica fora. Em todas as configurações com A1, a reserva de KV é a dinâmica da A1.1 (piso do
+   kvcached + KV de `b` requisições); "folga 0" quer dizer só sem a folga **fixa** de 3 GB (D37).
+2. **Cargas:** opção (B): varredura de `ρ_mem` 1,07 / 1,5 / 2,0 no C1 e no C6; as outras cargas no nível aprovado;
+   **3 repetições**. O critério C-V1 da seção 3.2 (padrão 5) passa a 3 na F5 por decisão do Gabriel.
+3. **Base do S6:** testar as duas, primeiro a **sem preempção** (C_rot medido com a vítima terminando o lote: 8B
+   p50 15,7 s), depois a com preempção (6,4 s).
+4. **Antes de tudo:** confirmar se o nó ainda dá erro de driver do kvcached com 8 jobs simultâneos (regra 2 do
+   CLAUDE.md: no máximo 3, por causa de 30/10). Se não der, a campanha pode usar mais jobs. O teste é a única exceção
+   autorizada à regra até o resultado.
+5. **Adendo (Gabriel, mesmo dia):** se o teste de concorrência mostrar que 8 jobs simultâneos rodam sem erro de
+   driver e sem distorcer as métricas, a F5 volta a **5 repetições** (C-V1 = 5, o padrão do plano). Com 3 jobs, fica
+   em 3 repetições.
+
+## D40 — Teste de concorrência: 8 jobs simultâneos continuam inviáveis; F5 com 3 jobs e 3 repetições (2026-11-06, agente, sobre a D39)
+
+- **Teste** (`polyaxon/f5_conc_test.sh`, `reports/data/F05/conc/`): 8 jobs iguais ao mesmo tempo (C1 `ovl_mem` 0,2
+  com A0.4 e com A0.1 + A1; 17:30–18:40 UTC), depois 3 jobs com a mesma suíte (18:40–19:06 UTC).
+- **Erros:** com 8 jobs, 5 de 16 níveis (31%) caíram no erro de driver do kvcached (`cuMemSetAccess ... out of
+  memory`): 2 nem subiram (3 tentativas cada, jobs `f5-conc8-7/8`) e 3 deram K1 no meio da execução. Com 3 jobs, 0 de 6.
+  Mesmo quadro de 30/10 (38% com 4 jobs).
+- **Distorção nos níveis válidos:** TPOT médio +40% (A0.4: 59 → 83 ms; A0.1 + A1: 76 → 109 ms, com níveis de até
+  252 ms), TTFT p50 de 0,9 para 21 s na A0.1 + A1, SLO combinado da A0.4 de 25,5% para 15,8%. Mesmo sem erro, o nó
+  com 8 jobs mede outra coisa.
+- **Consequência:** a regra 2 do CLAUDE.md (no máximo 3 jobs do Prism) continua; pelo adendo da D39, a F5 fica com
+  **3 repetições** (C-V1 = 3).
+
+## D41 — V11: parte da taxa não se aplica aos níveis dedicados (2026-11-07, Gabriel, opção (a))
+
+- Num nível dedicado (`<nível>_ded_<modelo>`, base do S2/S2M) o gerador envia só as requisições de um modelo; com
+  popularidade que deriva (C6), rajadas (C7), curva diurna (C8) ou trace (T3, T2), a última requisição desse modelo
+  chega bem antes do fim da janela, e a comparação "taxa até o último envio × taxa na janela" (±5%) falha sem que nada
+  tenha dado errado (atraso de envio p99 ≤ 0,07 s nos 10 níveis afetados).
+- `validate_run.py`: nos níveis dedicados, o V11 fica só com o atraso de envio (p99 ≤ 1 s); a parte da taxa é N/A,
+  como o V12 já era. Nos níveis normais nada muda.
+- Revalidação: 62 de 62 níveis dedicados da F5 VALIDA (antes 52). A mudança só pode transformar FALHA em OK em níveis
+  dedicados; os 48 dedicados da F2 já eram todos VALIDA.

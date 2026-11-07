@@ -1,0 +1,8 @@
+suffix	suite	uuid	submitted_utc	status	downloaded
+f5-ded-c8a	polyaxon/configs/f5_ded_C8a_suite.tsv	b3fc66c6e7984a699a43870665aa0b06	2026-11-06 13:23	succeeded	1
+f5-ded-c8b	polyaxon/configs/f5_ded_C8b_suite.tsv	ac600441fa19418e8d4617ab3de84d30	2026-11-06 13:24	succeeded	1
+f5-ded-c10	polyaxon/configs/f5_ded_C10_suite.tsv	f32b6191950d442dad51eed22b750be9	2026-11-06 13:24	succeeded	1
+f5-ded-c6	polyaxon/configs/f5_ded_C6_suite.tsv	4a0e098d1f744c55bd1edc19ea875fc2	2026-11-06 15:02	succeeded	1
+f5-ded-c7	polyaxon/configs/f5_ded_C7_suite.tsv	70dbd8a5a0194d8e84d5901c77a0eec0	2026-11-06 15:14	succeeded	1
+f5-ded-t3	polyaxon/configs/f5_ded_T3_suite.tsv	d322caca73ab49a691cd3bd3f681ba31	2026-11-06 15:15	succeeded	1
+f5-ded-t2	polyaxon/configs/f5_ded_T2_suite.tsv	151d04faf5384b68833dbb265c876fe7	2026-11-06 19:06	succeeded	1

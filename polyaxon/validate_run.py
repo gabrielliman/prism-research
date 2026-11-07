@@ -23,7 +23,8 @@ gpu.csv, health.log, server.log, server_file.log*). Each check gives OK, FALHA o
       send to server arrival within CLOCK_TOL_S (the log-based alignment is reported, not checked); before F2.1, the
       load start must be found by aligning arrivals with the GPU scheduler admissions
   V11 with the send times of F2.1 (requests.json "sent"): p99 send lag ≤ 1 s and total rate within ±5% of the
-      target; N/A for older runs (decision pending, reports/registro/decisoes.md D10)
+      target; N/A for older runs (decision pending, reports/registro/decisoes.md D10); the rate part is N/A for the
+      dedicated levels <level>_ded_<model> (one model's requests, D41)
   V12 memory scenarios (ovl_mem, ovl_phases, ovl_mix, ovl_trace, ovl_trace_big and the F3 ones, MEMORY_STEPS) with models that start off the GPU
       (configs/<step>.json): overload evidence, at least one "No suitable GPU found" or GPU ≥ 95% used for
       ≥ OVERLOAD_FRAC of the window; N/A when every model starts resident (control levels such as n06, and the
@@ -286,7 +287,12 @@ def validate(d):
         p99 = lag[min(len(lag) - 1, int(0.99 * len(lag)))]
         last = max(r["sent"] for r in reqs)
         rate_ok = abs(len(reqs) / max(last, 1e-9) - len(reqs) / dur) <= 0.05 * len(reqs) / dur if last >= 0.9 * dur else True
-        c["V11"] = chk("OK" if p99 <= 1.0 and rate_ok else "FALHA", {"send_lag_p99_s": round(p99, 3)})
+        if "_ded_" in os.path.basename(d):
+            # D41: a dedicated level sends ONE model's requests; its last request can arrive well before the window
+            # ends (Zipf drift, bursts, diurnal curve), so the rate part does not apply. The send lag still does.
+            c["V11"] = chk("OK" if p99 <= 1.0 else "FALHA", {"send_lag_p99_s": round(p99, 3), "rate": "N/A (dedicated)"})
+        else:
+            c["V11"] = chk("OK" if p99 <= 1.0 and rate_ok else "FALHA", {"send_lag_p99_s": round(p99, 3)})
     else:
         c["V11"] = chk("N/A", None, "no send times (overload_load.py before F2.1)")
     # V12, V13

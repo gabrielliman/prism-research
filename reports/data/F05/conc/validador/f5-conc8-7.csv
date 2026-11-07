@@ -1,0 +1,2 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/A0.1_A1/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F5/conc/f5-conc8-7,be14a5df9ea74c21836f9aa1b7288c1f,f5-conc8-7/outputs/A0.1_A1/ovl_mem/rate0.2,VALIDA,,,2026-11-06 18:27:44,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
