@@ -11,6 +11,7 @@ antes de ser tomada, e cita as entradas daqui em `decisoes.md`.
 | R2 | Clockwork (OSDI'20) | D45 itens 1–2 |
 | R3 | SwapServeLLM (SC Workshops'25) | D45 item 3; A11 |
 | R4 | SuperInfer (MLSys'26) | A9 (D4) |
+| R5 | MuxServe (ICML'24) | D44 item 2 |
 
 ## R1 — Prism: Unleashing GPU Sharing for Cost-Efficient Multi-LLM Serving
 
@@ -59,3 +60,19 @@ Yu et al., MLSys 2026 (`SuperInfer.pdf`).
 
 - **Por que foi adicionada:** origem do Virtual Lag Time usado na A9 (incluída pelo Gabriel, D4); também inspira o limite
   de rotações em voo. Já citada no `PLANO_AGENTE.md` (A9); não reverificada nesta entrada.
+
+## R5 — MuxServe: Flexible Spatial-Temporal Multiplexing for Multiple LLM Serving
+
+Duan, Lu et al., ICML 2024 (PMLR 235). arXiv 2404.02015: <https://arxiv.org/abs/2404.02015>
+
+- **Verificado (PDF do arXiv, 13 páginas, §3.1–3.3 lidas):** §3.2 e Algoritmo 2: para cada LLM, o MuxServe varia o
+  número de SMs e escolhe a configuração que "meets the workload requirements while utilizing the fewest number of
+  SMs" (`estimate_throughput(m, num_sm, p)` com `tpt ≥ W_m`, `W_m` = taxa de requisições do modelo). Os modelos com
+  maior "computation requirement, which considers both the model scale and popularity" são colocados primeiro. §3.3:
+  a medida de recurso de cada LLM é "normalized by request rates".
+- **Por que foi adicionada:** sustenta a D44 item 2 (proposta do agente). A demanda de computação de um modelo é a
+  fração da GPU de que a vazão **com lote** precisa para dar conta da taxa dele, não taxa × latência de cada
+  requisição. Na nossa medida, isso é `λ_m` × segundos de GPU ocupada por requisição na GPU dedicada
+  (`pool_gpu_s_por_req`), que já leva o lote em conta, e não `λ_m` × latência média (`pool_servico_medio_s`), que conta
+  cada requisição de um lote como uma GPU inteira. Ressalva: o MuxServe mede pela vazão estimada por perfil de SMs; nós
+  medimos pela utilização do `nvidia-smi`, que é mais grosseira (conta a GPU como ocupada se qualquer kernel roda).

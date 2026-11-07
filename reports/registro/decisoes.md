@@ -513,7 +513,8 @@ Numeração: D30–D33 vieram do worktree `apresentacao-prazo` (juntadas a este 
    `ocio_esperada_gpu` / `ocio_politica_gpu`, com `E[S]` = segundos de GPU ocupada por requisição na GPU dedicada
    (utilização do `nvidia-smi` integrada no nível dedicado ÷ requisições atendidas, `pool_gpu_s_por_req`), que leva o
    lote em conta (8B do C1: `ρ` ≈ 0,28). As duas ficam nas tabelas até o Gabriel escolher; a proposta do agente é a
-   segunda.
+   segunda. Apoio na literatura (busca feita depois da regra de 2026-11-07): MuxServe (R5, §3.2, Algoritmo 2)
+   mede a necessidade de computação de um modelo pela fração da GPU cuja vazão com lote cobre a taxa dele.
 3. **`latencia_ded.json` ganhou quatro campos** (`servico_medio_s`, `pool_servico_medio_s`, `gpu_s_por_req`,
    `pool_gpu_s_por_req`; `polyaxon/iso_dedicated.py`). Regerado dos mesmos 10 jobs dedicados (`f2-ded-{a,b,c}`,
    `f5-ded-{c10,c6,c7,c8a,c8b,t2,t3}`): todos os campos antigos idênticos (0 diferenças), só os novos acrescentados.
