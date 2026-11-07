@@ -13,6 +13,12 @@ elif [ "${1:-}" = f5ded ]; then  # F5 dedicated base (polyaxon/f5_ded_suites.sh)
   export F4_QUEUE=polyaxon/configs/f5_ded_queue.tsv F4_STATE=reports/data/F05/ded_jobs.tsv \
     F4_RAW=/mnt/scratch/scheduler/prism-raw/F5/ded F4_VAL=reports/data/F05/validador F4_TIMEOUT=14400
   log=reports/data/F05/driver_ded.log
+elif [ "${1:-}" = f5smoke ] || [ "${1:-}" = f5 ]; then  # F5.1 smoke / campaign (polyaxon/f5_suites.sh)
+  k=$([ "$1" = f5 ] && echo camp || echo smoke)
+  mkdir -p reports/data/F05/$k/validador
+  export F4_QUEUE=polyaxon/configs/f5_${k}_queue.tsv F4_STATE=reports/data/F05/$k/jobs.tsv \
+    F4_RAW=/mnt/scratch/scheduler/prism-raw/F5/$k F4_VAL=reports/data/F05/$k/validador F4_TIMEOUT=14400
+  log=reports/data/F05/$k/driver.log
 fi
 setsid nohup /mnt/scratch/scheduler/opt-env/bin/python polyaxon/f4_driver.py >> "$log" 2>&1 < /dev/null &
 echo "driver pid $! (log $log)"
