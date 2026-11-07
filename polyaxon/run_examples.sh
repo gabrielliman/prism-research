@@ -83,7 +83,25 @@ SERVER_PID=""; REDIS_PID=""
 # Each server runs in its own process group (setsid), so stopping it also stops the spawned
 # engine/scheduler children: they run as `python3 -c "from multiprocessing.spawn ..."`, hold the
 # NCCL ports (server port + 1, + 2, ...: the next example's README port) and GPU memory.
+# map_snapshot <tag> (D47 hypothesis 3: per-process limits, vm.max_map_count): one line per process of the server's
+# process group with its memory-map count (/proc/<pid>/maps), open fds, RSS and command, then a summary line with the
+# largest map count against vm.max_map_count. PRISM_MAP_TRACE=0 turns it (and the 15 s sampler) off. Diagnostic only.
+map_snapshot() {
+  [ "${PRISM_MAP_TRACE:-1}" = 1 ] && [ -n "$SERVER_PID" ] || return 0
+  local p m rows
+  echo "== $1 $(date -u +%FT%TZ) vm.max_map_count=$(cat /proc/sys/vm/max_map_count 2>/dev/null)"
+  rows=$(for p in $(ps -o pid= -g "$SERVER_PID" 2>/dev/null); do
+    m=$(wc -l < "/proc/$p/maps" 2>/dev/null) || continue
+    echo "maps=$m pid=$p ppid=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ') fds=$(ls "/proc/$p/fd" 2>/dev/null | wc -l)" \
+      "rss_mb=$(( $(ps -o rss= -p "$p" 2>/dev/null || echo 0) / 1024 )) $(tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | cut -c1-90)"
+  done | sort -t '=' -k 2,2 -n -r)
+  echo "$rows" | head -60
+  echo "$rows" | awk -F'[= ]' 'NF > 1 {n++; s += $2; if ($2 > mx) mx = $2}
+    END {printf "summary: %d processes, maps max %d sum %d\n", n, mx, s}'
+}
+MAP_PID=""
 stop_server() {
+  [ -n "$MAP_PID" ] && { kill "$MAP_PID" 2>/dev/null; MAP_PID=""; }
   [ -z "$SERVER_PID" ] && return 0
   kill -TERM -- "-$SERVER_PID" 2>/dev/null
   for _ in $(seq 1 30); do kill -0 -- "-$SERVER_PID" 2>/dev/null || break; sleep 1; done
@@ -281,6 +299,10 @@ start_server_once() {
     --host 127.0.0.1 --port "$port" "$@" --log-file "$RESULTS/$step/server_file.log" \
     > "$RESULTS/$step/server.log" 2>&1 &
   SERVER_PID=$!
+  if [ "${PRISM_MAP_TRACE:-1}" = 1 ]; then  # D47: memory-map counts every 15 s until stop_server
+    { while sleep 15; do map_snapshot "t"; done; } >> "$RESULTS/$step/map_trace.log" 2>&1 &
+    MAP_PID=$!
+  fi
   # PRISM_FD_TRACE=1 (F3, C10 start-up EMFILE): every 5 s of start-up, open file descriptors of the launcher and of each
   # child (fd_trace.log), plus the shell's and the launcher's RLIMIT_NOFILE. Diagnostic only.
   [ "${PRISM_FD_TRACE:-0}" = 1 ] && { echo "shell nofile soft $(ulimit -Sn) hard $(ulimit -Hn)"; sleep 2;
@@ -294,7 +316,8 @@ start_server_once() {
     kill -0 $SERVER_PID 2>/dev/null || { echo "[$step] SERVER DIED"; tail -60 "$RESULTS/$step/server.log"; stop_server; return 1; }
     # kvcached aborts a worker at start-up (cuMem* out of memory): the server never becomes ready, fail fast
     if grep -q "cuMem.*out of memory" "$RESULTS/$step/server.log" 2>/dev/null; then
-      echo "[$step] kvcached failed at start-up"; grep -m2 "cuMem" "$RESULTS/$step/server.log"; stop_server; return 1
+      echo "[$step] kvcached failed at start-up"; grep -m2 "cuMem" "$RESULTS/$step/server.log"
+      map_snapshot "kvcached_failed_at_startup" >> "$RESULTS/$step/map_trace.log" 2>&1; stop_server; return 1
     fi
     ready=$(cat "$RESULTS/$step"/server*.log 2>/dev/null | grep -c "is fired up and ready to roll")
     if [ "$ready" -ge "$n_on" ] && curl -sf -o /dev/null "http://127.0.0.1:$port/health"; then
