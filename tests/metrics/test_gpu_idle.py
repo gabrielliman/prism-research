@@ -64,5 +64,23 @@ class IdlenessTest(unittest.TestCase):
         self.assertTrue(math.isnan(out["ocio_esperada_lat"]))  # no rho_lat given
 
 
+class LiteratureMetricsTest(unittest.TestCase):
+    """Wasted memory time (R7), active model count (R6), idle fraction per model (R1) on the same level."""
+
+    def test_values(self):
+        out = gi.idleness(REQS, EV, CFG, GPU, 100.0, {"a": 0, "b": 0}, W, 100.0, lam_t={"a": 1.0, "b": 0.5})
+        # a resident all along, busy [0, 40) and [90, 100): idle 50 s; b resident [60, 100), busy until 70: idle 30 s
+        self.assertAlmostEqual(out["ocio_residente_total"], (50 + 30) * 15 / (100 * 100), places=6)
+        # in the system: a over 50 s, b over [20, 70) = 50 s -> mean 1.0 active model
+        self.assertAlmostEqual(out["modelos_ativos_medio"], 1.0, places=6)
+        self.assertAlmostEqual(out["modelos_ativos_esperado"], (1 - math.exp(-1.0)) + (1 - math.exp(-0.5)))
+        self.assertAlmostEqual(out["modelos_residentes_medio"], 1.4, places=6)  # a: 100 s, b: 40 s
+        self.assertAlmostEqual(out["ocio_por_modelo"], 0.5, places=6)
+
+    def test_no_rates_no_expected_count(self):
+        out = gi.idleness(REQS, EV, CFG, GPU, 100.0, {"a": 0, "b": 0}, W, 100.0)
+        self.assertTrue(math.isnan(out["modelos_ativos_esperado"]))
+
+
 if __name__ == "__main__":
     unittest.main()

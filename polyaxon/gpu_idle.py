@@ -13,6 +13,16 @@ ovl_* part of the path) keys reports/registro/latencia_ded.json. Window: [0, T],
                            GPU's total GB·s (total_gb of gpu.csv × T). Memory that could be with whoever is waiting.
                            Weights only (model_info.json / slo_metrics.PROFILED), not KV.
   frac_tempo_demanda       fraction of the window with some non-active model holding requests.
+  ocio_residente_total     the same GB·s of resident models with no request in the system, at every instant (pending
+                           demand or not), over the GPU's GB·s: the "wasted memory time" of Serverless in the Wild
+                           (R7, §5.1: the time an image is kept in memory without executing).
+  modelos_ativos_medio     mean number of models with at least one request in the system, the "active model count" m
+                           of Aegaeon (R6, §3.1); modelos_ativos_esperado = Σ_m (1 − e^(−λ_m · T_m)) (Aegaeon Theorem
+                           3.1 with per-model rates; T_m = mean end-to-end latency on the dedicated GPU,
+                           pool_servico_medio_s). modelos_residentes_medio = mean number of active (loaded) models:
+                           below the active model count, requests of some model must wait for a swap.
+  ocio_por_modelo          mean over the models of the fraction of the window each has no request in the system (Prism,
+                           R1 §3.1: "models are idle for over 70% of the time").
   ocio_esperada            mean over the window of 1 − min(1, Σ_{m active at t} ρ_m), ρ_m = λ_m · E[S_m]: λ_m = the
                            model's arrivals in the window / T (the level's own load), E[S_m] = GPU-busy seconds per
                            request of its identical models alone on a dedicated GPU (pool_gpu_s_por_req: nvidia-smi
@@ -63,9 +73,9 @@ def active_mask(changes, grid):
     return out
 
 
-def idleness(reqs, ev, cfg, gpu, T, rho, weights, total_gb, dt=DT, rho_lat=None):
+def idleness(reqs, ev, cfg, gpu, T, rho, weights, total_gb, dt=DT, rho_lat=None, lam_t=None):
     """The metrics of the module docstring. rho (GPU-busy, main), rho_lat (latency, reference), weights: model ->
-    ρ_m (NaN if unknown), GB."""
+    ρ_m (NaN if unknown), GB; lam_t: model -> λ_m · T_m for the expected active model count (None: NaN)."""
     grid = np.arange(0.0, T, dt)
     states = sm.state_at(ev, cfg)
     models = [m["model_name"] for m in cfg]
@@ -85,12 +95,20 @@ def idleness(reqs, ev, cfg, gpu, T, rho, weights, total_gb, dt=DT, rho_lat=None)
     esp_lat = expected(rho_lat) if rho_lat is not None and len(grid) else math.nan
     observada = float(np.mean(util)) if util else math.nan
     acts = sum(1 for e in ev if e["kind"] == "act_ok" and 0 <= float(e["t"]) < T)
+    n = len(grid)
+    activos = sum(busy[m].astype(float) for m in models)
+    esperado = sum(1 - math.exp(-lam_t[m]) for m in models) if lam_t is not None else math.nan
     return {"janela_s": T, "ocio_residente_demanda": float((idle_gb * pending).sum() * dt / (total_gb * T)),
             "frac_tempo_demanda": float(pending.mean()) if len(grid) else math.nan,
             "ocio_esperada": esperada, "ocio_observada": observada, "ocio_politica": observada - esperada,
             "ocio_esperada_lat": esp_lat, "ocio_politica_lat": observada - esp_lat,
             "rho_total": float(sum(rho.values())),
             "rho_total_lat": float(sum(rho_lat.values())) if rho_lat is not None else math.nan,
+            "ocio_residente_total": float(idle_gb.sum() * dt / (total_gb * T)) if n else math.nan,
+            "modelos_ativos_medio": float(np.mean(activos)) if n else math.nan,
+            "modelos_ativos_esperado": esperado,
+            "modelos_residentes_medio": float(np.mean(sum(act[m].astype(float) for m in models))) if n else math.nan,
+            "ocio_por_modelo": float(np.mean([1 - busy[m].mean() for m in models])) if n else math.nan,
             "trocas_min": acts / (T / 60)}
 
 
@@ -102,15 +120,17 @@ def level(d, refs):
     T = float(s["args"].get("duration") or max(r["arrival"] for r in reqs))
     scenario = sm.ded_scenario(d)
     path = {m["model_name"]: m["model_path"] for m in cfg}
-    rho, rho_lat = {}, {}
+    rho, rho_lat, lam_t = {}, {}, {}
     for m, p in path.items():
         e = refs.ded_entry(scenario, m, p) or {}
         lam = sum(1 for r in reqs if r["model"] == m and r["arrival"] < T) / T
         es, eg = e.get("pool_servico_medio_s"), e.get("pool_gpu_s_por_req")
         rho[m] = lam * eg if eg is not None else math.nan
         rho_lat[m] = lam * es if es is not None else math.nan
+        lam_t[m] = lam * es if es is not None else math.nan  # Aegaeon's λT with T = mean latency (same product)
     total = float(gpu[0]["total_gb"]) if gpu else math.nan
-    return idleness(reqs, ev, cfg, gpu, T, rho, {m: refs.weights[p] for m, p in path.items()}, total, rho_lat=rho_lat)
+    return idleness(reqs, ev, cfg, gpu, T, rho, {m: refs.weights[p] for m, p in path.items()}, total, rho_lat=rho_lat,
+                     lam_t=lam_t)
 
 
 def table(data, dest, refs):

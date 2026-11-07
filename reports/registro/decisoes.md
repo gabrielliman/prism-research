@@ -576,3 +576,8 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
    (latência média) fica como referência em `ocio_esperada_lat` / `ocio_politica_lat` / `rho_total_lat`.
 3. **Pedido do Gabriel:** buscar outros artigos com métricas desse tipo (ociosidade, utilização, memória presa por
    modelos parados) para usar nas análises; resultado em `reports/registro/referencias.md`.
+   Feito (agente, mesmo dia): lidos Aegaeon (R6), Serverless in the Wild (R7) e o Prism de novo (R1, adendo); o
+   QLM (SoCC'24) e o WarmServe (arXiv 2512.09472) foram lidos e não definem métrica utilizável (só citam
+   "utilização"). Métricas novas em `polyaxon/gpu_idle.py`: `ocio_residente_total` (tempo de memória desperdiçada,
+   R7), `modelos_ativos_medio` / `modelos_ativos_esperado` / `modelos_residentes_medio` (contagem de modelos ativos,
+   R6), `ocio_por_modelo` (R1).

@@ -7,11 +7,13 @@ antes de ser tomada, e cita as entradas daqui em `decisoes.md`.
 
 | id | referência | usada em |
 | --- | --- | --- |
-| R1 | Prism (OSDI'26) | D45 (contexto) |
+| R1 | Prism (OSDI'26) | D45 (contexto); D46 item 3 |
 | R2 | Clockwork (OSDI'20) | D45 itens 1–2 |
 | R3 | SwapServeLLM (SC Workshops'25) | D45 item 3; A11 |
 | R4 | SuperInfer (MLSys'26) | A9 (D4) |
-| R5 | MuxServe (ICML'24) | D44 item 2 |
+| R5 | MuxServe (ICML'24) | D44 item 2; D46 item 2 |
+| R6 | Aegaeon (SOSP'25) | D46 item 3 |
+| R7 | Serverless in the Wild (ATC'20) | D46 item 3 |
 
 ## R1 — Prism: Unleashing GPU Sharing for Cost-Efficient Multi-LLM Serving
 
@@ -76,3 +78,39 @@ Duan, Lu et al., ICML 2024 (PMLR 235). arXiv 2404.02015: <https://arxiv.org/abs/
   (`pool_gpu_s_por_req`), que já leva o lote em conta, e não `λ_m` × latência média (`pool_servico_medio_s`), que conta
   cada requisição de um lote como uma GPU inteira. Ressalva: o MuxServe mede pela vazão estimada por perfil de SMs; nós
   medimos pela utilização do `nvidia-smi`, que é mais grosseira (conta a GPU como ocupada se qualquer kernel roda).
+
+### R1 — adendo (2026-11-07, métricas de ociosidade, D46 item 3)
+
+- **Verificado (v3, §1 e §3.1–3.2):** no trace da Novita AI os modelos ficam "idle for over 70% of the time" e o
+  compartilhamento espacial deixa "50% of GPU memory occupied but unused"; §3.2: muitos modelos com CV da taxa acima de
+  1 e "40–100 idle intervals per hour".
+- **Uso:** `ocio_por_modelo` (`polyaxon/gpu_idle.py`) é a fração do tempo sem requisição por modelo, a estatística do
+  §3.1; `ocio_residente_total` / `ocio_residente_demanda` medem a memória "occupied but unused" por modelos parados.
+
+## R6 — Aegaeon: Effective GPU Pooling for Concurrent LLM Serving on the Market
+
+Xiang et al. (Alibaba Group e Universidade de Pequim), SOSP 2025. PDF: <https://ennanzhai.github.io/pub/sosp25-aegaeon.pdf>
+
+- **Verificado (PDF, §1, §3.1, Apêndice A.1, §8):** §3.1 define o "active model count" `m`, "the number of models that
+  have at least one request being served at a given time", e mostra (Teorema 3.1, prova no A.1) que, com chegadas de
+  Poisson de taxa `λ` por modelo e tempo médio de serviço `T`, `E[m] = M·(1 − e^(−λT))`. Com `λ` = 0,037 e `T` = 16,79 s,
+  46,55 de 100 modelos estão ativos em média, e um sistema que troca modelos por requisição precisa de ~`E[m]` GPUs
+  reservadas; reservar menos causa bloqueio na cabeça da fila ("head-of-line blocking"). §8 reporta a utilização da
+  GPU antes e depois da implantação (13,3–33,9% → 48,1%).
+- **Por que foi adicionada:** dá a métrica `modelos_ativos_medio` (observado) contra `modelos_ativos_esperado`
+  (`Σ_m (1 − e^(−λ_m T_m))`, a fórmula com taxa por modelo) e `modelos_residentes_medio`: quando cabem menos modelos do
+  que os ativos, alguém espera troca. Mede o tamanho da sobrecarga de memória por política, ao lado do `ρ_mem`.
+
+## R7 — Serverless in the Wild: Characterizing and Optimizing the Serverless Workload at a Large Cloud Provider
+
+Shahrad et al., USENIX ATC 2020. arXiv 2003.03423: <https://arxiv.org/abs/2003.03423>
+
+- **Verificado (PDF, §5.1 e Figura 15):** o simulador soma o "wasted memory time for the application, i.e. the time
+  when the application's image was kept in memory without actually executing any functions"; as políticas de
+  keep-alive são comparadas numa curva de Pareto entre partidas a frio ("cold starts") e tempo de memória desperdiçada
+  (Fig. 15).
+- **Por que foi adicionada:** `ocio_residente_total` é esse tempo de memória desperdiçada (GB·s de modelos carregados
+  sem requisição, sobre os GB·s da GPU), e a forma de comparar políticas sugerida é a mesma: SLO ou trocas por minuto
+  contra memória desperdiçada, por política (o limiar de ociosidade da A0.1/A0.2 é um keep-alive fixo). Diferença: no
+  FaaS a memória ociosa custa dinheiro; aqui ela custa SLO de quem espera, por isso `ocio_residente_demanda` (só
+  quando há fila) continua como a métrica principal.
