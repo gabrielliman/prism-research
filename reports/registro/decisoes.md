@@ -563,3 +563,16 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
 7. **Código e testes:** `state.py`, `action.py`, `controller_global.py`, `gpu/gpu_scheduler.py`, `constants.py`,
    `decision_log.py`, `policy/simple_global.py`; `tests/controller/test_lifecycle.py` (13 testes) e a suíte existente
    (125 testes) passam.
+
+## D46 — Campanha da F5 com 18 cargas (270 níveis) e `ρ_m` pelo tempo de GPU ocupada (2026-11-07, Gabriel)
+
+1. **Cargas:** fica o conjunto gerado por `polyaxon/f5_suites.sh` (18 cargas × 5 configurações × 3 repetições = 270
+   níveis, 54 jobs; a estimativa anterior de ~255 contava 17). Inclui C9 sobre C1 e sobre C6 como cargas separadas e a
+   varredura de `ρ_mem` com 10/14/19 modelos no C1 (taxa por modelo fixa) e no C6 (taxa total fixa). Campanha iniciada
+   às 13:36 UTC (`bash polyaxon/f4_driver_start.sh f5`; estado `reports/data/F05/camp/jobs.tsv`).
+2. **Ociosidade esperada (fecha a D44 item 2):** a definição oficial de `ρ_m` usa como tempo de serviço os segundos de
+   GPU ocupada por requisição na GPU dedicada (`pool_gpu_s_por_req`), que leva o lote em conta (apoio: R5 MuxServe).
+   `polyaxon/gpu_idle.py`: `ocio_esperada` / `ocio_politica` / `rho_total` passam a ser esta definição; a do plano
+   (latência média) fica como referência em `ocio_esperada_lat` / `ocio_politica_lat` / `rho_total_lat`.
+3. **Pedido do Gabriel:** buscar outros artigos com métricas desse tipo (ociosidade, utilização, memória presa por
+   modelos parados) para usar nas análises; resultado em `reports/registro/referencias.md`.

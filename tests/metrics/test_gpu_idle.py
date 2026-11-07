@@ -35,8 +35,8 @@ W = {"a": 15.0, "b": 15.0}
 
 
 class IdlenessTest(unittest.TestCase):
-    def run_it(self, rho, rho_gpu=None):
-        return gi.idleness(REQS, EV, CFG, GPU, 100.0, rho, W, 100.0, rho_gpu=rho_gpu)
+    def run_it(self, rho, rho_lat=None):
+        return gi.idleness(REQS, EV, CFG, GPU, 100.0, rho, W, 100.0, rho_lat=rho_lat)
 
     def test_idle_residency_with_pending_demand(self):
         out = self.run_it({"a": 0.1, "b": 0.1})
@@ -45,9 +45,9 @@ class IdlenessTest(unittest.TestCase):
 
     def test_expected_idleness_follows_the_resident_set(self):
         # a alone over [0, 60): 1 − 0.3; a and b over [60, 100): 1 − min(1, 0.3 + 0.9) = 0
-        out = self.run_it({"a": 0.3, "b": 0.9}, rho_gpu={"a": 0.1, "b": 0.2})
+        out = self.run_it({"a": 0.3, "b": 0.9}, rho_lat={"a": 0.1, "b": 0.2})
         self.assertAlmostEqual(out["ocio_esperada"], 0.6 * 0.7, places=6)
-        self.assertAlmostEqual(out["ocio_esperada_gpu"], 0.6 * 0.9 + 0.4 * 0.7, places=6)
+        self.assertAlmostEqual(out["ocio_esperada_lat"], 0.6 * 0.9 + 0.4 * 0.7, places=6)
         self.assertAlmostEqual(out["rho_total"], 1.2)
 
     def test_observed_and_policy_idleness(self):
@@ -61,7 +61,7 @@ class IdlenessTest(unittest.TestCase):
     def test_unknown_rho_gives_nan_not_a_number(self):
         out = self.run_it({"a": math.nan, "b": 0.1})
         self.assertTrue(math.isnan(out["ocio_esperada"]))
-        self.assertTrue(math.isnan(out["ocio_esperada_gpu"]))  # no rho_gpu given
+        self.assertTrue(math.isnan(out["ocio_esperada_lat"]))  # no rho_lat given
 
 
 if __name__ == "__main__":
