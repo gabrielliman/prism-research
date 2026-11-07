@@ -241,7 +241,17 @@ class SimpleGlobalPolicy(GlobalPolicy):
             if os.environ.get(removed, "0") not in ("", "0"):
                 # an old suite would otherwise run a different configuration without noticing
                 raise ValueError(f"{removed} was removed (D30): a swap now only chooses PRISM_SWAP_PREEMPT=0/1")
-        self.SWAP_RESERVATION = 15.0  # s the swapped-in model keeps priority for the freed memory
+        self.SWAP_RESERVATION = 15.0  # s the swapped-in model keeps priority for the freed memory (timer mode)
+        # How a swap reservation (the model victims were evicted for goes first on the freed memory and, in edf/lvf,
+        # counts as a rotation in flight) ends (D45), PRISM_SWAP_RESERVATION_END:
+        #   event  (default) when the model is activated (its memory is then counted as a pending activation) or has
+        #          no waiting requests left, or after PRISM_SWAP_RESERVATION_MAX_S s (120) as a safety bound; no new
+        #          rotation for it meanwhile. Without preemption a victim takes ~20 s (p50) to leave, longer than 15 s
+        #          (F5.0a), so a fixed 15 s ran out before the memory was free.
+        #   timer  before D45: after SWAP_RESERVATION s whatever happened.
+        self.SWAP_RESERVATION_END = os.environ.get("PRISM_SWAP_RESERVATION_END", "event")
+        assert self.SWAP_RESERVATION_END in ("event", "timer")
+        self.SWAP_RESERVATION_MAX_S = float(os.environ.get("PRISM_SWAP_RESERVATION_MAX_S", 120))
         self.DEMAND_WINDOW = 30.0  # s over which a waiting model's queued tokens count as its demand
         self.served_history: DefaultDict[str, deque] = defaultdict(deque)  # (time, served_tokens) per model
         self.served_tput: Dict[str, float] = {}  # tokens/s each active model served over DEMAND_WINDOW
@@ -323,7 +333,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
         for model_name, instances in model_instance_state_dict.items():
             model_active_instances = {}  # GPU ID -> list of active instances
             for instance in instances:
-                if instance.state == ModelState.ACTIVE:
+                if instance.serving:
                     for gpu_id in instance.gpu_ids:
                         if gpu_id not in model_active_instances:
                             model_active_instances[gpu_id] = []
@@ -544,6 +554,8 @@ class SimpleGlobalPolicy(GlobalPolicy):
         for model_name in sorted(unplaced_models, key=lambda m: -demand[m]):
             if self.pressure_cooldown_until.get(model_name, 0) > now:
                 continue
+            if self.SWAP_RESERVATION_END == "event" and self._reserved(model_name, now):
+                continue  # its victims are still leaving: wait for them instead of evicting more (D45)
             need = self._activation_need_gb(model_name, model_queues.get(model_name))
             best = None
             for gpu_id, cands in candidates.items():
@@ -568,9 +580,32 @@ class SimpleGlobalPolicy(GlobalPolicy):
                     f"(aged demand {demand[model_name]:.0f} tok/s)"
                 )
             self.pressure_cooldown_until[model_name] = now + self.SWAP_RESERVATION
-            self.swap_reservation_until[model_name] = now + self.SWAP_RESERVATION
-            self.swap_reservation_start[model_name] = now
+            self._reserve(model_name, now)
         return victims
+
+    def _reserve(self, model_name: str, now: float):
+        """Start a swap reservation for model_name (victims were evicted for it)."""
+        length = self.SWAP_RESERVATION if self.SWAP_RESERVATION_END == "timer" else self.SWAP_RESERVATION_MAX_S
+        self.swap_reservation_until[model_name] = now + length
+        self.swap_reservation_start[model_name] = now
+
+    def _reserved(self, model_name: str, now: float) -> bool:
+        return self.swap_reservation_until.get(model_name, 0) > now
+
+    def _end_reservations(self, now: float, active_models: Set[str], model_queues: Dict[str, ModelQueueTracker]):
+        """D45 (event mode): a reservation ends when its model is activated (being activated counts: its memory is
+        then a pending activation) or no longer has waiting requests; the 120 s safety bound is its `until`, and
+        _log_lapsed_reservations reports it if reached. Timer mode: untouched (they run out after 15 s)."""
+        if self.SWAP_RESERVATION_END != "event":
+            return
+        for name in [n for n in self.swap_reservation_until if self._reserved(n, now)]:
+            queue = model_queues.get(name)
+            waiting = queue is not None and any(not r.is_warmup for r in queue.waiting_reqs)
+            if name in active_models or not waiting:
+                if not waiting and name not in active_models:
+                    self.dlog.note("reservation_dropped", name, reserved_s=now - self.swap_reservation_start[name])
+                del self.swap_reservation_until[name]
+                self.swap_reservation_start.pop(name, None)
 
     def _calculate_model_violation_stats(
         self,
@@ -674,7 +709,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
         
         for model_name, instances in model_instance_state_dict.items():
             for instance in instances:
-                if instance.state == ModelState.ACTIVE:
+                if instance.serving:
                     for gpu_id in instance.gpu_ids:
                         gpu_to_models[gpu_id].append(model_name)
         
@@ -753,7 +788,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                         
                     instance_idx = None
                     for instance in model_instance_state_dict.get(model_name):
-                        if instance.state == ModelState.ACTIVE and high_gpu_id in instance.gpu_ids:
+                        if instance.serving and high_gpu_id in instance.gpu_ids:
                             instance_idx = instance.instance_idx
                             break
                     
@@ -898,7 +933,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                         
                     instance_idx = None
                     for instance in model_instance_state_dict.get(model_name):
-                        if instance.state == ModelState.ACTIVE and low_gpu_id in instance.gpu_ids:
+                        if instance.serving and low_gpu_id in instance.gpu_ids:
                             instance_idx = instance.instance_idx
                             break
                     
@@ -965,7 +1000,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
             if queue_tracker.get_num_waiting_reqs() > 0 or queue_tracker.get_num_running_reqs() > 0:
                 has_active_instance = False
                 for instance in model_instance_state_dict.get(model_name):
-                    if instance.state == ModelState.ACTIVE:
+                    if instance.serving:
                         has_active_instance = True
                         break
                         
@@ -1001,7 +1036,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                 for m_name, queue in model_queues.items():
                     instance_states = model_instance_state_dict.get(m_name)
                     for instance in instance_states:
-                        if instance.state == ModelState.ACTIVE and gpu_id in instance.gpu_ids:
+                        if instance.serving and gpu_id in instance.gpu_ids:
                             for req in queue.running_reqs + list(queue.waiting_reqs):
                                 total_budget += req.remaining_time_budget if req.remaining_time_budget is not None else 0
                                 total_reqs += 1
@@ -1104,8 +1139,11 @@ class SimpleGlobalPolicy(GlobalPolicy):
                 waiting=waiting, running=running,
                 active_since=self.active_since.get(name) if gpu is not None else None,
                 c_at=activation_cost(weights, ahead, self.CAT_COEF),
-                reserved=gpu is None and self.swap_reservation_until.get(name, 0) > now,
-                cooldown=self.pressure_cooldown_until.get(name, 0) > now,
+                # in flight = victims evicted for it and its activation not sent yet (ACTIVATING counts as active
+                # here, so the rotation cap does not wait for the load; same as before D45)
+                reserved=gpu is None and self._reserved(name, now),
+                cooldown=self.pressure_cooldown_until.get(name, 0) > now
+                or (self.SWAP_RESERVATION_END == "event" and gpu is None and self._reserved(name, now)),
                 blocked=inst is not None and (name, inst.instance_idx) in blocked_keys,
             )
         in_flight = sum(1 for m in models.values() if m.reserved)
@@ -1134,8 +1172,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
         self.dlog.policy(self.EVICTION, dec.scores, in_flight=snap.in_flight, rotated_for=dec.rotated_for)
         for name in dec.rotated_for:
             self.pressure_cooldown_until[name] = now + self.PRESSURE_COOLDOWN
-            self.swap_reservation_until[name] = now + self.SWAP_RESERVATION
-            self.swap_reservation_start[name] = now
+            self._reserve(name, now)
         for name in dec.unplaced:
             logger.warning(f"No suitable GPU found for inactive model {name}")
             self.dlog.note("no_fit", name, need_gb=snap.models[name].need_gb)
@@ -1147,10 +1184,11 @@ class SimpleGlobalPolicy(GlobalPolicy):
         return activation_plan, evictions
 
     def _log_lapsed_reservations(self, now: float, active_models: Set[str]):
-        """F5.0f (D30): a model that victims were evicted for keeps priority on the freed memory for SWAP_RESERVATION
-        s. When that expires with the model neither active nor being activated, log it once, with the models
-        activated since the reservation was made (who took the memory). Only logs: the reservations themselves are
-        untouched (the deadline policies count them as rotations in flight)."""
+        """F5.0f (D30): a model that victims were evicted for keeps priority on the freed memory until its reservation
+        runs out (SWAP_RESERVATION s in timer mode; in event mode, D45, only the SWAP_RESERVATION_MAX_S safety bound,
+        since _end_reservations ends it earlier on activation). When it runs out with the model neither active nor
+        being activated, log it once, with the models activated since the reservation was made (who took the
+        memory). Only logs: the reservations themselves are untouched."""
         pending = {m for (m, _) in self.pending_activations}
         for name, until in self.swap_reservation_until.items():
             if until > now or (name, until) in self._reservation_logged:
@@ -1181,8 +1219,10 @@ class SimpleGlobalPolicy(GlobalPolicy):
         active = {inst.model_name: (gpu_id, inst) for gpu_id, insts in gpu_to_active_instances.items() for inst in insts}
         with_waiting = [m for m in active
                         if any(not r.is_warmup for r in model_queues[m].waiting_reqs)]
+        # loads in progress (D45). DEACTIVATING is left out on purpose: a victim finishing its batch serves tokens,
+        # and counting it would change the detector (decided to keep the pre-D45 behaviour)
         moving = sum(1 for insts in model_instance_state_dict.values() for i in insts
-                     if i.state in (ModelState.ACTIVATING, ModelState.DEACTIVATING))
+                     if i.state == ModelState.ACTIVATING)
         transitions = len(self.pending_activations) + moving + (1 if acting else 0)
         stalled = self.deadlock.update(structural.StallInput(now=now, served_total=served,
                                                              active_with_waiting=len(with_waiting),
@@ -1232,13 +1272,24 @@ class SimpleGlobalPolicy(GlobalPolicy):
         for model_name in list(self.active_since):
             if model_name not in active_models:
                 del self.active_since[model_name]
-        for model_name in active_models:
-            self.active_since.setdefault(model_name, time.time())
+        # Residency (A1.3, PRISM_SWAP_MIN_RESIDENCY, fair) counts from when the weights are loaded (D45): while
+        # ACTIVATING it restarts every cycle, then it is the time the GPU scheduler reported the load.
+        now = time.time()
+        for insts in gpu_to_active_instances.values():
+            for inst in insts:
+                name = inst.model_name
+                if inst.state == ModelState.ACTIVATING:
+                    self.active_since[name] = now
+                elif name in self.active_since and inst.state_since > self.active_since[name]:
+                    self.active_since[name] = inst.state_since  # loaded since the last cycle
+                else:
+                    self.active_since.setdefault(name, now)
         if self.EVICTION == "throughput" or self.deadlock.enabled:
             self._update_tput(model_queues, active_models)
         if self.dlog.enabled:
             self.dlog.models(time.time(), model_queues, model_instance_state_dict, self.model_weights_info,
                              self.active_since)
+        self._end_reservations(time.time(), active_models, model_queues)
         self._log_lapsed_reservations(time.time(), active_models)
         end_precompute = time.time()
         logger.info(f"Time for preprocessing data structures: {end_precompute - start_precompute:.4f}s")
@@ -1336,7 +1387,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
         )
         # A model that victims were evicted for (throughput swap) gets the freed memory first.
         now = time.time()
-        sorted_inactive_models.sort(key=lambda m: 0 if self.swap_reservation_until.get(m, 0) > now else 1)
+        sorted_inactive_models.sort(key=lambda m: 0 if self._reserved(m, now) else 1)
 
         sorted_clusters = self._prepare_gpu_clusters(gpu_available_memory)
         

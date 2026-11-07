@@ -366,6 +366,16 @@ O LVF, a cada iteração: (1) se tudo cabe na HBM, FCFS; (2) ordena todas as req
 
 **Avaliação.** Na campanha da F6, contra a melhor ociosidade, a A0.3 e a A0.3p, a A3 e a A4, nas três vistas, no TTFT p50/p90 e na cauda de espera (objetivo da seção 7).
 
+### A11. Cancelar a desativação de um modelo que voltou a ser pedido (opção a avaliar, D45)
+
+**Situação.** Sem preempção, a vítima de uma troca leva ~20 s (p50; p90 47 s, 8B) para terminar o lote e sair (F5.0a). Nesse intervalo ela pode receber requisições de novo e a política a reativa noutro worker: os pesos são carregados outra vez enquanto a cópia antiga ainda ocupa a GPU. Nos logs brutos isso aconteceu em 3,8–6,9% das desativações (F4 820/11 824, F5 46/968, triagem da F6a 181/4 796; linha `Ignoring the late deactivation` do GPU scheduler).
+
+**Hoje (mantido pela D45).** O controlador marca o modelo `DEACTIVATING` e a política o trata como inativo: pode reativá-lo noutro worker. A D45 só tornou esse estado explícito, sem mudar o comportamento.
+
+**Opção.** Em vez de reativar noutro worker, cancelar a desativação em curso: a vítima fica com os pesos e o lote, sem recarga (economiza `Ĉ_at`). Custos: a memória não é liberada, então a troca que a despejou se desfaz e o modelo para quem ela saiu não entra; e o engine precisa de suporte (durante a desativação o worker fica em `_run_to_completion_normal` sem ler mensagens; seria preciso checar um pedido de cancelamento entre lotes e pular a liberação dos pesos).
+
+**Avaliar** como opção de política (ligável por variável de ambiente), pareada com a mesma política sem ela, nas cargas em que a reativação de vítimas é frequente; métricas: recargas evitadas, TTFT p50/p90 do modelo reativado e do que esperava a memória.
+
 ---
 
 ## 5. Cargas

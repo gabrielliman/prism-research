@@ -4,12 +4,14 @@ With PRISM_DECISION_LOG=<path> the policy appends one JSON line per scheduling c
   {"t": wall clock, "cycle": n,
    "gpus": {gpu: {"free_gb": seen by get_available_gpu_memory, "pending_gb": promised to pending activations (R2.1),
                   "available_gb": free − pending, "pending": [models being activated]}},
-   "models": {model: {"state": ACTIVE|INACTIVE|ACTIVATING|DEACTIVATING (first instance), "gpu": [...],
+   "models": {model: {"state": ACTIVE|INACTIVE as the policy sees it (first instance; ACTIVATING counts as ACTIVE,
+                      DEACTIVATING as INACTIVE), "lifecycle": ACTIVE|INACTIVE|ACTIVATING|DEACTIVATING (D45), "gpu": [...],
                       "weights_gb", "waiting", "running", "oldest_wait_s", "min_deadline_in_s" (earliest
                       arrival + SLO of the waiting requests, minus t), "since_last_arrival_s",
                       "since_last_finish_s", "active_for_s"}},
    "actions": [{"kind": activate|deactivate|migrate, "model", "gpu", "reason", ...}],
-   "notes": [{"kind": "no_fit", "model", "need_gb"}, ...],
+   "notes": [{"kind": "no_fit", "model", "need_gb"}, {"kind": "reservation_lapsed" | "reservation_dropped", ...},
+             ...],
    "policy": {"name": edf|lvf, "scores": {model: {"u", "viable", "lost", "active"} (edf) | {"vlt", "active"} (lvf)},
               "in_flight", "rotated_for"}}   (only with PRISM_EVICTION=edf|lvf, F6a.4)
 Unset (the default), nothing is written and the policy behaves exactly as before: the log only reads the state the
@@ -19,6 +21,11 @@ import json
 import math
 import os
 import threading
+
+
+def _view(state_name):
+    """ACTIVATING counts as ACTIVE and DEACTIVATING as INACTIVE, as the policies see them (state.py ModelState)."""
+    return {"ACTIVATING": "ACTIVE", "DEACTIVATING": "INACTIVE"}.get(state_name, state_name)
 
 
 def _num(x):
@@ -60,8 +67,10 @@ class DecisionLog:
                          and getattr(r, "arrival_time", None) is not None]
             oldest = q.get_earliest_arrival_time() if q else math.inf
             self._cur["models"][name] = {
-                "state": insts[0].state.name if insts else None,
-                "gpu": [g for i in insts for g in i.gpu_ids if i.state.name != "INACTIVE"],
+                # the policy's two-state view, as before D45; the exact lifecycle in "lifecycle"
+                "state": _view(insts[0].state.name) if insts else None,
+                "lifecycle": insts[0].state.name if insts else None,
+                "gpu": [g for i in insts for g in i.gpu_ids if _view(i.state.name) == "ACTIVE"],
                 "weights_gb": _num(weights.get(name, {}).get("model_size")),
                 "waiting": len(waiting), "running": q.get_num_running_reqs() if q else 0,
                 "oldest_wait_s": _num(now - oldest) if math.isfinite(oldest) else None,

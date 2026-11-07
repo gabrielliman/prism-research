@@ -43,7 +43,7 @@ and the `--policy` choices are in `multi_model_server_args.py` (around line 908,
 | `pressure` | Also evicts the LRU model idle for at least `PRESSURE_MIN_IDLE` when an inactive model with requests doesn't fit | `PRISM_PRESSURE_MIN_IDLE` (2), `PRISM_PRESSURE_COOLDOWN` (10) |
 | `adaptive` | Per-model threshold = K × p90 of its own inter-arrival gaps; under pressure, evicts the most overdue model | `PRISM_ADAPTIVE_K` (3), `PRISM_ADAPTIVE_MIN` (5) |
 | `fair` | `pressure`, plus rotating out the longest-active model when someone has waited `FAIR_QUANTUM` | `PRISM_FAIR_QUANTUM` (30) |
-| `throughput` | Swaps by tokens/s per GB, with aged demand, a margin, a minimum residency and a reservation | `PRISM_SWAP_MARGIN` (0.2), `PRISM_SWAP_MIN_RESIDENCY` (20), `PRISM_SWAP_AGING_S` (30), `PRISM_SWAP_PREEMPT` (0/1). The timed drain (`PRISM_SWAP_DRAIN`, `PRISM_SWAP_DRAIN_TIMEOUT`) was removed (D30); setting it raises an error |
+| `throughput` | Swaps by tokens/s per GB, with aged demand, a margin, a minimum residency and a reservation | `PRISM_SWAP_MARGIN` (0.2), `PRISM_SWAP_MIN_RESIDENCY` (20), `PRISM_SWAP_AGING_S` (30), `PRISM_SWAP_PREEMPT` (0/1), `PRISM_SWAP_RESERVATION_END` (`event`: the swap reservation lasts until the incoming model is activated or has no waiting requests, at most `PRISM_SWAP_RESERVATION_MAX_S` = 120 s; `timer`: the pre-D45 fixed 15 s; also used by edf/lvf). The timed drain (`PRISM_SWAP_DRAIN`, `PRISM_SWAP_DRAIN_TIMEOUT`) was removed (D30); setting it raises an error |
 
 Structural constraints A1 (F4, `policy/structural.py`; apply to every strategy, all off by default; D34):
 `PRISM_KV_RESERVE_REQS` (A1.1 `b`: activate only with KV for `b` mean-size requests **plus kvcached's 5% floor**,

@@ -20,13 +20,19 @@ from sglang.multi_model.multi_model_server_args import MultiModelServerArgs
 from sglang.multi_model.scheduling.action import BaseAction
 from sglang.multi_model.scheduling.constants import (
     AIOHTTP_TIMEOUT_SECONDS,
+    LIFECYCLE_TIMEOUT_S,
     UPDATE_QUEUE_INTERVAL,
     controller_events_key,
 )
 from sglang.multi_model.scheduling.gpu.request_queue import RequestQueue
 from sglang.multi_model.scheduling.model_queue_tracker import ModelQueueTracker
 from sglang.multi_model.scheduling.policy import *
-from sglang.multi_model.scheduling.state import ModelInstanceState, ModelState
+from sglang.multi_model.scheduling.state import (
+    ModelInstanceState,
+    ModelState,
+    apply_lifecycle_event,
+    expire_transitions,
+)
 from sglang.multi_model.scheduling.stats import ScheduleStats
 from sglang.srt.managers.io_struct import (
     BatchRetractDecodeReq,
@@ -268,7 +274,7 @@ class GlobalController:
         for model_name, instances in model_instance_state_dict.items():
             model_active_instances = {}  # GPU ID -> list of active instances
             for instance in instances:
-                if instance.state == ModelState.ACTIVE:
+                if instance.serving:
                     for gpu_id in instance.gpu_ids:
                         if gpu_id not in model_active_instances:
                             model_active_instances[gpu_id] = []
@@ -313,8 +319,10 @@ class GlobalController:
                 time.sleep(SCHEDULE_INTERVAL)
 
     def handle_model_events(self):
-        """Mark inactive the instances GPU schedulers lost (failed activation, dead worker), so the policy sees
-        them as inactive with requests and can activate them again."""
+        """Apply the GPU schedulers' events to the instances' lifecycle (state.py ModelState): ACTIVATING -> ACTIVE
+        on "model_activated", DEACTIVATING -> INACTIVE on "model_deactivated", and INACTIVE on "model_lost" (failed
+        activation, dead worker), so the policy sees a lost model as inactive with requests and can activate it
+        again. A transition with no event for LIFECYCLE_TIMEOUT_S is assumed finished."""
         for event in self.redis_client.pop_all(key=controller_events_key(self.server_args)) or []:
             if event.get("event") == "model_service_lost" and not self.model_service_lost:
                 # P12: no model can be loaded any more; keep the active models serving instead of evicting them
@@ -324,22 +332,14 @@ class GlobalController:
                 continue
             if event.get("event") in ("model_activated", "model_lost") and hasattr(self.policy, "activation_done"):
                 self.policy.activation_done(event["model_name"], event["gpu_id"])
-            if event.get("event") != "model_lost":
-                continue
-            for instance in self.model_instance_state_dict.get(event["model_name"], []):
-                if event["gpu_id"] in instance.gpu_ids and instance.state != ModelState.INACTIVE:
-                    instance.on_deactivate(
-                        MemoryUsage(
-                            total_used_memory=0.0,
-                            model_weights_memory=0.0,
-                            memory_pool_memory=0.0,
-                            req_to_token_pool_memory=0.0,
-                            token_to_kv_pool_memory=0.0,
-                        )
-                    )
-                    logger.warning(
-                        f"Model {event['model_name']} on GPU {event['gpu_id']} marked inactive: {event['reason']}"
-                    )
+            changed = apply_lifecycle_event(self.model_instance_state_dict.get(event.get("model_name"), []), event)
+            if event.get("event") == "model_lost" and changed:
+                logger.warning(
+                    f"Model {event['model_name']} on GPU {event['gpu_id']} marked inactive: {event['reason']}"
+                )
+        for instance in expire_transitions(self.model_instance_state_dict, time.time(), LIFECYCLE_TIMEOUT_S):
+            logger.warning(f"{instance.model_name}:{instance.instance_idx} got no event for {LIFECYCLE_TIMEOUT_S:.0f} s; "
+                           f"transition assumed finished, now {instance.state.name}")
 
     def execute_actions(self, actions: List[BaseAction]):
         """Execute a list of scheduling actions in parallel."""
@@ -502,7 +502,7 @@ class GlobalController:
                 m_name = mod.model_name
                 gpu_id = mod.gpu_ids[0]
                 
-                if mod.state == ModelState.ACTIVE:
+                if mod.serving:
                     mod_on_gpu[m_name] = gpu_id
                     if m_name not in gpu_active_models[gpu_id]:
                         gpu_active_models[gpu_id].append(m_name)

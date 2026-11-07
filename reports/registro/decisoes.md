@@ -520,3 +520,40 @@ Numeração: D30–D33 vieram do worktree `apresentacao-prazo` (juntadas a este 
 4. **Modelos sem nível dedicado** (modelos 11–19 da varredura de `ρ_mem` 1,5 e 2,0, `PRISM_OVL_N` 14 e 19): usam a
    entrada de um modelo idêntico (mesmo `model_path`) da carga. As bases do S2/S2M (`pool_*`) já são as mesmas para todos
    os idênticos (D21), então nada muda para os modelos 1–10. O `λ_m` vem sempre do próprio nível, não do dedicado.
+
+## D45 — Ciclo de vida explícito das instâncias no controlador e fim da reserva de troca por evento (2026-11-07, Gabriel; implementação do agente)
+
+Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Prism original. Com o worker pool,
+`/activate` e `/deactivate` respondem assim que o GPU scheduler recebe o pedido, então o controlador marcava o modelo
+`ACTIVE`/`INACTIVE` no envio, e o "carregando" e o "saindo" viviam espalhados (ativações pendentes com prazo de 120 s,
+`active_since`, reservas por relógio, contadores no GPU scheduler).
+
+1. **Estados explícitos** (`state.py` `ModelState`, que já declarava `ACTIVATING`/`DEACTIVATING` sem usá-los):
+   `ACTIVATING` do envio da ativação até o evento `model_activated` do GPU scheduler; `DEACTIVATING` do envio da
+   desativação até o evento novo `model_deactivated` (só para desativações não superadas); `model_lost` leva a
+   `INACTIVE`; transição sem evento por 120 s é dada como concluída. O GPU scheduler passou a mandar `model_activated`
+   também quando o modelo já estava servido (antes a ativação ficava pendente até os 120 s).
+2. **Mesma visão para as políticas:** `ACTIVATING` conta como ativo e `DEACTIVATING` como inativo
+   (`ModelInstanceState.serving`), como antes. O limite de rotações em voo (EDF/LVF) continua contando só "vítimas
+   despejadas e ativação ainda não enviada"; um modelo carregando não conta. O detector de impasse (A1.2) conta
+   `ACTIVATING` como transição (já contava as ativações pendentes) e **não** conta `DEACTIVATING`. O log de decisões
+   mantém `state` com a visão de dois estados (o `f4_calib.py` depende dele) e ganha `lifecycle` com o estado exato.
+3. **Mudanças de comportamento aceitas:**
+   - **Residência** (A1.3, `PRISM_SWAP_MIN_RESIDENCY`, `fair`) conta a partir do carregamento, não da decisão: um modelo
+     carregando não pode ser despejado por esses critérios.
+   - **Reserva de troca** (`PRISM_SWAP_RESERVATION_END`, padrão `event`): termina quando o modelo para quem as vítimas
+     saíram é ativado, ou quando ele não tem mais requisições esperando (nota `reservation_dropped`), ou após
+     `PRISM_SWAP_RESERVATION_MAX_S` (120 s, nota `reservation_lapsed`); enquanto dura, não se faz nova troca para ele
+     (throughput e EDF/LVF). Motivo: sem preempção a vítima leva 20,1 s (p50, 8B; p90 47 s) para sair (F5.0a), mais que
+     os 15 s fixos, então a reserva acabava antes de a memória ficar livre, outro modelo podia pegá-la, e o limite de
+     uma rotação em voo deixava de valer. `timer` restaura os 15 s anteriores. Com preempção a vítima sai em ~0,6 s e
+     nada muda na prática.
+4. **Mantido sem mudança (pedido do Gabriel):** um modelo que volta a ser pedido enquanto sai continua podendo ser
+   reativado noutro worker. Cancelar a desativação fica como opção de política a avaliar (A11 no `PLANO_AGENTE.md`).
+5. **Comparabilidade:** as configurações sem preempção (`PRISM_SWAP_PREEMPT=0`, ex. A0.3 e metade das suítes da F5.1)
+   rodadas com este código não são comparáveis com execuções anteriores; comparar só dentro da mesma janela (regra 3).
+   Para reproduzir o comportamento anterior: `PRISM_SWAP_RESERVATION_END=timer` (a residência a partir do carregamento
+   não tem chave).
+6. **Código e testes:** `state.py`, `action.py`, `controller_global.py`, `gpu/gpu_scheduler.py`, `constants.py`,
+   `decision_log.py`, `policy/simple_global.py`; `tests/controller/test_lifecycle.py` (13 testes) e a suíte existente
+   (125 testes) passam.

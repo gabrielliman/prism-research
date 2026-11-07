@@ -280,8 +280,16 @@ class GPUScheduler:
                     # superseded by a newer activation of this model (on another worker): keep its state
                     self._stale_deacts[model_name] -= 1
                     logger.info(f"Ignoring the late deactivation of {model_name}: it was re-activated since")
-                elif success:
-                    self._set_model_state(model_name, "deactivated")
+                else:
+                    if success:
+                        self._set_model_state(model_name, "deactivated")
+                    # the controller's instance leaves DEACTIVATING (D45); a failed deactivation is reported too, the
+                    # controller treated the model as inactive from the moment it sent the request, as before D45
+                    self.redis_client.send_pyobj(
+                        key=controller_events_key(self.server_args),
+                        obj={"event": "model_deactivated", "model_name": model_name, "gpu_id": self.gpu_id,
+                             "success": bool(success)},
+                    )
             else:
                 logger.info(f"Received unsupported message type: {type(message)}")
 
@@ -329,6 +337,13 @@ class GPUScheduler:
                         result = self.worker_pool.handle_activate_model(message)
                         if not result and message.model_name in self.worker_pool._model_to_worker:
                             self._set_model_state(message.model_name, "activated")  # already served
+                            # without this the controller kept the activation pending (and, since D45, its instance
+                            # ACTIVATING) until the 120 s timeout
+                            self.redis_client.send_pyobj(
+                                key=controller_events_key(self.server_args),
+                                obj={"event": "model_activated", "model_name": message.model_name,
+                                     "gpu_id": self.gpu_id},
+                            )
                         elif not result:
                             # e.g. no idle worker: the controller still believes it activated the model
                             self._on_model_lost(message.model_name, "no worker to activate it", release_worker=False)

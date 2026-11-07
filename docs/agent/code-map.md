@@ -45,7 +45,7 @@ multi_model_server.py ─ endpoint.py / request_handler*.py   frontend: receives
 | `policy/base.py`, `policy/base_global.py` | Abstract `BasePolicy` / `GlobalPolicy` with `gen_actions(...)` |
 | `policy/simple_global.py` | **The only policy.** Prism's original algorithm plus our eviction strategies (`PRISM_EVICTION`). See [policies.md](policies.md) |
 | `action.py` | `ActivateAction`, `DeactivateAction` (preempt), `ResizeAction`: what a policy returns |
-| `state.py` | `ModelInstanceState`, `ModelState` (ACTIVE / INACTIVE / ACTIVATING / DEACTIVATING) |
+| `state.py` | `ModelInstanceState`, `ModelState` (ACTIVE / INACTIVE / ACTIVATING / DEACTIVATING; the lifecycle diagram, `apply_lifecycle_event` for the GPU schedulers' `model_activated` / `model_deactivated` / `model_lost` events, and `serving`, the two-state view the policies use; D45) |
 | `model_queue_tracker.py` | Per-model queue (`waiting_reqs`, running, `served_tokens`, last arrival/finish): the policy's input |
 | `estimators.py` | Pure estimators for the deadline-aware policies (F2): activation cost Ĉ_at, prefill p̂, queue q̂_r, rate λ̂. Coefficients in `reports/data/F02/cat/cat_model.json` and `reports/registro/latencia_ref.json` |
 | `decision_log.py` | `PRISM_DECISION_LOG=<path>`: one JSON line per cycle (GPU free/pending memory, per-model state, actions, notes). `run_examples.sh` turns it on by default (`<level>/decisions.jsonl`) |

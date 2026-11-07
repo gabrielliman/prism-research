@@ -61,9 +61,12 @@ class ActivateAction(BaseAction):
                     memory_usage = MemoryUsage.from_dict(
                         response.json()["memory_usage"]
                     )
-                model_instance_state_dict[self.model_name][
-                    self.instance_idx
-                ].on_activate(memory_usage, gpu_id=self.gpu_id)
+                instance = model_instance_state_dict[self.model_name][self.instance_idx]
+                if response.json()["memory_usage"] is None:
+                    # worker pool: the request was only handed to the GPU scheduler; ACTIVE on "model_activated"
+                    instance.on_activating(memory_usage, gpu_id=self.gpu_id)
+                else:
+                    instance.on_activate(memory_usage, gpu_id=self.gpu_id)
                 success = True
             else:
                 success = False
@@ -105,9 +108,12 @@ class DeactivateAction(BaseAction):
                     memory_usage = MemoryUsage.from_dict(
                         response.json()["memory_usage"]
                     )
-                model_instance_state_dict[self.model_name][
-                    self.instance_idx
-                ].on_deactivate(memory_usage)
+                instance = model_instance_state_dict[self.model_name][self.instance_idx]
+                if response.json()["memory_usage"] is None:
+                    # worker pool: the request was only handed to the GPU scheduler; INACTIVE on "model_deactivated"
+                    instance.on_deactivating(memory_usage)
+                else:
+                    instance.on_deactivate(memory_usage)
                 success = True
             else:
                 success = False
