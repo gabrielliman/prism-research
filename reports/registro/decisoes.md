@@ -483,3 +483,19 @@ Numeração: D30–D33 vieram do worktree `apresentacao-prazo` (juntadas a este 
   `overhead_s`); um tamanho de modelo sem medição sem preempção dá erro, não um valor inventado.
 - Nenhuma execução nem relatório usou o nome `S6` antes desta mudança (só o commit 506decf), então a troca de
   significado não afeta resultados. Teste: `tests/metrics/test_slo_metrics.py`.
+
+## D43 — Classificação nova das violações de TTFT (F5.0c): escolhas de medição (2026-11-07, agente)
+
+- Implementada em `polyaxon/slo_metrics.py` (`classify_ttft_miss`; colunas `viol_ttft_inev_ativacao`,
+  `viol_ttft_inev_rotacao`, `viol_ttft_evit_residencia`, `viol_ttft_evit`; a antiga `viol_ttft_inevitavel/evitavel` fica
+  ao lado). Os quatro grupos são disjuntos e somam as violações de TTFT (verificado em 16 níveis da F4).
+- **Memória livre na chegada:** a última leitura do controlador (`free_mem` no `events.csv`, uma por ciclo) comparada
+  com pesos + 1 GB de KV de ativação. É um limite inferior da necessidade real (a A1.1 soma o piso do kvcached e o KV de
+  `b` requisições): "cabe" sai generoso, o custo menor (`Ĉ_at`) é usado mais vezes, e os grupos inevitáveis ficam, se
+  muito, pequenos demais.
+- **`Ĉ_rot` da classificação:** a base com preempção (S6P, a rotação mais rápida que o sistema faz hoje), para todas as
+  configurações, mesmo as sem preempção: "inevitável" quer dizer que nenhuma política evitaria.
+- **Um ciclo:** espaçamento mediano das leituras `free_mem` do nível (5 s, `PRISM_SCHEDULE_INTERVAL`).
+- **TPOT (seção 7.1):** `viol_tpot_em_troca` = violações de TPOT cuja decodificação se sobrepõe a uma transição de
+  modelo (`act_req` → `act_ok`, despejo → `deact_ok`), sobre as requisições da vista só TPOT. O limite de memória livre
+  da seção 7.1 fica para quando houver um valor proposto.

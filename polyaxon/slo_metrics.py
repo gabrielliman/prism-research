@@ -36,7 +36,22 @@ and the denominator (their number is reported as tpot_excluidas). Breakdown (dis
 viola_so_ttft, viola_so_tpot, viola_ambos (served), nao_atendidas (unserved + failed). A TTFT miss is unavoidable
 when the request arrived while its model was inactive (deactivated, not activating) and SLO_TTFT_r < Ĉ_at(m);
 unserved/failed requests are classified the same way. Model state at arrival comes from the GPU scheduler events
-(act_req / act_ok / deact_ok) and the config's initial placement.
+(act_req / act_ok / deact_ok) and the config's initial placement. This old split (viol_ttft_inevitavel / _evitavel,
+F2.6, only Ĉ_at) is kept alongside the F5.0c one (PLANO_AGENTE.md section 7, D32), four disjoint groups of TTFT misses
+over all sent requests, for a request that arrived while its model was inactive:
+  viol_ttft_inev_ativacao   the controller's last free-memory reading at arrival (free_mem event) fits the model
+                            (weights + 1 GB of activation KV, NEED_EXTRA_GB) and SLO_TTFT_r < Ĉ_at(m);
+  viol_ttft_inev_rotacao    it did not fit, so someone had to leave, and SLO_TTFT_r < Ĉ_rot(m), the fastest rotation
+                            today (with preemption, the S6P base: no policy rotates faster);
+  viol_ttft_evit_residencia SLO_TTFT_r covers that cost (Ĉ_at or Ĉ_rot) but not that cost + one controller cycle
+                            (median spacing of the free_mem readings, 5 s by default): only a decision taken before the
+                            arrival (the model already resident or on its way) would have met it;
+  viol_ttft_evit            every other TTFT miss, including all misses of requests whose model was active or
+                            activating at arrival.
+The need is a lower bound (A1.1 adds kvcached's floor and the KV of b requests), so "fits" is generous and Ĉ_at, the
+smaller cost, is used more often: the unavoidable groups are, if anything, too small. TPOT cause (section 7.1):
+viol_tpot_em_troca = TPOT misses (TPOT view) whose decode window [arrival + TTFT, arrival + latency] overlaps a model
+transition (act_req → act_ok, controller evict → deact_ok), as a fraction of the TPOT view's requests.
 """
 import csv
 import json
@@ -56,6 +71,8 @@ PROFILED = {"meta-llama/Llama-3.1-8B-Instruct": 14.95755871385336,  # profiled a
             "Qwen/Qwen2.5-14B-Instruct": 27.511393651366234,  # C10 (run.log of f4-c10-1b, estimate_model_info)
             "Qwen/Qwen2.5-32B-Instruct": 61.027558386325836}
 DEFAULT_SLO = "S1:ttft=1,tpot=0.1"
+NEED_EXTRA_GB = 1.0  # activation KV on top of the weights (simple_global.py ACTIVATION_KV_GB, accounting on)
+DEFAULT_CYCLE_S = 5.0  # PRISM_SCHEDULE_INTERVAL default (controller_global.py)
 
 
 def parse_slo(spec):
@@ -147,6 +164,7 @@ def load_level(d):
         reqs.append({"id": r["id"], "model": r["model"], "arrival": float(r["arrival"]),
                      "prompt_len": int(r["prompt_len"]), "output_len": int(r["output_len"]), "status": r["status"],
                      "ttft": num("ttft"), "tpot": num("tpot"), "generated": num("generated"),
+                     "latency": num("latency"),
                      "slo_class": r.get("slo_class") or "interactive"})
     ev = list(csv.DictReader(open(d / "events.csv"))) if (d / "events.csv").exists() else []
     cfg = json.load(open(d.parent / "config.json"))
@@ -172,6 +190,57 @@ def lookup(changes, t):
     return s
 
 
+def free_mem_series(ev):
+    """Sorted [(t, free GB)] of the controller's free-memory readings, one per cycle."""
+    return sorted((float(e["t"]), float(e["value"])) for e in ev if e["kind"] == "free_mem" and e["value"] != "")
+
+
+def cycle_of(free):
+    """Controller cycle length: median spacing of its free-memory readings (DEFAULT_CYCLE_S with < 3 readings)."""
+    gaps = sorted(b[0] - a[0] for a, b in zip(free, free[1:]))
+    return gaps[len(gaps) // 2] if len(gaps) >= 2 else DEFAULT_CYCLE_S
+
+
+def free_at(free, t):
+    """The last reading at or before t (the first one before any reading), or None without readings."""
+    v = free[0][1] if free else None
+    for tf, f in free:
+        if tf > t:
+            break
+        v = f
+    return v
+
+
+def transitions(ev):
+    """Sorted [(start, end)] of model transitions: act_req → act_ok and controller evict* → deact_ok (per model; an
+    unmatched start runs to +inf)."""
+    out, open_ = [], {}
+    for e in sorted(ev, key=lambda e: float(e["t"])):
+        t, k, m = float(e["t"]), e["kind"], e["model"]
+        if (k == "act_req" or k.startswith("evict")) and m:
+            open_.setdefault((m, "act" if k == "act_req" else "deact"), t)
+        elif k in ("act_ok", "deact_ok", "stale_deact") and m:
+            start = open_.pop((m, "act" if k == "act_ok" else "deact"), None)
+            if start is not None:
+                out.append((start, t))
+    out += [(t, math.inf) for t in open_.values()]
+    return sorted(out)
+
+
+def overlaps(spans, a, b):
+    return any(s < b and e > a for s, e in spans)
+
+
+def classify_ttft_miss(inactive, slo_ttft, fits, c_at, c_rot, cycle):
+    """F5.0c group of one TTFT miss (see the module docstring): inev_ativacao, inev_rotacao, evit_residencia, evit."""
+    if not inactive:
+        return "evit"
+    cost, unav = (c_at, "inev_ativacao") if fits else (c_rot, "inev_rotacao")
+    if slo_ttft < cost:
+        return unav
+    return "evit_residencia" if slo_ttft < cost + cycle else "evit"
+
+
 def pct(xs, q):
     xs = sorted(x for x in xs if not math.isnan(x))
     if not xs:
@@ -186,6 +255,10 @@ def evaluate(reqs, ev, cfg, spec, refs, per_model=False, scenario=None):
     path = {m["model_name"]: m["model_path"] for m in cfg}
     states = state_at(ev, cfg) if ev else None
     bases = bases_for(fam, scenario, path, refs)
+    free = free_mem_series(ev)
+    cycle = cycle_of(free)
+    spans = transitions(ev)
+    new_split = states is not None and refs.cat is not None and refs.rot is not None and bool(free)
     rows = []
     for r in reqs:
         base = bases[r["model"]]
@@ -198,9 +271,18 @@ def evaluate(reqs, ev, cfg, spec, refs, per_model=False, scenario=None):
         unavoidable = None
         if refs.cat is not None and states is not None:
             unavoidable = inactive and st < refs.c_at(path[r["model"]])
+        grupo = None
+        if new_split and not t_ok:
+            mp = path[r["model"]]
+            fits = free_at(free, r["arrival"]) >= refs.weights[mp] + NEED_EXTRA_GB
+            grupo = classify_ttft_miss(inactive, st, fits, refs.c_at(mp), refs.c_rot(mp, preempt=True), cycle)
+        em_troca = None
+        if has_tpot and not d_ok and ev:
+            em_troca = overlaps(spans, r["arrival"] + r["ttft"], r["arrival"] + r["latency"])
         rows.append({"model": r["model"], "served": served, "has_tpot": has_tpot or not served, "t_ok": t_ok,
                      "d_ok": d_ok, "comb_ok": t_ok and d_ok, "inactive": inactive,
-                     "unavoidable": unavoidable, "ttft": r["ttft"] if served else math.nan,
+                     "unavoidable": unavoidable, "grupo": grupo, "em_troca": em_troca, "new_split": new_split,
+                     "ttft": r["ttft"] if served else math.nan,
                      "tpot": r["tpot"] if has_tpot else math.nan,
                      "ttft_norm": r["ttft"] / base[0] if served and base else math.nan,
                      "tpot_norm": r["tpot"] / base[1] if has_tpot and base else math.nan})
@@ -229,6 +311,11 @@ def summarize(rows):
     if rows and rows[0]["unavoidable"] is not None:
         out["viol_ttft_inevitavel"] = sum(x["unavoidable"] for x in viol_t) / n
         out["viol_ttft_evitavel"] = (len(viol_t) - sum(x["unavoidable"] for x in viol_t)) / n
+    if rows and rows[0]["new_split"]:
+        for g in ("inev_ativacao", "inev_rotacao", "evit_residencia", "evit"):
+            out[f"viol_ttft_{g}"] = sum(x["grupo"] == g for x in viol_t) / n
+    if tp:
+        out["viol_tpot_em_troca"] = sum(bool(x["em_troca"]) for x in tp) / len(tp)
     for k in ("ttft", "tpot", "ttft_norm", "tpot_norm"):
         for q in (50, 90, 99):
             out[f"{k}_p{q}"] = pct([x[k] for x in rows], q)
