@@ -77,11 +77,11 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F4.6 Parâmetros `b`, `Δ_imp`, `T_min` registrados; relatório F04 — D34, D37; `reports/fases/F04_restricoes.md`; gate APROVADO (D38, 2026-11-06)
 
 ## F5 — Linhas de base na nova metodologia · gate [HUMANO]
-- [ ] F5.0a (D32, vinha da F6b) `polyaxon/swap_cost.py`: custo real da troca (decisão → vítima fora → pedido de ativação → modelo pronto), decisão ligada à ativação pelo `decisions.jsonl`, dados da F6a e de 28/10; `Ĉ_rot(m)` com e sem preempção; comparação com `ê_r` (só análise)
-- [ ] F5.0b Família S6 (`k_R · Ĉ_rot`) no `slo_metrics.py` e no `overload_load.py --slo-spec`
+- [x] F5.0a (D32, vinha da F6b) `polyaxon/swap_cost.py`: custo real da troca (decisão → vítima fora → pedido de ativação → modelo pronto), decisão ligada à ativação pelo `decisions.jsonl`, dados da F6a e de 28/10; `Ĉ_rot(m)` com e sem preempção; comparação com `ê_r` (só análise)
+- [x] F5.0b Família S6 (`k_R · Ĉ_rot`) no `slo_metrics.py` e no `overload_load.py --slo-spec` — duas bases (D42): `S6` sem preempção (testada primeiro), `S6P` com preempção
 - [ ] F5.0c Violações inevitáveis pela ativação × pela rotação × evitáveis só com residência prévia × evitáveis (`slo_metrics.py`), com a classificação antiga ao lado
 - [ ] F5.0d Métrica de ociosidade da GPU: residência ociosa com demanda pendente; ociosidade esperada pela carga (`ρ_m` de `latencia_ded.json`) × observada (`gpu.csv`)
-- [ ] F5.0e `report_tables.py`: TTFT p50 e p90 e cauda de espera (p99, máximo, fração > 10× a mediana; D33) nas tabelas, ao lado das três vistas de SLO
+- [x] F5.0e `report_tables.py`: TTFT p50 e p90 e cauda de espera (p99, máximo, fração > 10× a mediana; D33) nas tabelas, ao lado das três vistas de SLO
 - [ ] F5.0f Log de decisões: reserva de memória vencida sem ativação, e quem ficou com a memória (D30)
 - [ ] F5.1 A0.1–A0.5 (+A1), com A0.3 e A0.3p (sem e com preempção) e a melhor ociosidade de valor arbitrário (seção 0.10), em todas as cargas aprovadas, níveis de `ρ_mem` definidos, 5 repetições
 - [ ] F5.2 Tabelas e figuras de referência (SLO total, TTFT p50/p90, evitáveis/inevitáveis pela classificação nova, ociosidade da GPU, pior modelo, trocas, perdas)

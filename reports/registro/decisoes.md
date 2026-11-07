@@ -471,3 +471,15 @@ Numeração: D30–D33 vieram do worktree `apresentacao-prazo` (juntadas a este 
   como o V12 já era. Nos níveis normais nada muda.
 - Revalidação: 62 de 62 níveis dedicados da F5 VALIDA (antes 52). A mudança só pode transformar FALHA em OK em níveis
   dedicados; os 48 dedicados da F2 já eram todos VALIDA.
+
+## D42 — Duas bases do S6: `S6` sem preempção (testada primeiro) e `S6P` com preempção (2026-11-07, agente, sobre a D39 item 3)
+
+- **`S6`** (`SLO_TTFT = k_R · Ĉ_rot(m)`): `Ĉ_rot(m)` = mediana medida das rotações em que a vítima termina o lote (modo
+  `finish` do `polyaxon/swap_cost.py`), pelo tamanho do modelo que entra: 3B 15,8 s, 8B 15,7 s, 14B 30,4 s, 32B 73,7 s
+  (n = 35 / 4196 / 69 / 9). É a base que a D39 manda testar primeiro.
+- **`S6P`**: a base da F5.0b, com preempção: `Ĉ_rot(m)` = 5,0 s (saída com preempção + espera pelo ciclo) + `Ĉ_at(m)`
+  (8B 6,4 s).
+- TPOT nas duas: `k_D` × base do S2. As duas bases ficam em `reports/registro/c_rot.json` (chave `sem_preempcao` e
+  `overhead_s`); um tamanho de modelo sem medição sem preempção dá erro, não um valor inventado.
+- Nenhuma execução nem relatório usou o nome `S6` antes desta mudança (só o commit 506decf), então a troca de
+  significado não afeta resultados. Teste: `tests/metrics/test_slo_metrics.py`.

@@ -18,7 +18,7 @@ Workload knobs (F3: polyaxon/workloads.py builds every synthetic and normalized-
                                  rotating every P seconds (time-sharing pressure). G=1: all always on.
   --slo-ttft / --slo-tpot        per-request SLO sent to the server and used for attainment (s)
   --slo-spec FAM:k=v,...         F6a.1: instead, each request's SLO from a family and level (slo_metrics.py: S1, S2,
-                                 S2M, S3, S2L), the same rule the metrics use: the server gets the TTFT SLO (its
+                                 S2M, S3, S6, S6P, S2L), the same rule the metrics use: the server gets the TTFT SLO (its
                                  deadline = arrival + SLO_TTFT), and attainment uses both. Needs --slo-config (the
                                  server's model config: model_name -> model_path) and --slo-scenario (ovl_* step, the
                                  key of reports/registro/latencia_ded.json). Overrides --slo-ttft/--slo-tpot, also for

@@ -28,5 +28,31 @@
       "medido_preempt_p50": null,
       "n_preempt": 0
     }
+  },
+  "sem_preempcao": {
+    "formula": "C_rot(m) = median measured C_rot (decision -> entering model ready) of the rotations whose victim finished its batch (mode 'finish', no preemption), by the entering model's weights",
+    "fonte": "F5.0a, reports/data/F05/swap_cost/c_rot.json key 'finish' (polyaxon/swap_cost.py); D39 item 3: S6 base without preemption, tested first",
+    "por_pesos_gb": {
+      "5.9": {
+        "c_rot": 15.809,
+        "p90": 45.075,
+        "n": 35
+      },
+      "15.0": {
+        "c_rot": 15.698,
+        "p90": 64.794,
+        "n": 4196
+      },
+      "27.5": {
+        "c_rot": 30.415,
+        "p90": 68.419,
+        "n": 69
+      },
+      "61.0": {
+        "c_rot": 73.702,
+        "p90": 110.762,
+        "n": 9
+      }
+    }
   }
 }
