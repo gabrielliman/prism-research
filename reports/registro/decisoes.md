@@ -599,3 +599,25 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
   não enviados põe cada carga de 19 modelos antes das menores (C5, C4, C10). Teste: `tests/controller/test_driver_budget.py`.
 - **A verificar:** se a onda atual (C1 10 + C6 10 + C6 14 = 34 workers) e os jobs de 19 modelos com o orçamento ficam
   sem K1; se não, a hipótese está errada e o orçamento não resolve (ver as outras causas possíveis no relatório da F5).
+
+## D48 — C1 com 14 e 19 modelos sozinho no nó e job interrompido no primeiro erro do driver CUDA (2026-11-07, Gabriel)
+
+- **Fato (contra a hipótese da D47):** com o orçamento de 36 workers, a onda de 18:28–19:53 UTC (C1 com 14 + C1 com 19 +
+  C5 = 35 workers) deu K1 de novo: `f5-c1n14-1b` 2/5 VALIDA, `f5-c1n19-1b` 1/5, e o vizinho `f5-c5-1` 1/5 (4
+  INVALIDA_INFRA: a checagem de saúde depois do nível falhou). Já o C6 com 19 modelos ao lado de 14 outros workers (33)
+  deu 5/5, e todas as outras cargas da 1ª repetição deram 5/5. Nos dois jobs do C1, a única configuração válida nos dois
+  foi a A0.1 (sem A1, que trava e quase não troca de modelo); as que mais trocam (A0.4, A0.4p) falharam nos dois.
+- **Leitura (hipótese):** o que quebra o driver é a taxa de mapeamentos de memória do kvcached no nó (C1 com todos os
+  modelos sempre com tráfego troca 9–10 modelos por minuto), ou handles que vazam a cada `cuMemRelease` que falha, não o
+  número de processos. Dois jobs assim estragam o nó para todos.
+- **Decisão (Gabriel):**
+  1. C1 com 14 e 19 modelos roda sozinho no nó (`F4_EXCLUSIVE='_C1n1[49]_'` no `polyaxon/f4_driver.py`: espera o nó
+     vazio, e nada entra enquanto roda). Os 6 jobs (`f5-c1n14-1c`, `f5-c1n19-1c`, repetições 2 e 3) vão juntos no fim da
+     fila. O orçamento de 36 workers da D47 continua para o resto. Refeito também `f5-c5-1` (`-1b`).
+  2. **Erro do driver CUDA interrompe o job na hora** (`polyaxon/run_examples.sh`, `PRISM_K1_ABORT=1` padrão): um vigia
+     procura o padrão do K1 do validador (`cuMem... out of memory`) no `server.log` a cada 5 s; ao achar, escreve
+     `K1_ABORT`, tira o retrato dos mapas de memória, mata o servidor e o gerador de carga; nenhum nível começa depois,
+     as tentativas de subida param, e a suíte sai com código 86 depois dessa configuração. O padrão não aparece em
+     nenhum dos 40 níveis dos 8 jobs válidos. O job interrompido precisa ser refeito inteiro (regra 3).
+- **A verificar:** se o C1 com 14 e 19 modelos sozinho fica sem K1 num job inteiro (o smoke sozinho, de 120 s, ficou).
+  Se não ficar, o problema é dentro de um job (vazamento ou taxa de trocas) e a correção é no kvcached, não na fila.

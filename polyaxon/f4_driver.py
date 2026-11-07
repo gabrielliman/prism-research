@@ -27,6 +27,13 @@ TIMEOUT = int(os.environ.get("F4_TIMEOUT", 10800))  # 4 levels of up to ~25 min 
 # 43 workers hit the kvcached CUDA VMM driver error (K1) in most levels (F5 campaign, 2026-11-07); F4 ran up to ~36
 # clean. 0 = off (job count only). Prism jobs of other sessions count as UNKNOWN_WORKERS each.
 MAX_WORKERS = int(os.environ.get("F4_MAX_WORKERS", 0))
+# D48: suites whose file name matches this regex run alone on the node (they wait for no Prism job to be active, and
+# nothing is submitted while one runs). F5: C1 with 14 and 19 models, whose swap churn broke the node for everyone.
+EXCLUSIVE = re.compile(os.environ["F4_EXCLUSIVE"]) if os.environ.get("F4_EXCLUSIVE") else None
+
+
+def exclusive(suite):
+    return bool(EXCLUSIVE and EXCLUSIVE.search(os.path.basename(suite)))
 UNKNOWN_WORKERS = 12
 STEP_WORKERS = {"ovl_mem": 10, "ovl_phases": 10, "ovl_kv": 4, "ovl_compute": 2, "ovl_trace": 8, "ovl_trace_big": 12,
                 "ovl_mix": 10, "ovl_zipf": 10, "ovl_bursty": 10, "ovl_diurnal": 10, "ovl_classes": 10,
@@ -66,11 +73,12 @@ def suite_workers(suite):
     return most
 
 
-def pick(q, used):
+def pick(q, used, n_active=0, excl_active=False):
     """Index of the next queued job to submit under the worker budget, or None: strict FIFO, the head goes when it fits
     (a job behind it could only go while leaving room for the head if the head already fits, so skipping ahead would
-    starve large jobs and buy nothing)."""
-    if not q:
+    starve large jobs and buy nothing). D48: nothing goes while an exclusive job runs, and an exclusive head waits for
+    an empty node."""
+    if not q or excl_active or (exclusive(q[0][1]) and n_active > 0):
         return None
     return 0 if not MAX_WORKERS or used + suite_workers(q[0][1]) <= MAX_WORKERS else None
 
@@ -158,12 +166,14 @@ def main():
         active |= {r["uuid"] for r in st.values() if r["status"] not in FINAL}
         mine = {r["uuid"]: r["suite"] for r in st.values()}
         used = sum(suite_workers(mine[u]) if u in mine else UNKNOWN_WORKERS for u in active)
+        excl_active = any(u in mine and exclusive(mine[u]) for u in active)
         while q and len(active) < MAX_ACTIVE:
-            i = pick(q, used)
+            i = pick(q, used, len(active), excl_active)
             if i is None:
                 break
             suffix, suite = q.pop(i)
             used += suite_workers(suite)
+            excl_active = excl_active or exclusive(suite)
             uid = submit(suffix, suite)
             st[suffix] = {"suffix": suffix, "suite": suite, "uuid": uid,
                           "submitted_utc": f"{dt.datetime.now(dt.timezone.utc):%Y-%m-%d %H:%M}", "status": "created",

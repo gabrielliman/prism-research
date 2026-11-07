@@ -30,8 +30,13 @@ declare -A ENV=(
 # worker budget of the driver (F4_MAX_WORKERS=36) leaves fewer slots idle. Rep 1 of C1n10/C1n14/C1n19/C6n10/C6n14 was
 # submitted before D47 in the original order (C1n10 C1n14 C1n19 C6n10 C6n14 ...).
 ORDER=(C1n10 C1n14 C6n10 C6n14 C1n19 C5 C4 C6n19 C10 C2 C3 T1 C7 C8 C9C1 C9C6 T3 T2)
-# Re-runs (whole job again, so the 5 arms share one window, rule 3): suffix -<rep>b, queued first.
-RERUN=(C1n14:1 C1n19:1 C1n10:1)
+# Re-runs (whole job again, so the 5 arms share one window, rule 3): <workload>:<rep>:<tag>, suffix -<rep><tag>,
+# queued first. b = D47 (K1 with 43 workers on the node); C5:1:b = health check failed next to the C1 14/19 jobs (D48).
+RERUN=(C1n14:1:b C1n19:1:b C1n10:1:b C5:1:b)
+# D48: C1 with 14 and 19 models runs alone on the node (driver F4_EXCLUSIVE='_C1n1[49]_'); they go together at the
+# end of the queue (one drain of the node), after every other job: the -1c re-runs, then reps 2 and 3.
+EXCL=(C1n14 C1n19)
+EXCL_RERUN=(C1n14:1:c C1n19:1:c)
 declare -A W=(
   [C1n10]="PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2"
   [C1n14]="PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14"
@@ -55,10 +60,9 @@ declare -A W=(
 rm -f "$HERE"/configs/f5_camp_*_suite.tsv
 Q="$HERE/configs/f5_camp_queue.tsv"
 echo "# F5.1 campaign (polyaxon/f5_suites.sh): suffix<TAB>suite; ${#ORDER[@]} workloads x $REPS reps" > "$Q"
-for x in "${RERUN[@]}"; do  # D47: K1 under 43 workers on the node (f5-c1n14-1, f5-c1n19-1, f5-c1n10-1)
-  w=${x%%:*}; rep=${x##*:}
-  printf 'f5-%s-%sb\tpolyaxon/configs/f5_camp_%s_o%s_suite.tsv\n' "$(echo "$w" | tr A-Z a-z)" "$rep" "$w" "$rep" >> "$Q"
-done
+rerun() { local w rep tag; IFS=: read -r w rep tag <<< "$1"
+  printf 'f5-%s-%s%s\tpolyaxon/configs/f5_camp_%s_o%s_suite.tsv\n' "$(echo "$w" | tr A-Z a-z)" "$rep" "$tag" "$w" "$rep" >> "$Q"; }
+for x in "${RERUN[@]}"; do rerun "$x"; done
 for rep in $(seq 1 "$REPS"); do
   for w in "${ORDER[@]}"; do
     f="$HERE/configs/f5_camp_${w}_o${rep}_suite.tsv"
@@ -69,7 +73,14 @@ for rep in $(seq 1 "$REPS"); do
         printf '%s\t%s %s\n' "$a" "${W[$w]}" "${ENV[$a]}"
       done
     } > "$f"
+    [[ " ${EXCL[*]} " == *" $w "* ]] && [ "$rep" -gt 1 ] && continue  # D48: at the end (rep 1 ran before D48)
     printf 'f5-%s-%s\tpolyaxon/configs/%s\n' "$(echo "$w" | tr A-Z a-z)" "$rep" "$(basename "$f")" >> "$Q"
+  done
+done
+for x in "${EXCL_RERUN[@]}"; do rerun "$x"; done
+for rep in $(seq 2 "$REPS"); do
+  for w in "${EXCL[@]}"; do
+    printf 'f5-%s-%s\tpolyaxon/configs/f5_camp_%s_o%s_suite.tsv\n' "$(echo "$w" | tr A-Z a-z)" "$rep" "$w" "$rep" >> "$Q"
   done
 done
 # Smoke (before the campaign): start-up and a short level with 14 and 19 workers on one GPU (a 14-worker start-up

@@ -40,5 +40,32 @@ class BudgetTest(unittest.TestCase):
         self.assertIsNone(d.pick([], 0))
 
 
+class ExclusiveTest(unittest.TestCase):
+    """D48: exclusive suites run alone on the node."""
+
+    def setUp(self):
+        self.old = d.EXCLUSIVE, d.MAX_WORKERS
+        d.EXCLUSIVE, d.MAX_WORKERS = d.re.compile(r"_C1n1[49]_"), 36
+
+    def tearDown(self):
+        d.EXCLUSIVE, d.MAX_WORKERS = self.old
+
+    def test_matches(self):
+        self.assertTrue(d.exclusive(S[19]) and d.exclusive(S[14]))
+        self.assertFalse(d.exclusive(S[10]) or d.exclusive(S[4]))
+
+    def test_exclusive_head_waits_for_an_empty_node(self):
+        q = [("big", S[19]), ("small", S[4])]
+        self.assertIsNone(d.pick(q, 4, n_active=1))
+        self.assertEqual(d.pick(q, 0, n_active=0), 0)
+
+    def test_nothing_goes_while_an_exclusive_job_runs(self):
+        self.assertIsNone(d.pick([("small", S[4])], 19, n_active=1, excl_active=True))
+
+    def test_off_by_default(self):
+        d.EXCLUSIVE = None
+        self.assertEqual(d.pick([("big", S[19])], 4, n_active=1), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

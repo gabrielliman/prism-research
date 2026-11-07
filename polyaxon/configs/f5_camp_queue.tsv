@@ -2,6 +2,7 @@
 f5-c1n14-1b	polyaxon/configs/f5_camp_C1n14_o1_suite.tsv
 f5-c1n19-1b	polyaxon/configs/f5_camp_C1n19_o1_suite.tsv
 f5-c1n10-1b	polyaxon/configs/f5_camp_C1n10_o1_suite.tsv
+f5-c5-1b	polyaxon/configs/f5_camp_C5_o1_suite.tsv
 f5-c1n10-1	polyaxon/configs/f5_camp_C1n10_o1_suite.tsv
 f5-c1n14-1	polyaxon/configs/f5_camp_C1n14_o1_suite.tsv
 f5-c6n10-1	polyaxon/configs/f5_camp_C6n10_o1_suite.tsv
@@ -21,10 +22,8 @@ f5-c9c6-1	polyaxon/configs/f5_camp_C9C6_o1_suite.tsv
 f5-t3-1	polyaxon/configs/f5_camp_T3_o1_suite.tsv
 f5-t2-1	polyaxon/configs/f5_camp_T2_o1_suite.tsv
 f5-c1n10-2	polyaxon/configs/f5_camp_C1n10_o2_suite.tsv
-f5-c1n14-2	polyaxon/configs/f5_camp_C1n14_o2_suite.tsv
 f5-c6n10-2	polyaxon/configs/f5_camp_C6n10_o2_suite.tsv
 f5-c6n14-2	polyaxon/configs/f5_camp_C6n14_o2_suite.tsv
-f5-c1n19-2	polyaxon/configs/f5_camp_C1n19_o2_suite.tsv
 f5-c5-2	polyaxon/configs/f5_camp_C5_o2_suite.tsv
 f5-c4-2	polyaxon/configs/f5_camp_C4_o2_suite.tsv
 f5-c6n19-2	polyaxon/configs/f5_camp_C6n19_o2_suite.tsv
@@ -39,10 +38,8 @@ f5-c9c6-2	polyaxon/configs/f5_camp_C9C6_o2_suite.tsv
 f5-t3-2	polyaxon/configs/f5_camp_T3_o2_suite.tsv
 f5-t2-2	polyaxon/configs/f5_camp_T2_o2_suite.tsv
 f5-c1n10-3	polyaxon/configs/f5_camp_C1n10_o3_suite.tsv
-f5-c1n14-3	polyaxon/configs/f5_camp_C1n14_o3_suite.tsv
 f5-c6n10-3	polyaxon/configs/f5_camp_C6n10_o3_suite.tsv
 f5-c6n14-3	polyaxon/configs/f5_camp_C6n14_o3_suite.tsv
-f5-c1n19-3	polyaxon/configs/f5_camp_C1n19_o3_suite.tsv
 f5-c5-3	polyaxon/configs/f5_camp_C5_o3_suite.tsv
 f5-c4-3	polyaxon/configs/f5_camp_C4_o3_suite.tsv
 f5-c6n19-3	polyaxon/configs/f5_camp_C6n19_o3_suite.tsv
@@ -56,3 +53,9 @@ f5-c9c1-3	polyaxon/configs/f5_camp_C9C1_o3_suite.tsv
 f5-c9c6-3	polyaxon/configs/f5_camp_C9C6_o3_suite.tsv
 f5-t3-3	polyaxon/configs/f5_camp_T3_o3_suite.tsv
 f5-t2-3	polyaxon/configs/f5_camp_T2_o3_suite.tsv
+f5-c1n14-1c	polyaxon/configs/f5_camp_C1n14_o1_suite.tsv
+f5-c1n19-1c	polyaxon/configs/f5_camp_C1n19_o1_suite.tsv
+f5-c1n14-2	polyaxon/configs/f5_camp_C1n14_o2_suite.tsv
+f5-c1n19-2	polyaxon/configs/f5_camp_C1n19_o2_suite.tsv
+f5-c1n14-3	polyaxon/configs/f5_camp_C1n14_o3_suite.tsv
+f5-c1n19-3	polyaxon/configs/f5_camp_C1n19_o3_suite.tsv

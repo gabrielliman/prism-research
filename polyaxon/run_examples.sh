@@ -35,6 +35,9 @@ if [ -n "${PRISM_SUITE:-}" ]; then
     echo; echo "======== suite: $name ($vars) $(date -u +%T) ========"
     eval "env PRISM_SUITE= PRISM_RESULTS='$RESULTS/$name' $vars bash '$ROOT/polyaxon/run_examples.sh'" < /dev/null
     echo "======== suite: $name exit=$? $(date -u +%T) ========"
+    if [ -f "$RESULTS/$name/K1_ABORT" ]; then  # D48: a kvcached CUDA driver error ends the whole job
+      echo "suite ABORTED after $name: $(cat "$RESULTS/$name/K1_ABORT") $(date -u +%FT%TZ)"; exit 86
+    fi
   done < "$PRISM_SUITE"
   echo "suite end $(date -u +%FT%TZ)"
   exit 0
@@ -100,8 +103,26 @@ map_snapshot() {
     END {printf "summary: %d processes, maps max %d sum %d\n", n, mx, s}'
 }
 MAP_PID=""
+# D48 (Gabriel): a kvcached CUDA driver error (K1, the validator's pattern "cuMem... out of memory" in server.log) makes
+# the level invalid and, on this node, usually the next ones too, so the job stops at once instead of wasting time:
+# k1_abort writes $RESULTS/K1_ABORT, snapshots the memory maps and kills the server and the load generator; no level
+# starts after it (start_server), start-up retries stop, and the suite loop exits 86 after this configuration.
+# PRISM_K1_ABORT=0 restores the old behaviour (retry, keep going).
+K1W_PID=""
+k1_aborted() { [ "${PRISM_K1_ABORT:-1}" = 1 ] && [ -f "$RESULTS/K1_ABORT" ]; }
+k1_abort() {
+  [ "${PRISM_K1_ABORT:-1}" = 1 ] || return 0
+  echo "K1 in $1 at $(date -u +%FT%TZ): $(grep -m1 -o 'cuMem[A-Za-z]*' "$RESULTS/$1/server.log" 2>/dev/null) out of memory" \
+    > "$RESULTS/K1_ABORT"
+  echo "[$1] K1 ABORT: $(cat "$RESULTS/K1_ABORT")"
+  map_snapshot "k1_abort" >> "$RESULTS/$1/map_trace.log" 2>&1
+  pkill -f "polyaxon/overload_load.py" 2>/dev/null
+  [ -n "$SERVER_PID" ] && kill -TERM -- "-$SERVER_PID" 2>/dev/null
+  return 0
+}
 stop_server() {
   [ -n "$MAP_PID" ] && { kill "$MAP_PID" 2>/dev/null; MAP_PID=""; }
+  [ -n "$K1W_PID" ] && { kill "$K1W_PID" 2>/dev/null; K1W_PID=""; }
   [ -z "$SERVER_PID" ] && return 0
   kill -TERM -- "-$SERVER_PID" 2>/dev/null
   for _ in $(seq 1 30); do kill -0 -- "-$SERVER_PID" 2>/dev/null || break; sleep 1; done
@@ -265,6 +286,7 @@ health_gate() {
 # V14 (F2.2): one node health check right after a level (no waiting), in health_after.log; PRISM_HEALTH_AFTER=0 skips.
 health_after() {
   local step=$1
+  k1_aborted && return 0  # D48: the job is stopping
   [ "${PRISM_HEALTH_AFTER:-1}" = 1 ] && [ "${PRISM_HEALTH_PROCS:-10}" -gt 0 ] || return 0
   if python3 polyaxon/kvcached_probe.py --parallel "${PRISM_HEALTH_PROCS:-10}" >> "$RESULTS/$step/health_after.log" 2>&1; then
     echo "[$step] node healthy after the level"
@@ -276,10 +298,13 @@ health_after() {
 
 start_server() {
   local step=$1 k
+  k1_aborted && { echo "[$step] skipped: job aborted by K1 (D48)"; return 1; }
   health_gate "$step" || return 1
   for k in $(seq 1 "${PRISM_START_ATTEMPTS:-3}"); do
     start_server_once "$@" && return 0
     { echo "== attempt $k failed"; host_diag; } >> "$RESULTS/$step/startup_diag.log" 2>&1
+    k1_aborted && { for f in "$RESULTS/$step"/server*.log; do [[ $f == *attempt* ]] || mv "$f" "${f%.log}.attempt$k.log"; done
+      echo "[$step] no retry: K1 (D48)"; return 1; }
     for f in "$RESULTS/$step"/server*.log; do [[ $f == *attempt* ]] || mv "$f" "${f%.log}.attempt$k.log"; done
     echo "[$step] start attempt $k failed; retrying"
     sleep 20
@@ -303,6 +328,12 @@ start_server_once() {
     { while sleep 15; do map_snapshot "t"; done; } >> "$RESULTS/$step/map_trace.log" 2>&1 &
     MAP_PID=$!
   fi
+  if [ "${PRISM_K1_ABORT:-1}" = 1 ]; then  # D48: watch for K1 while this server lives (start-up and the level)
+    { while sleep 5; do
+        grep -q "cuMem.*out of memory" "$RESULTS/$step/server.log" 2>/dev/null && { k1_abort "$step"; break; }
+      done; } &
+    K1W_PID=$!
+  fi
   # PRISM_FD_TRACE=1 (F3, C10 start-up EMFILE): every 5 s of start-up, open file descriptors of the launcher and of each
   # child (fd_trace.log), plus the shell's and the launcher's RLIMIT_NOFILE. Diagnostic only.
   [ "${PRISM_FD_TRACE:-0}" = 1 ] && { echo "shell nofile soft $(ulimit -Sn) hard $(ulimit -Hn)"; sleep 2;
@@ -317,7 +348,8 @@ start_server_once() {
     # kvcached aborts a worker at start-up (cuMem* out of memory): the server never becomes ready, fail fast
     if grep -q "cuMem.*out of memory" "$RESULTS/$step/server.log" 2>/dev/null; then
       echo "[$step] kvcached failed at start-up"; grep -m2 "cuMem" "$RESULTS/$step/server.log"
-      map_snapshot "kvcached_failed_at_startup" >> "$RESULTS/$step/map_trace.log" 2>&1; stop_server; return 1
+      map_snapshot "kvcached_failed_at_startup" >> "$RESULTS/$step/map_trace.log" 2>&1
+      [ -f "$RESULTS/K1_ABORT" ] || k1_abort "$step"; stop_server; return 1
     fi
     ready=$(cat "$RESULTS/$step"/server*.log 2>/dev/null | grep -c "is fired up and ready to roll")
     if [ "$ready" -ge "$n_on" ] && curl -sf -o /dev/null "http://127.0.0.1:$port/health"; then
