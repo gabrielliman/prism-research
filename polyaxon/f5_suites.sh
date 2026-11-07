@@ -31,7 +31,7 @@ declare -A ENV=(
 # submitted before D47 in the original order (C1n10 C1n14 C1n19 C6n10 C6n14 ...).
 ORDER=(C1n10 C1n14 C6n10 C6n14 C1n19 C5 C4 C6n19 C10 C2 C3 T1 C7 C8 C9C1 C9C6 T3 T2)
 # Re-runs (whole job again, so the 5 arms share one window, rule 3): suffix -<rep>b, queued first.
-RERUN=(C1n14:1 C1n19:1)
+RERUN=(C1n14:1 C1n19:1 C1n10:1)
 declare -A W=(
   [C1n10]="PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2"
   [C1n14]="PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2 PRISM_OVL_N=14"
@@ -55,7 +55,7 @@ declare -A W=(
 rm -f "$HERE"/configs/f5_camp_*_suite.tsv
 Q="$HERE/configs/f5_camp_queue.tsv"
 echo "# F5.1 campaign (polyaxon/f5_suites.sh): suffix<TAB>suite; ${#ORDER[@]} workloads x $REPS reps" > "$Q"
-for x in "${RERUN[@]}"; do  # D47: K1 under 43 workers on the node (f5-c1n14-1, f5-c1n19-1)
+for x in "${RERUN[@]}"; do  # D47: K1 under 43 workers on the node (f5-c1n14-1, f5-c1n19-1, f5-c1n10-1)
   w=${x%%:*}; rep=${x##*:}
   printf 'f5-%s-%sb\tpolyaxon/configs/f5_camp_%s_o%s_suite.tsv\n' "$(echo "$w" | tr A-Z a-z)" "$rep" "$w" "$rep" >> "$Q"
 done
