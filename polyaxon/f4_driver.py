@@ -23,6 +23,14 @@ QUEUE = os.environ.get("F4_QUEUE")  # optional TSV "suffix<TAB>suite" (e.g. the 
 VAL = os.environ.get("F4_VAL", "reports/data/F04/validador")
 MAX_ACTIVE = int(os.environ.get("F4_MAX_ACTIVE", 3))  # CLAUDE.md rule 2; >3 only for the D39 concurrency test
 TIMEOUT = int(os.environ.get("F4_TIMEOUT", 10800))  # 4 levels of up to ~25 min plus start-ups
+# D47: node-wide budget of kvcached workers (one per model, summed over the active Prism jobs). 3 jobs with 10+14+19 =
+# 43 workers hit the kvcached CUDA VMM driver error (K1) in most levels (F5 campaign, 2026-11-07); F4 ran up to ~36
+# clean. 0 = off (job count only). Prism jobs of other sessions count as UNKNOWN_WORKERS each.
+MAX_WORKERS = int(os.environ.get("F4_MAX_WORKERS", 0))
+UNKNOWN_WORKERS = 12
+STEP_WORKERS = {"ovl_mem": 10, "ovl_phases": 10, "ovl_kv": 4, "ovl_compute": 2, "ovl_trace": 8, "ovl_trace_big": 12,
+                "ovl_mix": 10, "ovl_zipf": 10, "ovl_bursty": 10, "ovl_diurnal": 10, "ovl_classes": 10,
+                "ovl_sizes": 8}  # run_examples.sh defaults (ovl_mix 8 + 2; ovl_sizes 2+3+2+1); ovl_tr_* 12
 FINAL = {"succeeded", "failed", "stopped", "upstream_failed", "skipped", "done"}
 PLAN = ["C3", "C1n8", "C1n14", "C2", "T1"]  # 5 reps (PLANO_AGENTE F4.4)
 D29 = ["C6", "C7", "C8", "T3", "C10"]  # 2 reps (D29 item 4, Gabriel's scope 2026-11-05)
@@ -37,6 +45,34 @@ def queue():
         for w in PLAN + (D29 if rep <= 2 else []):
             q.append((f"f4-{w.lower()}-{rep}", f"polyaxon/configs/f4_camp_{w}_{order}_suite.tsv"))
     return q
+
+
+def suite_workers(suite):
+    """Largest number of kvcached workers (models) of any line of a suite: PRISM_OVL_N (+ PRISM_OVL_N2 for ovl_mix)
+    or the step's default; PRISM_OVL_DEDICATED lines serve one model."""
+    most = 0
+    for line in open(suite):
+        if line.startswith("#") or "\t" not in line:
+            continue
+        env = dict(kv.split("=", 1) for kv in line.split("\t", 1)[1].split() if "=" in kv)
+        step = env.get("PRISM_STEPS", "")
+        if "PRISM_OVL_DEDICATED" in env:
+            n = 1
+        elif "PRISM_OVL_N" in env:
+            n = int(env["PRISM_OVL_N"]) + (int(env.get("PRISM_OVL_N2", 2)) if step == "ovl_mix" else 0)
+        else:
+            n = 12 if step.startswith("ovl_tr_") else STEP_WORKERS.get(step, UNKNOWN_WORKERS)
+        most = max(most, n)
+    return most
+
+
+def pick(q, used):
+    """Index of the next queued job to submit under the worker budget, or None: strict FIFO, the head goes when it fits
+    (a job behind it could only go while leaving room for the head if the head already fits, so skipping ahead would
+    starve large jobs and buy nothing)."""
+    if not q:
+        return None
+    return 0 if not MAX_WORKERS or used + suite_workers(q[0][1]) <= MAX_WORKERS else None
 
 
 def log(msg):
@@ -120,15 +156,21 @@ def main():
                 save_state(st)
         active = {x["uuid"] for x in rs if x["name"].startswith("prism-examples") and x["status"] not in FINAL}
         active |= {r["uuid"] for r in st.values() if r["status"] not in FINAL}
+        mine = {r["uuid"]: r["suite"] for r in st.values()}
+        used = sum(suite_workers(mine[u]) if u in mine else UNKNOWN_WORKERS for u in active)
         while q and len(active) < MAX_ACTIVE:
-            suffix, suite = q.pop(0)
+            i = pick(q, used)
+            if i is None:
+                break
+            suffix, suite = q.pop(i)
+            used += suite_workers(suite)
             uid = submit(suffix, suite)
             st[suffix] = {"suffix": suffix, "suite": suite, "uuid": uid,
                           "submitted_utc": f"{dt.datetime.now(dt.timezone.utc):%Y-%m-%d %H:%M}", "status": "created",
                           "downloaded": "0"}
             save_state(st)
             active.add(uid)
-            log(f"submitted {suffix} {uid[:8]} ({len(active)} active)")
+            log(f"submitted {suffix} {uid[:8]} ({len(active)} active, {used} workers)")
             time.sleep(20)
         if not q and all(r["status"] in FINAL and r["downloaded"] == "1" for r in st.values()):
             log("campaign done")

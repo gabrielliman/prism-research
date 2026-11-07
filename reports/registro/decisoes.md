@@ -581,3 +581,21 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
    "utilização"). Métricas novas em `polyaxon/gpu_idle.py`: `ocio_residente_total` (tempo de memória desperdiçada,
    R7), `modelos_ativos_medio` / `modelos_ativos_esperado` / `modelos_residentes_medio` (contagem de modelos ativos,
    R6), `ocio_por_modelo` (R1).
+
+## D47 — Orçamento de workers do kvcached no nó, além do limite de 3 jobs (2026-11-07, Gabriel, opção 1)
+
+- **Fato:** na 1ª onda da campanha da F5 (13:36–14:57 UTC), 3 jobs do Prism ao mesmo tempo (C1 com 10, 14 e 19 modelos
+  = 43 workers do kvcached no nó, um por modelo) deram K1 (`cuMemSetAccess ... out of memory` do driver CUDA): no
+  `f5-c1n19-1`, 0 de 5 níveis válidos (A0.1 não subiu em 3 tentativas, os outros 4 INVALIDA_SISTEMA); no `f5-c1n14-1`,
+  3 de 5 (A0.4 não subiu, A0.4p K1). O mesmo conjunto de 19 modelos, sozinho no nó (smokes `f5-smoke-1/2`), deu 6/6
+  VALIDA; na F4, 3 jobs com até ~36 workers no total (C1 com 14 modelos ao lado de cargas de 10–12) rodaram limpos.
+  Nenhum outro job do Prism estava no nó.
+- **Leitura (hipótese, não provada):** o limite é o total de workers (processos com contexto CUDA e mapeamentos de
+  memória virtual do kvcached) no nó, não o número de jobs.
+- **Decisão (Gabriel):** `polyaxon/f4_driver.py` ganha `F4_MAX_WORKERS` (36 na campanha da F5,
+  `polyaxon/f4_driver_start.sh f5`): um job só entra se a soma dos workers dos jobs ativos mais os dele cabe; fila
+  estritamente em ordem (o 1º da fila espera, nada passa à frente). Os jobs `f5-c1n14-1` e `f5-c1n19-1` são refeitos
+  inteiros como `-1b` (as 5 configurações na mesma janela, regra 3), no topo da fila. A ordem da fila dos jobs ainda
+  não enviados põe cada carga de 19 modelos antes das menores (C5, C4, C10). Teste: `tests/controller/test_driver_budget.py`.
+- **A verificar:** se a onda atual (C1 10 + C6 10 + C6 14 = 34 workers) e os jobs de 19 modelos com o orçamento ficam
+  sem K1; se não, a hipótese está errada e o orçamento não resolve (ver as outras causas possíveis no relatório da F5).

@@ -1,0 +1,5 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/A0.1/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F5/camp/f5-c1n14-1,42ad5cd7349d42ce93e2de75a4dae0af,f5-c1n14-1/outputs/A0.1/ovl_mem/rate0.2,VALIDA,,,2026-11-07 13:38:32,,354,OK,OK,OK,OK,OK,N/A,N/A,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.1_A1/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F5/camp/f5-c1n14-1,42ad5cd7349d42ce93e2de75a4dae0af,f5-c1n14-1/outputs/A0.1_A1/ovl_mem/rate0.2,VALIDA,,,2026-11-07 13:56:44,,35,OK,OK,OK,OK,OK,N/A,N/A,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.2_A1/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F5/camp/f5-c1n14-1,42ad5cd7349d42ce93e2de75a4dae0af,f5-c1n14-1/outputs/A0.2_A1/ovl_mem/rate0.2,VALIDA,,,2026-11-07 14:18:50,,37,OK,OK,OK,OK,OK,N/A,N/A,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.4p/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F5/camp/f5-c1n14-1,42ad5cd7349d42ce93e2de75a4dae0af,f5-c1n14-1/outputs/A0.4p/ovl_mem/rate0.2,INVALIDA_SISTEMA,V2,"V2: {'k1': 2, 'torch_oom': 1, 'worker_died': 3, 'worker_exit': 1, 'traceback': 1}",2026-11-07 14:44:57,k1,28,OK,FALHA,OK,OK,OK,N/A,N/A,OK,OK,OK,OK,OK,OK,OK,OK
