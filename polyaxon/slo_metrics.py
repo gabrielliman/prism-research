@@ -24,7 +24,8 @@ TTFT_base / TPOT_base (D20, the Prism paper's §7.1) are the P95 (S2, S3) or P50
 of the scenario's reference level served alone on a dedicated GPU, pooling the models of the scenario with the same
 model_path (D21): reports/registro/latencia_ded.json ({scenario: {model: {pool_ttft_p95, pool_tpot_p95,
 pool_ttft_p50, pool_tpot_p50, ...}}}, polyaxon/iso_dedicated.py; method in reports/registro/latencia_ref.md), looked up
-by the level's scenario (the ovl_* part of its path) and model name. TTFT_iso / TPOT_iso come from
+by the level's scenario (the ovl_* part of its path; C9 ovl_classes takes the base of C1 or C6 under it, ded_key) and
+model name. TTFT_iso / TPOT_iso come from
 reports/registro/latencia_ref.json (D18: {model_path: {ttft_a, ttft_b, tpot_iso}}, TTFT_iso = ttft_a + ttft_b · L)
 and Ĉ_at from reports/data/F02/cat/cat_model.json (F2.3, with no activation ahead). --ref / --ded / --cat override
 the paths.
@@ -138,6 +139,24 @@ class Refs:
 def scenario_of(d):
     """The scenario of a level directory: the ovl_* part of its path (collect_reps.py and job layouts)."""
     return next((x for x in reversed(pathlib.Path(d).parts) if x.startswith("ovl_")), None)
+
+
+def ded_key(scenario, pattern):
+    """Key of latencia_ded.json for a scenario: C9 (ovl_classes) runs on C1 or C6 (PRISM_OVL_CLASS_BASE) and has no
+    dedicated runs of its own; it uses the base of the load under it, told apart by the generator's pattern (C6 =
+    zipf_drift, C1 = constant)."""
+    if scenario == "ovl_classes":
+        return "ovl_zipf" if pattern == "zipf_drift" else "ovl_mem"
+    return scenario
+
+
+def ded_scenario(d):
+    """latencia_ded.json key of a level directory (scenario_of, with C9 resolved from summary.json args.pattern)."""
+    sc = scenario_of(d)
+    if sc == "ovl_classes":
+        s = pathlib.Path(d) / "summary.json"
+        return ded_key(sc, json.load(open(s))["args"].get("pattern") if s.exists() else None)
+    return sc
 
 
 def slo_of(req, path, fam, p, refs, base=None):
@@ -335,7 +354,7 @@ def summarize(rows):
 
 def level_metrics(d, specs, refs, per_model=False):
     reqs, ev, cfg = load_level(d)
-    return [evaluate(reqs, ev, cfg, s, refs, per_model, scenario_of(d)) for s in specs]
+    return [evaluate(reqs, ev, cfg, s, refs, per_model, ded_scenario(d)) for s in specs]
 
 
 def levels(data):

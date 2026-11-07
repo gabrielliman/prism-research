@@ -7,6 +7,7 @@ are read from them, so the tests check the rule, not the numbers.
 import json
 import math
 import os
+import pathlib
 import sys
 import unittest
 
@@ -161,6 +162,27 @@ class DedFallbackTest(unittest.TestCase):
         refs = sm.Refs()
         self.assertIsNone(refs.base("ovl_mem", "model_19"))           # path unknown
         self.assertIsNone(refs.base("ovl_mem", "model_19", "p95", Q32))  # no 32B in C1
+
+
+class C9BaseTest(unittest.TestCase):
+    """C9 (ovl_classes) runs on C1 or C6 and takes the dedicated base of the load under it."""
+
+    def test_ded_key(self):
+        self.assertEqual(sm.ded_key("ovl_classes", "zipf_drift"), "ovl_zipf")
+        self.assertEqual(sm.ded_key("ovl_classes", "constant"), "ovl_mem")
+        self.assertEqual(sm.ded_key("ovl_classes", None), "ovl_mem")
+        self.assertEqual(sm.ded_key("ovl_zipf", "zipf_drift"), "ovl_zipf")  # other scenarios unchanged
+        self.assertEqual(sm.ded_key("ovl_mem", "constant"), "ovl_mem")
+
+    def test_ded_scenario_reads_the_level_pattern(self):
+        import tempfile
+        for pattern, want in (("zipf_drift", "ovl_zipf"), ("constant", "ovl_mem")):
+            with tempfile.TemporaryDirectory() as t:
+                d = pathlib.Path(t) / "C9" / "ovl_classes" / "rate2"
+                d.mkdir(parents=True)
+                (d / "summary.json").write_text(json.dumps({"args": {"pattern": pattern}}))
+                self.assertEqual(sm.ded_scenario(d), want)
+                self.assertIsNotNone(sm.Refs().base(sm.ded_scenario(d), "model_1"))
 
 
 if __name__ == "__main__":

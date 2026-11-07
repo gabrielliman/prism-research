@@ -98,7 +98,7 @@ def level(d, refs):
     gpu = list(csv.DictReader(open(d / "gpu.csv")))
     s = json.load(open(d / "summary.json"))
     T = float(s["args"].get("duration") or max(r["arrival"] for r in reqs))
-    scenario = sm.scenario_of(d)
+    scenario = sm.ded_scenario(d)
     path = {m["model_name"]: m["model_path"] for m in cfg}
     rho, rho_gpu = {}, {}
     for m, p in path.items():

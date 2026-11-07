@@ -123,7 +123,7 @@ def apply_slo_spec(a, reqs):
     fam, p = sm.parse_slo(a.slo_spec)
     refs = sm.Refs()
     path = {m["model_name"]: m["model_path"] for m in json.load(open(a.slo_config))}
-    bases = sm.bases_for(fam, a.slo_scenario, path, refs)
+    bases = sm.bases_for(fam, sm.ded_key(a.slo_scenario, a.pattern), path, refs)  # C9: the base of C1 or C6
     for r in reqs:
         ttft, tpot = sm.slo_of({"model": r.model, "prompt_len": r.prompt_len}, path[r.model], fam, p, refs,
                                bases[r.model])
