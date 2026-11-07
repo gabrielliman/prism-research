@@ -1,2 +1,3 @@
-# F5 smoke
+# F5 smoke: 1 = code f6f7678 (pre-D45), 2 = after D45 (f279ced)
 f5-smoke-1	polyaxon/configs/f5_smoke_suite.tsv
+f5-smoke-2	polyaxon/configs/f5_smoke_suite.tsv
