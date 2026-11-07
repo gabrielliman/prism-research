@@ -499,3 +499,24 @@ Numeração: D30–D33 vieram do worktree `apresentacao-prazo` (juntadas a este 
 - **TPOT (seção 7.1):** `viol_tpot_em_troca` = violações de TPOT cuja decodificação se sobrepõe a uma transição de
   modelo (`act_req` → `act_ok`, despejo → `deact_ok`), sobre as requisições da vista só TPOT. O limite de memória livre
   da seção 7.1 fica para quando houver um valor proposto.
+
+## D44 — Ociosidade da GPU (F5.0d) e base dos modelos extras da varredura de `ρ_mem` (2026-11-07, agente; item 2 a confirmar com o Gabriel)
+
+1. **Implementação:** `polyaxon/gpu_idle.py` (`level`, `table`), teste `tests/metrics/test_gpu_idle.py`. Colunas:
+   `ocio_residente_demanda` (GB·s de modelos ativos sem requisição no sistema, só nos instantes em que um modelo não
+   ativo tem requisição, sobre os GB·s da GPU; só pesos), `frac_tempo_demanda`, `ocio_esperada`, `ocio_observada`
+   (1 − utilização do `gpu.csv`), `ocio_politica` = observada − esperada, `trocas_min`. Janela = duração da carga.
+2. **`ρ_m` com duas definições de tempo de serviço (a confirmar).** A da seção 7, `ρ_m = λ_m · E[S]` com `E[S]` = latência
+   média na GPU dedicada (`pool_servico_medio_s`), conta cada requisição de um lote como uma GPU inteira (lei de
+   Little: é o número médio no sistema, não a ocupação). No C1, cada 8B a 0,2 req/s dá `ρ` ≈ 0,79, dois residentes já
+   passam de 1, e `ocio_esperada` sai ≈ 0 em todo nível sobrecarregado. Por isso há uma segunda coluna,
+   `ocio_esperada_gpu` / `ocio_politica_gpu`, com `E[S]` = segundos de GPU ocupada por requisição na GPU dedicada
+   (utilização do `nvidia-smi` integrada no nível dedicado ÷ requisições atendidas, `pool_gpu_s_por_req`), que leva o
+   lote em conta (8B do C1: `ρ` ≈ 0,28). As duas ficam nas tabelas até o Gabriel escolher; a proposta do agente é a
+   segunda.
+3. **`latencia_ded.json` ganhou quatro campos** (`servico_medio_s`, `pool_servico_medio_s`, `gpu_s_por_req`,
+   `pool_gpu_s_por_req`; `polyaxon/iso_dedicated.py`). Regerado dos mesmos 10 jobs dedicados (`f2-ded-{a,b,c}`,
+   `f5-ded-{c10,c6,c7,c8a,c8b,t2,t3}`): todos os campos antigos idênticos (0 diferenças), só os novos acrescentados.
+4. **Modelos sem nível dedicado** (modelos 11–19 da varredura de `ρ_mem` 1,5 e 2,0, `PRISM_OVL_N` 14 e 19): usam a
+   entrada de um modelo idêntico (mesmo `model_path`) da carga. As bases do S2/S2M (`pool_*`) já são as mesmas para todos
+   os idênticos (D21), então nada muda para os modelos 1–10. O `λ_m` vem sempre do próprio nível, não do dedicado.

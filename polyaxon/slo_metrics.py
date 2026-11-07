@@ -119,9 +119,19 @@ class Refs:
             raise FileNotFoundError(f"TTFT_iso/TPOT_iso of {path} not in {REF} (F2.10)")
         return self.lat[path]
 
-    def base(self, scenario, model, q="p95"):
+    def ded_entry(self, scenario, model, path=None):
+        """latencia_ded.json entry of model in scenario; a model the dedicated runs did not have (the ρ_mem sweep's
+        models 11-19, PRISM_OVL_N > 10) takes the entry of an identical model (same model_path) of the scenario, whose
+        pool_* fields are the same for every identical model (D21, D44). None if neither exists."""
+        sc = (self.ded or {}).get(scenario, {})
+        if model in sc:
+            return sc[model]
+        same = [e for _, e in sorted(sc.items()) if path is not None and e.get("model_path") == path]
+        return same[0] if same else None
+
+    def base(self, scenario, model, q="p95", path=None):
         """(TTFT_base, TPOT_base) of model in scenario (D20), pooled over its identical models (D21), or None."""
-        e = (self.ded or {}).get(scenario, {}).get(model)
+        e = self.ded_entry(scenario, model, path)
         return (e[f"pool_ttft_{q}"], e[f"pool_tpot_{q}"]) if e and e.get(f"pool_ttft_{q}") is not None else None
 
 
@@ -153,7 +163,8 @@ def slo_of(req, path, fam, p, refs, base=None):
 def bases_for(fam, scenario, models, refs):
     """model -> (TTFT_base, TPOT_base) or None: the P50 base for S2M, the P95 one otherwise (D20, D21). Used by the
     metrics and by overload_load.py --slo-spec (F6a.1), so the deadline sent and the one measured are the same."""
-    return {m: refs.base(scenario, m, "p50" if fam == "S2M" else "p95") for m in models}
+    q = "p50" if fam == "S2M" else "p95"
+    return {m: refs.base(scenario, m, q, models[m] if isinstance(models, dict) else None) for m in models}
 
 
 def load_level(d):

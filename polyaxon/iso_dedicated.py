@@ -9,9 +9,16 @@ benchmark.py). Per model: P50 and P95 of the TTFT and of the TPOT of its answere
 answered requests of all models of the scenario with the same model_path (identical models): pool_ttft_p95,
 pool_tpot_p95 (S2) and pool_ttft_p50, pool_tpot_p50 (S2M), copied into each model's entry. Writes
 <dest>/latencia_ded.json ({scenario: {model: {model_path, ttft_p95, tpot_p95, ttft_p50, tpot_p50, pool_*, pool_models,
-pool_n, n, ok, unserved, failed, level}}}, what slo_metrics.py reads as reports/registro/latencia_ded.json) and
-<dest>/latencia_ded.md.
+pool_n, n, ok, unserved, failed, level, servico_medio_s, pool_servico_medio_s}}}, what slo_metrics.py reads as
+reports/registro/latencia_ded.json) and <dest>/latencia_ded.md. servico_medio_s is the mean latency (arrival → last
+token) of the answered requests, E[service time] of the GPU idleness metric (F5.0d, gpu_idle.py: ρ_m = λ_m · E[S]);
+pool_servico_medio_s pools the identical models like the SLO base. gpu_s_por_req is the GPU-busy seconds per answered
+request: the nvidia-smi utilization of the level's gpu.csv integrated over the whole file (only this model runs on the
+GPU, so start-up and drain add ~0), over the answered requests; pool_gpu_s_por_req pools the identical models (Σ
+GPU-busy s / Σ answered). It is the service time that accounts for batching (D44).
 """
+import csv
+import datetime
 import glob
 import json
 import os
@@ -21,6 +28,19 @@ import sys
 import numpy as np
 
 LEVEL = re.compile(r"^(?P<level>.+)_ded_(?P<model>model_\d+)$")
+
+
+def gpu_busy_s(path):
+    """∫ utilization dt over a raw nvidia-smi gpu.csv (s of GPU busy); gaps longer than 2 s count as 2 s."""
+    if not os.path.exists(path):
+        return None
+    ts, util = [], []
+    for row in csv.reader(open(path)):
+        if len(row) < 4 or not row[1].strip().isdigit():
+            continue
+        ts.append(datetime.datetime.strptime(row[0].strip(), "%Y/%m/%d %H:%M:%S.%f").timestamp())
+        util.append(float(row[3]) / 100)
+    return sum(u * min(2.0, t1 - t0) for t0, t1, u in zip(ts, ts[1:], util))
 
 
 def main():
@@ -36,6 +56,7 @@ def main():
             ok = [r for r in reqs if r["status"] == "ok"]
             ttft = np.array([r["ttft"] for r in ok])
             tpot = np.array([r["tpot"] for r in ok if r["tpot"] > 0])
+            lat = np.array([r["latency"] for r in ok])
             cfg = glob.glob(os.path.join(os.path.dirname(os.path.dirname(d)), "configs", f"{step}_ded.json"))
             path = json.load(open(cfg[0]))[0]["model_path"] if cfg else ""
             # the config file is rewritten per model: the path of this level is in its server log's model config
@@ -49,19 +70,27 @@ def main():
                  "ttft_p95": float(np.quantile(ttft, 0.95)) if len(ttft) else None,
                  "tpot_p95": float(np.quantile(tpot, 0.95)) if len(tpot) else None,
                  "ttft_p50": float(np.median(ttft)) if len(ttft) else None,
-                 "tpot_p50": float(np.median(tpot)) if len(tpot) else None}
+                 "tpot_p50": float(np.median(tpot)) if len(tpot) else None,
+                 "servico_medio_s": float(lat.mean()) if len(lat) else None}
+            busy = gpu_busy_s(os.path.join(d, "gpu.csv"))
+            e["gpu_s_por_req"] = busy / len(ok) if busy is not None and ok else None
             ref.setdefault(step, {})[m.group("model")] = e
-            pool = samples.setdefault((step, path), ([], []))
+            pool = samples.setdefault((step, path), ([], [], [], [0.0, 0]))
             pool[0].extend(ttft)
             pool[1].extend(tpot)
+            pool[2].extend(lat)
+            if busy is not None:
+                pool[3][0] += busy
+                pool[3][1] += len(ok)
             rows.append((step, m.group("model"), e))
     pooled = {}
-    for (step, path), (tt, tp) in samples.items():
+    for (step, path), (tt, tp, lt, (gb, gn)) in samples.items():
         tt, tp = np.array(tt), np.array(tp)
         pooled[step, path] = {"pool_ttft_p95": float(np.quantile(tt, 0.95)), "pool_tpot_p95": float(np.quantile(tp, 0.95)),
                               "pool_ttft_p50": float(np.median(tt)), "pool_tpot_p50": float(np.median(tp)),
                               "pool_models": sum(e["model_path"] == path for e in ref[step].values()),
-                              "pool_n": len(tt)}
+                              "pool_n": len(tt), "pool_servico_medio_s": float(np.mean(lt)) if lt else None,
+                              "pool_gpu_s_por_req": gb / gn if gn else None}
     for step in ref:
         for e in ref[step].values():
             e.update(pooled[step, e["model_path"]])

@@ -16,7 +16,11 @@
    "pool_ttft_p50": 0.037035584449768066,
    "pool_tpot_p50": 0.010654039407705332,
    "pool_models": 10,
-   "pool_n": 1564
+   "pool_n": 1564,
+   "servico_medio_s": 4.252946839501329,
+   "pool_servico_medio_s": 4.261704724162931,
+   "gpu_s_por_req": 0.8761817888234624,
+   "pool_gpu_s_por_req": 0.8904203769069194
   },
   "model_10": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -34,7 +38,11 @@
    "pool_ttft_p50": 0.037035584449768066,
    "pool_tpot_p50": 0.010654039407705332,
    "pool_models": 10,
-   "pool_n": 1564
+   "pool_n": 1564,
+   "servico_medio_s": 4.311754855868548,
+   "pool_servico_medio_s": 4.261704724162931,
+   "gpu_s_por_req": 0.7737328786125982,
+   "pool_gpu_s_por_req": 0.8904203769069194
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -52,7 +60,11 @@
    "pool_ttft_p50": 0.037035584449768066,
    "pool_tpot_p50": 0.010654039407705332,
    "pool_models": 10,
-   "pool_n": 1564
+   "pool_n": 1564,
+   "servico_medio_s": 3.878235322339781,
+   "pool_servico_medio_s": 4.261704724162931,
+   "gpu_s_por_req": 0.9232311040286361,
+   "pool_gpu_s_por_req": 0.8904203769069194
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -70,7 +82,11 @@
    "pool_ttft_p50": 0.037035584449768066,
    "pool_tpot_p50": 0.010654039407705332,
    "pool_models": 10,
-   "pool_n": 1564
+   "pool_n": 1564,
+   "servico_medio_s": 3.8834496870266726,
+   "pool_servico_medio_s": 4.261704724162931,
+   "gpu_s_por_req": 0.872644966937,
+   "pool_gpu_s_por_req": 0.8904203769069194
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -88,7 +104,11 @@
    "pool_ttft_p50": 0.037035584449768066,
    "pool_tpot_p50": 0.010654039407705332,
    "pool_models": 10,
-   "pool_n": 1564
+   "pool_n": 1564,
+   "servico_medio_s": 5.695296389063899,
+   "pool_servico_medio_s": 4.261704724162931,
+   "gpu_s_por_req": 0.8738358418874337,
+   "pool_gpu_s_por_req": 0.8904203769069194
   },
   "model_5": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -106,7 +126,11 @@
    "pool_ttft_p50": 0.037035584449768066,
    "pool_tpot_p50": 0.010654039407705332,
    "pool_models": 10,
-   "pool_n": 1564
+   "pool_n": 1564,
+   "servico_medio_s": 3.8332887255798087,
+   "pool_servico_medio_s": 4.261704724162931,
+   "gpu_s_por_req": 0.8908717167596876,
+   "pool_gpu_s_por_req": 0.8904203769069194
   },
   "model_6": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -124,7 +148,11 @@
    "pool_ttft_p50": 0.037035584449768066,
    "pool_tpot_p50": 0.010654039407705332,
    "pool_models": 10,
-   "pool_n": 1564
+   "pool_n": 1564,
+   "servico_medio_s": 4.2149048961334294,
+   "pool_servico_medio_s": 4.261704724162931,
+   "gpu_s_por_req": 1.0153345478664744,
+   "pool_gpu_s_por_req": 0.8904203769069194
   },
   "model_7": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -142,7 +170,11 @@
    "pool_ttft_p50": 0.037035584449768066,
    "pool_tpot_p50": 0.010654039407705332,
    "pool_models": 10,
-   "pool_n": 1564
+   "pool_n": 1564,
+   "servico_medio_s": 3.9225735923374545,
+   "pool_servico_medio_s": 4.261704724162931,
+   "gpu_s_por_req": 0.8479094080812126,
+   "pool_gpu_s_por_req": 0.8904203769069194
   },
   "model_8": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -160,7 +192,11 @@
    "pool_ttft_p50": 0.037035584449768066,
    "pool_tpot_p50": 0.010654039407705332,
    "pool_models": 10,
-   "pool_n": 1564
+   "pool_n": 1564,
+   "servico_medio_s": 5.037451438422145,
+   "pool_servico_medio_s": 4.261704724162931,
+   "gpu_s_por_req": 0.9269514775108283,
+   "pool_gpu_s_por_req": 0.8904203769069194
   },
   "model_9": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -178,7 +214,11 @@
    "pool_ttft_p50": 0.037035584449768066,
    "pool_tpot_p50": 0.010654039407705332,
    "pool_models": 10,
-   "pool_n": 1564
+   "pool_n": 1564,
+   "servico_medio_s": 3.8055027132486083,
+   "pool_servico_medio_s": 4.261704724162931,
+   "gpu_s_por_req": 0.9474730592168821,
+   "pool_gpu_s_por_req": 0.8904203769069194
   }
  },
  "ovl_kv": {
@@ -198,7 +238,11 @@
    "pool_ttft_p50": 0.11409711837768555,
    "pool_tpot_p50": 0.01068562850719545,
    "pool_models": 4,
-   "pool_n": 337
+   "pool_n": 337,
+   "servico_medio_s": 21.50949293686806,
+   "pool_servico_medio_s": 18.923412827902006,
+   "gpu_s_por_req": 1.3788701075056324,
+   "pool_gpu_s_por_req": 1.6410650440493393
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -216,7 +260,11 @@
    "pool_ttft_p50": 0.11409711837768555,
    "pool_tpot_p50": 0.01068562850719545,
    "pool_models": 4,
-   "pool_n": 337
+   "pool_n": 337,
+   "servico_medio_s": 21.632055825329033,
+   "pool_servico_medio_s": 18.923412827902006,
+   "gpu_s_por_req": 1.5520414934213134,
+   "pool_gpu_s_por_req": 1.6410650440493393
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -234,7 +282,11 @@
    "pool_ttft_p50": 0.11409711837768555,
    "pool_tpot_p50": 0.01068562850719545,
    "pool_models": 4,
-   "pool_n": 337
+   "pool_n": 337,
+   "servico_medio_s": 16.18266589054838,
+   "pool_servico_medio_s": 18.923412827902006,
+   "gpu_s_por_req": 1.8068041243255137,
+   "pool_gpu_s_por_req": 1.6410650440493393
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -252,7 +304,11 @@
    "pool_ttft_p50": 0.11409711837768555,
    "pool_tpot_p50": 0.01068562850719545,
    "pool_models": 4,
-   "pool_n": 337
+   "pool_n": 337,
+   "servico_medio_s": 15.66300826620024,
+   "pool_servico_medio_s": 18.923412827902006,
+   "gpu_s_por_req": 1.8796273087232542,
+   "pool_gpu_s_por_req": 1.6410650440493393
   }
  },
  "ovl_compute": {
@@ -272,7 +328,11 @@
    "pool_ttft_p50": 0.8735594749450684,
    "pool_tpot_p50": 0.04468460080412545,
    "pool_models": 2,
-   "pool_n": 6040
+   "pool_n": 6040,
+   "servico_medio_s": 25.177830831657175,
+   "pool_servico_medio_s": 18.53547975486453,
+   "gpu_s_por_req": 0.03327024559751273,
+   "pool_gpu_s_por_req": 0.03385573346133264
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -290,7 +350,11 @@
    "pool_ttft_p50": 0.8735594749450684,
    "pool_tpot_p50": 0.04468460080412545,
    "pool_models": 2,
-   "pool_n": 6040
+   "pool_n": 6040,
+   "servico_medio_s": 11.554808589270898,
+   "pool_servico_medio_s": 18.53547975486453,
+   "gpu_s_por_req": 0.03447104243875966,
+   "pool_gpu_s_por_req": 0.03385573346133264
   }
  },
  "ovl_trace_big": {
@@ -310,7 +374,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 3.6639821945337228,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 0.8161380071414484,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_10": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -328,7 +396,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 2.8709972838676254,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 1.1176953423854916,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_11": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -346,7 +418,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 2.374263590853661,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 1.1445310004949572,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_12": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -364,7 +440,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 2.5640433525873556,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 1.5866199950377147,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -382,7 +462,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 3.7676390158794537,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 0.7533970218032371,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -400,7 +484,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 3.3780276981280677,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 0.7816840190264448,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -418,7 +506,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 2.1691351282720763,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 0.8979805015921593,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_5": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -436,7 +528,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 3.429088178243655,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 1.493127316610137,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_6": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -454,7 +550,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 3.3260095536595946,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 1.2235733368902495,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_7": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -472,7 +572,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 1.9379821963209127,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 1.142227693583284,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_8": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -490,7 +594,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 2.4235714932336756,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 1.1892121741564379,
+   "pool_gpu_s_por_req": 0.9518948549457626
   },
   "model_9": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -508,7 +616,11 @@
    "pool_ttft_p50": 0.025142192840576172,
    "pool_tpot_p50": 0.010376021086451519,
    "pool_models": 12,
-   "pool_n": 1275
+   "pool_n": 1275,
+   "servico_medio_s": 2.787917891093953,
+   "pool_servico_medio_s": 3.2210651638987016,
+   "gpu_s_por_req": 1.385498849749565,
+   "pool_gpu_s_por_req": 0.9518948549457626
   }
  },
  "ovl_mem": {
@@ -528,7 +640,11 @@
    "pool_ttft_p50": 0.03527522087097168,
    "pool_tpot_p50": 0.01035046018262916,
    "pool_models": 10,
-   "pool_n": 599
+   "pool_n": 599,
+   "servico_medio_s": 3.3314415755753335,
+   "pool_servico_medio_s": 4.074643750707673,
+   "gpu_s_por_req": 1.5457936915617723,
+   "pool_gpu_s_por_req": 1.4428193975370593
   },
   "model_10": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -546,7 +662,11 @@
    "pool_ttft_p50": 0.03527522087097168,
    "pool_tpot_p50": 0.01035046018262916,
    "pool_models": 10,
-   "pool_n": 599
+   "pool_n": 599,
+   "servico_medio_s": 3.6360027397818424,
+   "pool_servico_medio_s": 4.074643750707673,
+   "gpu_s_por_req": 1.5055202943086623,
+   "pool_gpu_s_por_req": 1.4428193975370593
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -564,7 +684,11 @@
    "pool_ttft_p50": 0.03527522087097168,
    "pool_tpot_p50": 0.01035046018262916,
    "pool_models": 10,
-   "pool_n": 599
+   "pool_n": 599,
+   "servico_medio_s": 4.578189831728546,
+   "pool_servico_medio_s": 4.074643750707673,
+   "gpu_s_por_req": 1.4808053764930138,
+   "pool_gpu_s_por_req": 1.4428193975370593
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -582,7 +706,11 @@
    "pool_ttft_p50": 0.03527522087097168,
    "pool_tpot_p50": 0.01035046018262916,
    "pool_models": 10,
-   "pool_n": 599
+   "pool_n": 599,
+   "servico_medio_s": 3.729820215624982,
+   "pool_servico_medio_s": 4.074643750707673,
+   "gpu_s_por_req": 1.3715377583585937,
+   "pool_gpu_s_por_req": 1.4428193975370593
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -600,7 +728,11 @@
    "pool_ttft_p50": 0.03527522087097168,
    "pool_tpot_p50": 0.01035046018262916,
    "pool_models": 10,
-   "pool_n": 599
+   "pool_n": 599,
+   "servico_medio_s": 3.295899018883071,
+   "pool_servico_medio_s": 4.074643750707673,
+   "gpu_s_por_req": 1.422721279834179,
+   "pool_gpu_s_por_req": 1.4428193975370593
   },
   "model_5": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -618,7 +750,11 @@
    "pool_ttft_p50": 0.03527522087097168,
    "pool_tpot_p50": 0.01035046018262916,
    "pool_models": 10,
-   "pool_n": 599
+   "pool_n": 599,
+   "servico_medio_s": 3.098793380783271,
+   "pool_servico_medio_s": 4.074643750707673,
+   "gpu_s_por_req": 1.5068047397015458,
+   "pool_gpu_s_por_req": 1.4428193975370593
   },
   "model_6": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -636,7 +772,11 @@
    "pool_ttft_p50": 0.03527522087097168,
    "pool_tpot_p50": 0.01035046018262916,
    "pool_models": 10,
-   "pool_n": 599
+   "pool_n": 599,
+   "servico_medio_s": 4.053647564351559,
+   "pool_servico_medio_s": 4.074643750707673,
+   "gpu_s_por_req": 1.5791789943774541,
+   "pool_gpu_s_por_req": 1.4428193975370593
   },
   "model_7": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -654,7 +794,11 @@
    "pool_ttft_p50": 0.03527522087097168,
    "pool_tpot_p50": 0.01035046018262916,
    "pool_models": 10,
-   "pool_n": 599
+   "pool_n": 599,
+   "servico_medio_s": 6.0644485956324,
+   "pool_servico_medio_s": 4.074643750707673,
+   "gpu_s_por_req": 1.1436698611123222,
+   "pool_gpu_s_por_req": 1.4428193975370593
   },
   "model_8": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -672,7 +816,11 @@
    "pool_ttft_p50": 0.03527522087097168,
    "pool_tpot_p50": 0.01035046018262916,
    "pool_models": 10,
-   "pool_n": 599
+   "pool_n": 599,
+   "servico_medio_s": 3.618771574984897,
+   "pool_servico_medio_s": 4.074643750707673,
+   "gpu_s_por_req": 1.4859739971160888,
+   "pool_gpu_s_por_req": 1.4428193975370593
   },
   "model_9": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -690,7 +838,11 @@
    "pool_ttft_p50": 0.03527522087097168,
    "pool_tpot_p50": 0.01035046018262916,
    "pool_models": 10,
-   "pool_n": 599
+   "pool_n": 599,
+   "servico_medio_s": 4.89270028718389,
+   "pool_servico_medio_s": 4.074643750707673,
+   "gpu_s_por_req": 1.4236953849425684,
+   "pool_gpu_s_por_req": 1.4428193975370593
   }
  },
  "ovl_mix": {
@@ -710,7 +862,11 @@
    "pool_ttft_p50": 0.03464996814727783,
    "pool_tpot_p50": 0.009924537729928084,
    "pool_models": 8,
-   "pool_n": 466
+   "pool_n": 466,
+   "servico_medio_s": 5.998457698180125,
+   "pool_servico_medio_s": 4.0134649568201395,
+   "gpu_s_por_req": 1.3580021502054656,
+   "pool_gpu_s_por_req": 1.4302018648309258
   },
   "model_10": {
    "model_path": "meta-llama/Llama-3.2-3B-Instruct",
@@ -728,7 +884,11 @@
    "pool_ttft_p50": 0.0246734619140625,
    "pool_tpot_p50": 0.008686317390654667,
    "pool_models": 2,
-   "pool_n": 83
+   "pool_n": 83,
+   "servico_medio_s": 3.3509708205237985,
+   "pool_servico_medio_s": 3.8943335577306977,
+   "gpu_s_por_req": 1.1436677404642104,
+   "pool_gpu_s_por_req": 1.0672780632110963
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -746,7 +906,11 @@
    "pool_ttft_p50": 0.03464996814727783,
    "pool_tpot_p50": 0.009924537729928084,
    "pool_models": 8,
-   "pool_n": 466
+   "pool_n": 466,
+   "servico_medio_s": 2.8927395555835504,
+   "pool_servico_medio_s": 4.0134649568201395,
+   "gpu_s_por_req": 1.5994153865025593,
+   "pool_gpu_s_por_req": 1.4302018648309258
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -764,7 +928,11 @@
    "pool_ttft_p50": 0.03464996814727783,
    "pool_tpot_p50": 0.009924537729928084,
    "pool_models": 8,
-   "pool_n": 466
+   "pool_n": 466,
+   "servico_medio_s": 3.082875616334636,
+   "pool_servico_medio_s": 4.0134649568201395,
+   "gpu_s_por_req": 1.4503701699602192,
+   "pool_gpu_s_por_req": 1.4302018648309258
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -782,7 +950,11 @@
    "pool_ttft_p50": 0.03464996814727783,
    "pool_tpot_p50": 0.009924537729928084,
    "pool_models": 8,
-   "pool_n": 466
+   "pool_n": 466,
+   "servico_medio_s": 3.815708312027632,
+   "pool_servico_medio_s": 4.0134649568201395,
+   "gpu_s_por_req": 1.3937244573552559,
+   "pool_gpu_s_por_req": 1.4302018648309258
   },
   "model_5": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -800,7 +972,11 @@
    "pool_ttft_p50": 0.03464996814727783,
    "pool_tpot_p50": 0.009924537729928084,
    "pool_models": 8,
-   "pool_n": 466
+   "pool_n": 466,
+   "servico_medio_s": 3.2026607461147387,
+   "pool_servico_medio_s": 4.0134649568201395,
+   "gpu_s_por_req": 1.4619737307500031,
+   "pool_gpu_s_por_req": 1.4302018648309258
   },
   "model_6": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -818,7 +994,11 @@
    "pool_ttft_p50": 0.03464996814727783,
    "pool_tpot_p50": 0.009924537729928084,
    "pool_models": 8,
-   "pool_n": 466
+   "pool_n": 466,
+   "servico_medio_s": 5.202367461659014,
+   "pool_servico_medio_s": 4.0134649568201395,
+   "gpu_s_por_req": 1.4448023353815078,
+   "pool_gpu_s_por_req": 1.4302018648309258
   },
   "model_7": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -836,7 +1016,11 @@
    "pool_ttft_p50": 0.03464996814727783,
    "pool_tpot_p50": 0.009924537729928084,
    "pool_models": 8,
-   "pool_n": 466
+   "pool_n": 466,
+   "servico_medio_s": 3.7459126047257865,
+   "pool_servico_medio_s": 4.0134649568201395,
+   "gpu_s_por_req": 1.2774547122887203,
+   "pool_gpu_s_por_req": 1.4302018648309258
   },
   "model_8": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -854,7 +1038,11 @@
    "pool_ttft_p50": 0.03464996814727783,
    "pool_tpot_p50": 0.009924537729928084,
    "pool_models": 8,
-   "pool_n": 466
+   "pool_n": 466,
+   "servico_medio_s": 3.7908085844056174,
+   "pool_servico_medio_s": 4.0134649568201395,
+   "gpu_s_por_req": 1.5098434490724044,
+   "pool_gpu_s_por_req": 1.4302018648309258
   },
   "model_9": {
    "model_path": "meta-llama/Llama-3.2-3B-Instruct",
@@ -872,7 +1060,11 @@
    "pool_ttft_p50": 0.0246734619140625,
    "pool_tpot_p50": 0.008686317390654667,
    "pool_models": 2,
-   "pool_n": 83
+   "pool_n": 83,
+   "servico_medio_s": 4.399787266760371,
+   "pool_servico_medio_s": 3.8943335577306977,
+   "gpu_s_por_req": 0.9962178983244785,
+   "pool_gpu_s_por_req": 1.0672780632110963
   }
  },
  "ovl_sizes": {
@@ -892,7 +1084,11 @@
    "pool_ttft_p50": 0.026267170906066895,
    "pool_tpot_p50": 0.008312698106056584,
    "pool_models": 2,
-   "pool_n": 236
+   "pool_n": 236,
+   "servico_medio_s": 1.7755002394258006,
+   "pool_servico_medio_s": 2.133128194659317,
+   "gpu_s_por_req": 0.6663159358792189,
+   "pool_gpu_s_por_req": 0.669503602385521
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.2-3B-Instruct",
@@ -910,7 +1106,11 @@
    "pool_ttft_p50": 0.026267170906066895,
    "pool_tpot_p50": 0.008312698106056584,
    "pool_models": 2,
-   "pool_n": 236
+   "pool_n": 236,
+   "servico_medio_s": 2.5224046415064185,
+   "pool_servico_medio_s": 2.133128194659317,
+   "gpu_s_por_req": 0.6729733632729117,
+   "pool_gpu_s_por_req": 0.669503602385521
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -928,7 +1128,11 @@
    "pool_ttft_p50": 0.041545987129211426,
    "pool_tpot_p50": 0.00931452325096837,
    "pool_models": 3,
-   "pool_n": 356
+   "pool_n": 356,
+   "servico_medio_s": 2.1632286584153113,
+   "pool_servico_medio_s": 2.2498370051656043,
+   "gpu_s_por_req": 1.1101005362198415,
+   "pool_gpu_s_por_req": 1.1375589623678937
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -946,7 +1150,11 @@
    "pool_ttft_p50": 0.041545987129211426,
    "pool_tpot_p50": 0.00931452325096837,
    "pool_models": 3,
-   "pool_n": 356
+   "pool_n": 356,
+   "servico_medio_s": 2.573991915137749,
+   "pool_servico_medio_s": 2.2498370051656043,
+   "gpu_s_por_req": 1.1376001570543903,
+   "pool_gpu_s_por_req": 1.1375589623678937
   },
   "model_5": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -964,7 +1172,11 @@
    "pool_ttft_p50": 0.041545987129211426,
    "pool_tpot_p50": 0.00931452325096837,
    "pool_models": 3,
-   "pool_n": 356
+   "pool_n": 356,
+   "servico_medio_s": 1.979311743237335,
+   "pool_servico_medio_s": 2.2498370051656043,
+   "gpu_s_por_req": 1.1642621557260382,
+   "pool_gpu_s_por_req": 1.1375589623678937
   },
   "model_6": {
    "model_path": "Qwen/Qwen2.5-32B-Instruct",
@@ -982,7 +1194,11 @@
    "pool_ttft_p50": 0.07266378402709961,
    "pool_tpot_p50": 0.014234533237870455,
    "pool_models": 3,
-   "pool_n": 335
+   "pool_n": 335,
+   "servico_medio_s": 3.1999730411046574,
+   "pool_servico_medio_s": 4.5822738899557445,
+   "gpu_s_por_req": 1.6557690719354932,
+   "pool_gpu_s_por_req": 2.0872463347520402
   },
   "model_7": {
    "model_path": "Qwen/Qwen2.5-32B-Instruct",
@@ -1000,7 +1216,11 @@
    "pool_ttft_p50": 0.07266378402709961,
    "pool_tpot_p50": 0.014234533237870455,
    "pool_models": 3,
-   "pool_n": 335
+   "pool_n": 335,
+   "servico_medio_s": 3.4124175611073557,
+   "pool_servico_medio_s": 4.5822738899557445,
+   "gpu_s_por_req": 1.8018693090936413,
+   "pool_gpu_s_por_req": 2.0872463347520402
   },
   "model_8": {
    "model_path": "Qwen/Qwen2.5-32B-Instruct",
@@ -1018,7 +1238,11 @@
    "pool_ttft_p50": 0.07266378402709961,
    "pool_tpot_p50": 0.014234533237870455,
    "pool_models": 3,
-   "pool_n": 335
+   "pool_n": 335,
+   "servico_medio_s": 7.08173998415602,
+   "pool_servico_medio_s": 4.5822738899557445,
+   "gpu_s_por_req": 2.786241246894398,
+   "pool_gpu_s_por_req": 2.0872463347520402
   }
  },
  "ovl_zipf": {
@@ -1038,7 +1262,11 @@
    "pool_ttft_p50": 0.04203629493713379,
    "pool_tpot_p50": 0.009666183746186439,
    "pool_models": 10,
-   "pool_n": 1193
+   "pool_n": 1193,
+   "servico_medio_s": 2.8521520038688086,
+   "pool_servico_medio_s": 2.4984010058671413,
+   "gpu_s_por_req": 1.0374126839250084,
+   "pool_gpu_s_por_req": 0.9661129506075973
   },
   "model_10": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1056,7 +1284,11 @@
    "pool_ttft_p50": 0.04203629493713379,
    "pool_tpot_p50": 0.009666183746186439,
    "pool_models": 10,
-   "pool_n": 1193
+   "pool_n": 1193,
+   "servico_medio_s": 3.0067928457950672,
+   "pool_servico_medio_s": 2.4984010058671413,
+   "gpu_s_por_req": 1.0927658636977033,
+   "pool_gpu_s_por_req": 0.9661129506075973
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1074,7 +1306,11 @@
    "pool_ttft_p50": 0.04203629493713379,
    "pool_tpot_p50": 0.009666183746186439,
    "pool_models": 10,
-   "pool_n": 1193
+   "pool_n": 1193,
+   "servico_medio_s": 2.284693674643964,
+   "pool_servico_medio_s": 2.4984010058671413,
+   "gpu_s_por_req": 0.7620908622144097,
+   "pool_gpu_s_por_req": 0.9661129506075973
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1092,7 +1328,11 @@
    "pool_ttft_p50": 0.04203629493713379,
    "pool_tpot_p50": 0.009666183746186439,
    "pool_models": 10,
-   "pool_n": 1193
+   "pool_n": 1193,
+   "servico_medio_s": 2.344714991846367,
+   "pool_servico_medio_s": 2.4984010058671413,
+   "gpu_s_por_req": 0.9971651028708408,
+   "pool_gpu_s_por_req": 0.9661129506075973
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1110,7 +1350,11 @@
    "pool_ttft_p50": 0.04203629493713379,
    "pool_tpot_p50": 0.009666183746186439,
    "pool_models": 10,
-   "pool_n": 1193
+   "pool_n": 1193,
+   "servico_medio_s": 2.6936375451812022,
+   "pool_servico_medio_s": 2.4984010058671413,
+   "gpu_s_por_req": 1.0350211975440173,
+   "pool_gpu_s_por_req": 0.9661129506075973
   },
   "model_5": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1128,7 +1372,11 @@
    "pool_ttft_p50": 0.04203629493713379,
    "pool_tpot_p50": 0.009666183746186439,
    "pool_models": 10,
-   "pool_n": 1193
+   "pool_n": 1193,
+   "servico_medio_s": 2.916096098224322,
+   "pool_servico_medio_s": 2.4984010058671413,
+   "gpu_s_por_req": 1.2421316690180038,
+   "pool_gpu_s_por_req": 0.9661129506075973
   },
   "model_6": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1146,7 +1394,11 @@
    "pool_ttft_p50": 0.04203629493713379,
    "pool_tpot_p50": 0.009666183746186439,
    "pool_models": 10,
-   "pool_n": 1193
+   "pool_n": 1193,
+   "servico_medio_s": 2.7983165433859987,
+   "pool_servico_medio_s": 2.4984010058671413,
+   "gpu_s_por_req": 1.1877161732765091,
+   "pool_gpu_s_por_req": 0.9661129506075973
   },
   "model_7": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1164,7 +1416,11 @@
    "pool_ttft_p50": 0.04203629493713379,
    "pool_tpot_p50": 0.009666183746186439,
    "pool_models": 10,
-   "pool_n": 1193
+   "pool_n": 1193,
+   "servico_medio_s": 1.7986061369233273,
+   "pool_servico_medio_s": 2.4984010058671413,
+   "gpu_s_por_req": 0.7981799932554656,
+   "pool_gpu_s_por_req": 0.9661129506075973
   },
   "model_8": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1182,7 +1438,11 @@
    "pool_ttft_p50": 0.04203629493713379,
    "pool_tpot_p50": 0.009666183746186439,
    "pool_models": 10,
-   "pool_n": 1193
+   "pool_n": 1193,
+   "servico_medio_s": 2.229211843992565,
+   "pool_servico_medio_s": 2.4984010058671413,
+   "gpu_s_por_req": 1.0124439250254162,
+   "pool_gpu_s_por_req": 0.9661129506075973
   },
   "model_9": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1200,7 +1460,11 @@
    "pool_ttft_p50": 0.04203629493713379,
    "pool_tpot_p50": 0.009666183746186439,
    "pool_models": 10,
-   "pool_n": 1193
+   "pool_n": 1193,
+   "servico_medio_s": 2.6800952256486124,
+   "pool_servico_medio_s": 2.4984010058671413,
+   "gpu_s_por_req": 1.245213449439224,
+   "pool_gpu_s_por_req": 0.9661129506075973
   }
  },
  "ovl_bursty": {
@@ -1220,7 +1484,11 @@
    "pool_ttft_p50": 0.04265165328979492,
    "pool_tpot_p50": 0.009996232419910997,
    "pool_models": 10,
-   "pool_n": 1219
+   "pool_n": 1219,
+   "servico_medio_s": 3.0883225809599533,
+   "pool_servico_medio_s": 2.5167373211884763,
+   "gpu_s_por_req": 0.8471482001562588,
+   "pool_gpu_s_por_req": 0.8238547831798205
   },
   "model_10": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1238,7 +1506,11 @@
    "pool_ttft_p50": 0.04265165328979492,
    "pool_tpot_p50": 0.009996232419910997,
    "pool_models": 10,
-   "pool_n": 1219
+   "pool_n": 1219,
+   "servico_medio_s": 2.180400867363532,
+   "pool_servico_medio_s": 2.5167373211884763,
+   "gpu_s_por_req": 0.8450261856497621,
+   "pool_gpu_s_por_req": 0.8238547831798205
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1256,7 +1528,11 @@
    "pool_ttft_p50": 0.04265165328979492,
    "pool_tpot_p50": 0.009996232419910997,
    "pool_models": 10,
-   "pool_n": 1219
+   "pool_n": 1219,
+   "servico_medio_s": 2.2704159931815937,
+   "pool_servico_medio_s": 2.5167373211884763,
+   "gpu_s_por_req": 0.9228345399914365,
+   "pool_gpu_s_por_req": 0.8238547831798205
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1274,7 +1550,11 @@
    "pool_ttft_p50": 0.04265165328979492,
    "pool_tpot_p50": 0.009996232419910997,
    "pool_models": 10,
-   "pool_n": 1219
+   "pool_n": 1219,
+   "servico_medio_s": 2.1202641205902952,
+   "pool_servico_medio_s": 2.5167373211884763,
+   "gpu_s_por_req": 0.7349205873656446,
+   "pool_gpu_s_por_req": 0.8238547831798205
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1292,7 +1572,11 @@
    "pool_ttft_p50": 0.04265165328979492,
    "pool_tpot_p50": 0.009996232419910997,
    "pool_models": 10,
-   "pool_n": 1219
+   "pool_n": 1219,
+   "servico_medio_s": 2.039786221832037,
+   "pool_servico_medio_s": 2.5167373211884763,
+   "gpu_s_por_req": 0.8355448804855347,
+   "pool_gpu_s_por_req": 0.8238547831798205
   },
   "model_5": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1310,7 +1594,11 @@
    "pool_ttft_p50": 0.04265165328979492,
    "pool_tpot_p50": 0.009996232419910997,
    "pool_models": 10,
-   "pool_n": 1219
+   "pool_n": 1219,
+   "servico_medio_s": 2.2817869503200052,
+   "pool_servico_medio_s": 2.5167373211884763,
+   "gpu_s_por_req": 0.8918804824256897,
+   "pool_gpu_s_por_req": 0.8238547831798205
   },
   "model_6": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1328,7 +1616,11 @@
    "pool_ttft_p50": 0.04265165328979492,
    "pool_tpot_p50": 0.009996232419910997,
    "pool_models": 10,
-   "pool_n": 1219
+   "pool_n": 1219,
+   "servico_medio_s": 2.3452852444863446,
+   "pool_servico_medio_s": 2.5167373211884763,
+   "gpu_s_por_req": 0.8984341944161282,
+   "pool_gpu_s_por_req": 0.8238547831798205
   },
   "model_7": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1346,7 +1638,11 @@
    "pool_ttft_p50": 0.04265165328979492,
    "pool_tpot_p50": 0.009996232419910997,
    "pool_models": 10,
-   "pool_n": 1219
+   "pool_n": 1219,
+   "servico_medio_s": 2.751559398283123,
+   "pool_servico_medio_s": 2.5167373211884763,
+   "gpu_s_por_req": 0.7198492137240428,
+   "pool_gpu_s_por_req": 0.8238547831798205
   },
   "model_8": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1364,7 +1660,11 @@
    "pool_ttft_p50": 0.04265165328979492,
    "pool_tpot_p50": 0.009996232419910997,
    "pool_models": 10,
-   "pool_n": 1219
+   "pool_n": 1219,
+   "servico_medio_s": 3.3811658784423186,
+   "pool_servico_medio_s": 2.5167373211884763,
+   "gpu_s_por_req": 0.7345963477881059,
+   "pool_gpu_s_por_req": 0.8238547831798205
   },
   "model_9": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1382,7 +1682,11 @@
    "pool_ttft_p50": 0.04265165328979492,
    "pool_tpot_p50": 0.009996232419910997,
    "pool_models": 10,
-   "pool_n": 1219
+   "pool_n": 1219,
+   "servico_medio_s": 2.572771091294545,
+   "pool_servico_medio_s": 2.5167373211884763,
+   "gpu_s_por_req": 0.9792117239070195,
+   "pool_gpu_s_por_req": 0.8238547831798205
   }
  },
  "ovl_diurnal": {
@@ -1402,7 +1706,11 @@
    "pool_ttft_p50": 0.042243242263793945,
    "pool_tpot_p50": 0.009690523147583008,
    "pool_models": 10,
-   "pool_n": 2351
+   "pool_n": 2351,
+   "servico_medio_s": 2.5961264785567795,
+   "pool_servico_medio_s": 2.469288139667018,
+   "gpu_s_por_req": 0.6318891525811787,
+   "pool_gpu_s_por_req": 0.9187869761893718
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1420,7 +1728,11 @@
    "pool_ttft_p50": 0.042243242263793945,
    "pool_tpot_p50": 0.009690523147583008,
    "pool_models": 10,
-   "pool_n": 2351
+   "pool_n": 2351,
+   "servico_medio_s": 2.577307503529211,
+   "pool_servico_medio_s": 2.469288139667018,
+   "gpu_s_por_req": 0.7735181067114192,
+   "pool_gpu_s_por_req": 0.9187869761893718
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1438,7 +1750,11 @@
    "pool_ttft_p50": 0.042243242263793945,
    "pool_tpot_p50": 0.009690523147583008,
    "pool_models": 10,
-   "pool_n": 2351
+   "pool_n": 2351,
+   "servico_medio_s": 2.4760301656728867,
+   "pool_servico_medio_s": 2.469288139667018,
+   "gpu_s_por_req": 1.1010416869088717,
+   "pool_gpu_s_por_req": 0.9187869761893718
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1456,7 +1772,11 @@
    "pool_ttft_p50": 0.042243242263793945,
    "pool_tpot_p50": 0.009690523147583008,
    "pool_models": 10,
-   "pool_n": 2351
+   "pool_n": 2351,
+   "servico_medio_s": 2.254479051435866,
+   "pool_servico_medio_s": 2.469288139667018,
+   "gpu_s_por_req": 1.1196638514123312,
+   "pool_gpu_s_por_req": 0.9187869761893718
   },
   "model_5": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1474,7 +1794,11 @@
    "pool_ttft_p50": 0.042243242263793945,
    "pool_tpot_p50": 0.009690523147583008,
    "pool_models": 10,
-   "pool_n": 2351
+   "pool_n": 2351,
+   "servico_medio_s": 2.4368024942007183,
+   "pool_servico_medio_s": 2.469288139667018,
+   "gpu_s_por_req": 1.1846729296215333,
+   "pool_gpu_s_por_req": 0.9187869761893718
   },
   "model_10": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1492,7 +1816,11 @@
    "pool_ttft_p50": 0.042243242263793945,
    "pool_tpot_p50": 0.009690523147583008,
    "pool_models": 10,
-   "pool_n": 2351
+   "pool_n": 2351,
+   "servico_medio_s": 2.3341795533548955,
+   "pool_servico_medio_s": 2.469288139667018,
+   "gpu_s_por_req": 1.3242697656709095,
+   "pool_gpu_s_por_req": 0.9187869761893718
   },
   "model_6": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1510,7 +1838,11 @@
    "pool_ttft_p50": 0.042243242263793945,
    "pool_tpot_p50": 0.009690523147583008,
    "pool_models": 10,
-   "pool_n": 2351
+   "pool_n": 2351,
+   "servico_medio_s": 2.700468132092107,
+   "pool_servico_medio_s": 2.469288139667018,
+   "gpu_s_por_req": 1.250272175285124,
+   "pool_gpu_s_por_req": 0.9187869761893718
   },
   "model_7": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1528,7 +1860,11 @@
    "pool_ttft_p50": 0.042243242263793945,
    "pool_tpot_p50": 0.009690523147583008,
    "pool_models": 10,
-   "pool_n": 2351
+   "pool_n": 2351,
+   "servico_medio_s": 1.8748931052074547,
+   "pool_servico_medio_s": 2.469288139667018,
+   "gpu_s_por_req": 1.0052379999614898,
+   "pool_gpu_s_por_req": 0.9187869761893718
   },
   "model_8": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1546,7 +1882,11 @@
    "pool_ttft_p50": 0.042243242263793945,
    "pool_tpot_p50": 0.009690523147583008,
    "pool_models": 10,
-   "pool_n": 2351
+   "pool_n": 2351,
+   "servico_medio_s": 2.2295533514668033,
+   "pool_servico_medio_s": 2.469288139667018,
+   "gpu_s_por_req": 1.2941257709571996,
+   "pool_gpu_s_por_req": 0.9187869761893718
   },
   "model_9": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1564,7 +1904,11 @@
    "pool_ttft_p50": 0.042243242263793945,
    "pool_tpot_p50": 0.009690523147583008,
    "pool_models": 10,
-   "pool_n": 2351
+   "pool_n": 2351,
+   "servico_medio_s": 2.132414435577947,
+   "pool_servico_medio_s": 2.469288139667018,
+   "gpu_s_por_req": 1.2759005828513656,
+   "pool_gpu_s_por_req": 0.9187869761893718
   }
  },
  "ovl_tr_lmsys": {
@@ -1584,7 +1928,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 1.8692697338926703,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 0.5394249712068644,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_10": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1602,7 +1950,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 2.077321475953795,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 1.3401193765550852,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_11": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1620,7 +1972,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 0.8710273032775149,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 0.567305323407054,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_12": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1638,7 +1994,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 1.8059950218252514,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 1.0566791268016982,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1656,7 +2016,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 2.015661432198039,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 1.03541999982284,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1674,7 +2038,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 0.7692991256275598,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 0.48399188439986285,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1692,7 +2060,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 0.9524659217924488,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 0.5205077602425401,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_5": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1710,7 +2082,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 0.8242614588446238,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 0.5118672743710605,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_6": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1728,7 +2104,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 2.6194449323451234,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 1.3697526162011282,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_7": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1746,7 +2126,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 2.2349867717158505,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 1.0815887880906825,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_8": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1764,7 +2148,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 1.0363203931806817,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 0.5745080508126152,
+   "pool_gpu_s_por_req": 0.6569761963708514
   },
   "model_9": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1782,7 +2170,11 @@
    "pool_ttft_p50": 0.021338939666748047,
    "pool_tpot_p50": 0.008950275641221266,
    "pool_models": 12,
-   "pool_n": 1201
+   "pool_n": 1201,
+   "servico_medio_s": 0.8051991836271353,
+   "pool_servico_medio_s": 1.6888499556359007,
+   "gpu_s_por_req": 0.4338183421558804,
+   "pool_gpu_s_por_req": 0.6569761963708514
   }
  },
  "ovl_tr_azfn": {
@@ -1802,7 +2194,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 2.6297872684315426,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 0.7272112996650465,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_10": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1820,7 +2216,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 2.093634615574653,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 1.2100877048075198,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_11": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1838,7 +2238,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 2.0485213741453157,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 1.2020963916513656,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_12": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1856,7 +2260,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 1.5282675374684662,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 0.9446672340097099,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_2": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1874,7 +2282,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 2.083522453067456,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 0.8909620892300326,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_3": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1892,7 +2304,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 2.447877901255504,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 1.0729283130943001,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_4": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1910,7 +2326,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 3.0456008525697267,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 0.7339954354631619,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_5": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1928,7 +2348,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 2.9353800173183635,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 0.7119541058370045,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_6": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1946,7 +2370,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 5.946829448129202,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 0.09576918737832889,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_7": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1964,7 +2392,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 2.2988749368914534,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 1.0891071414266313,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_8": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -1982,7 +2414,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 2.4485444627081354,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 1.1463158348004021,
+   "pool_gpu_s_por_req": 0.8538948839485645
   },
   "model_9": {
    "model_path": "meta-llama/Llama-3.1-8B-Instruct",
@@ -2000,7 +2436,11 @@
    "pool_ttft_p50": 0.04443323612213135,
    "pool_tpot_p50": 0.010173636852052333,
    "pool_models": 12,
-   "pool_n": 1200
+   "pool_n": 1200,
+   "servico_medio_s": 2.945429841366907,
+   "pool_servico_medio_s": 2.75347887559173,
+   "gpu_s_por_req": 1.1647211606105168,
+   "pool_gpu_s_por_req": 0.8538948839485645
   }
  }
 }

@@ -82,7 +82,7 @@ log (`reports/2026-10-22 Correções de robustez de memória no Prism (SGLang).m
 | `extract_ovl.py` | Raw level → compact `summary.json`, `requests.csv`, `gpu.csv`, `events.csv` |
 | `validate_run.py`, `validate_campaign.py`, `register_runs.py` | Run validator V1–V15, campaign checks C-V1–C-V3, run registry |
 | `collect_reps.py`, `summarize_reps.py`, `report_tables.py`, `compare_reference.py` | Merge clean reps → `metricas.csv`/`resumo.csv` → Markdown tables; reproduction checks |
-| `slo_metrics.py`, `slo_curves.py`, `iso_dedicated.py`, `iso_latency.py`, `iso_fit.py` | Parametric SLOs (S1/S2/S2M/S3), SLO curves, latency bases |
+| `slo_metrics.py`, `slo_curves.py`, `iso_dedicated.py`, `iso_latency.py`, `iso_fit.py`, `gpu_idle.py` | Parametric SLOs (S1/S2/S2M/S3/S6/S6P), F5.0c violation split, SLO curves, latency bases, GPU idleness (F5.0d) |
 | `ovl_plots.py`, `plot_suite.py`, `plot_reps.py`, `plot_limits.py`, `plot_cluster.py` | Figures; `plot_suite.py` draws the 3-panel timeline (GPU memory / controller free memory / per-model swimlane) |
 | `activation_cost.py`, `estimators_eval.py`, `overhead.py`, `workload_stats.py`, `classify_errors.py`, `trace_rids.py`, `stack_summary.py`, `cluster_history.py` | Specific analyses. Each file's docstring gives its usage |
 

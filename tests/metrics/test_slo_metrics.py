@@ -146,5 +146,22 @@ class EvaluateTest(unittest.TestCase):
         self.assertAlmostEqual(sum(out[f"viol_ttft_{g}"] for g in groups), 1 - out["so_ttft"])
 
 
+class DedFallbackTest(unittest.TestCase):
+    """ρ_mem sweep (PRISM_OVL_N > 10): models without a dedicated run take an identical model's pooled base (D44)."""
+
+    def test_extra_model_takes_the_pooled_base_of_its_path(self):
+        refs = sm.Refs()
+        b1 = refs.base("ovl_mem", "model_1", "p95", L8)
+        self.assertIsNotNone(b1)
+        self.assertEqual(refs.base("ovl_mem", "model_19", "p95", L8), b1)
+        self.assertEqual(sm.bases_for("S2M", "ovl_mem", {"model_14": L8}, refs)["model_14"],
+                         refs.base("ovl_mem", "model_1", "p50", L8))
+
+    def test_no_identical_model_no_base(self):
+        refs = sm.Refs()
+        self.assertIsNone(refs.base("ovl_mem", "model_19"))           # path unknown
+        self.assertIsNone(refs.base("ovl_mem", "model_19", "p95", Q32))  # no 32B in C1
+
+
 if __name__ == "__main__":
     unittest.main()
