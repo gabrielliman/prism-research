@@ -3,6 +3,7 @@ f5-c1n14-1b	polyaxon/configs/f5_camp_C1n14_o1_suite.tsv
 f5-c1n19-1b	polyaxon/configs/f5_camp_C1n19_o1_suite.tsv
 f5-c1n10-1b	polyaxon/configs/f5_camp_C1n10_o1_suite.tsv
 f5-c5-1b	polyaxon/configs/f5_camp_C5_o1_suite.tsv
+f5-t3-1b	polyaxon/configs/f5_camp_T3_o1_suite.tsv
 f5-c1n10-1	polyaxon/configs/f5_camp_C1n10_o1_suite.tsv
 f5-c1n14-1	polyaxon/configs/f5_camp_C1n14_o1_suite.tsv
 f5-c6n10-1	polyaxon/configs/f5_camp_C6n10_o1_suite.tsv

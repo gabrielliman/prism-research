@@ -388,6 +388,13 @@ def batch(dest, roots):
                          "sinal_infra": " ".join(r.get("sinal_infra", [])),
                          "t1_frozen_s": r.get("t1_frozen_s"),
                          **{k: v["status"] for k, v in r["checks"].items()}})
+    if not rows:  # e.g. a job stopped by the K1 abort (D48) before any level wrote requests.json
+        aborts = [p for root in roots for p in glob.glob(os.path.join(root, "**", "K1_ABORT"), recursive=True)]
+        open(dest, "w").write("level,status,motivo\n" + "".join(
+            f"{os.path.relpath(os.path.dirname(p), root)},INVALIDA_SISTEMA,K1_ABORT: {open(p).read().strip()}\n"
+            for root in roots for p in glob.glob(os.path.join(root, "**", "K1_ABORT"), recursive=True)))
+        print(f"{dest}: 0 levels; VALIDA 0, INVALIDA_INFRA 0, INVALIDA_SISTEMA {len(aborts)} (K1 abort before any level)")
+        return
     with open(dest, "w", newline="") as f:
         w = csv.DictWriter(f, list(rows[0]))
         w.writeheader()

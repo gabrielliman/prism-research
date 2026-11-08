@@ -31,8 +31,9 @@ declare -A ENV=(
 # submitted before D47 in the original order (C1n10 C1n14 C1n19 C6n10 C6n14 ...).
 ORDER=(C1n10 C1n14 C6n10 C6n14 C1n19 C5 C4 C6n19 C10 C2 C3 T1 C7 C8 C9C1 C9C6 T3 T2)
 # Re-runs (whole job again, so the 5 arms share one window, rule 3): <workload>:<rep>:<tag>, suffix -<rep><tag>,
-# queued first. b = D47 (K1 with 43 workers on the node); C5:1:b = health check failed next to the C1 14/19 jobs (D48).
-RERUN=(C1n14:1:b C1n19:1:b C1n10:1:b C5:1:b)
+# queued first. b = D47 (K1 with 43 workers on the node); C5:1:b = health check failed next to the C1 14/19 jobs (D48);
+# T3:1:b = K1 at start-up, job stopped by the D48 abort (2026-11-08 00:34 UTC).
+RERUN=(C1n14:1:b C1n19:1:b C1n10:1:b C5:1:b T3:1:b)
 # D48: C1 with 14 and 19 models runs alone on the node (driver F4_EXCLUSIVE='_C1n1[49]_'); they go together at the
 # end of the queue (one drain of the node), after every other job: the -1c re-runs, then reps 2 and 3.
 EXCL=(C1n14 C1n19)
