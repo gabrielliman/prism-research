@@ -29,7 +29,9 @@ gpu.csv, health.log, server.log, server_file.log*). Each check gives OK, FALHA o
       (configs/<step>.json): overload evidence, at least one "No suitable GPU found" or GPU ≥ 95% used for
       ≥ OVERLOAD_FRAC of the window; N/A when every model starts resident (control levels such as n06, and the
       dedicated levels <level>_ded_<model> of D20, one model alone, configs/<step>_ded.json)
-  V13 GPU used never above total; median |controller free memory − nvidia-smi free| ≤ FREE_TOL_GB
+  V13 GPU used never above total; median |controller free memory − nvidia-smi free| ≤ FREE_TOL_GB, after aligning the
+      two series: gpu.csv shifted by the lag in V13_LAGS_S that gives the smallest median (P17, D51: the two clocks are
+      1–2 s apart, and in levels that swap every few seconds unaligned pairs straddle a swap); the lag is reported
   V14 node health check passed before the level (health.log) and the level does not overlap a degraded-node window
       of reports/registro/janelas_degradadas.csv (UTC; the logs' local clock is converted with utc_offset_h; N/A
       when the job left no UTC start time); and the check right after the level passed (health_after.log, F2.2)
@@ -65,6 +67,7 @@ MEMORY_STEPS = {"ovl_mem", "ovl_phases", "ovl_mix", "ovl_trace", "ovl_trace_big"
 STUCK_FACTOR = 3
 OVERLOAD_FRAC = 0.10
 FREE_TOL_GB = 2.0
+V13_LAGS_S = (-2, -1, 0, 1, 2)  # P17, D51: gpu.csv shifts tried by V13 (s)
 END_SLACK_S = 30
 TTFT_TOL_S = 0.05  # V9: server TTFT may exceed the client's first token only by the streaming delay
 CLOCK_TOL_S = 1.0  # V10  # the controller logs every cycle (5 s); silent longer than this at the load end = not alive
@@ -335,16 +338,27 @@ def validate(d):
                 near = min(recs, key=lambda r: abs(r[0] - tt))
                 fixed.append((t, v + near[1]) if abs(near[0] - tt) <= 1.0 else (t, v))
             free = fixed
-    diffs = []
-    gi = 0
-    for t, v in free:
-        while gi + 1 < len(gpu) and abs(gpu[gi + 1][0] - t) <= abs(gpu[gi][0] - t):
-            gi += 1
-        if gpu and abs(gpu[gi][0] - t) <= 1.0:
-            diffs.append(abs(v - (gpu[gi][2] - gpu[gi][1])))
-    med = statistics.median(diffs) if diffs else None
+    def gaps(lag):
+        out, gi = [], 0
+        for t, v in free:
+            while gi + 1 < len(gpu) and abs(gpu[gi + 1][0] + lag - t) <= abs(gpu[gi][0] + lag - t):
+                gi += 1
+            if gpu and abs(gpu[gi][0] + lag - t) <= 1.0:
+                out.append(abs(v - (gpu[gi][2] - gpu[gi][1])))
+        return out
+
+    best = None  # (median, lag, n): P17/D51 alignment, the smallest median over V13_LAGS_S
+    for lag in V13_LAGS_S:
+        diffs = gaps(lag)
+        if diffs:
+            cand = (statistics.median(diffs), lag, len(diffs))
+            if best is None or cand[0] < best[0] or (cand[0] == best[0] and abs(lag) < abs(best[1])):
+                best = cand
+    med = best[0] if best else None
     c["V13"] = chk("OK" if over == 0 and (med is None or med <= FREE_TOL_GB) else "FALHA",
-                   {"samples_over_total": over, "median_abs_free_diff_gb": round(med, 2) if med is not None else None})
+                   {"samples_over_total": over, "median_abs_free_diff_gb": round(med, 2) if med is not None else None,
+                    "lag_s": best[1] if best else None,
+                    "median_unaligned_gb": round(statistics.median(gaps(0)), 2) if gaps(0) else None})
     # V14
     hl = open(os.path.join(d, "health.log"), errors="replace").read() if os.path.exists(os.path.join(d, "health.log")) else ""
     health_ok = bool(re.search(r"health: \d+/\d+ processes initialized", hl)) and "NODE UNHEALTHY" not in hl

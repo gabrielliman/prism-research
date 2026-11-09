@@ -674,3 +674,14 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
 6. **Reexecuções sem perguntar (Gabriel, 2026-11-09):** a partir da F6.0, o agente refaz por conta própria um job
    inválido (K1, INVALIDA_*), sempre inteiro (regra 3), e depois avisa e reporta os erros (causa, motivo do validador,
    IDs). Substitui o "sem reexecução automática: o Gabriel decide" da F5.
+
+## D51 — V13 alinha as séries de memória antes de comparar (2026-11-09, Gabriel)
+
+- **Fato (P17):** no `f60-c1n10-1` (`9dea206c`), `edf_S6k1_p1` e `lvf_S3k5_p1` reprovaram só no V13 (mediana de
+  |memória livre do controlador − nvidia-smi| = 2,18 GB > 2 GB). Causa: as duas séries estão 1–2 s defasadas e, nos
+  níveis que trocam a cada poucos segundos, ~metade dos pares cai no meio de uma troca. Com o `gpu.csv` deslocado em
+  +1 s, todos os braços com preempção dão 0,68 GB, a diferença constante de quase todos os níveis.
+- **Decisão (Gabriel, "can do the alignment"):** V13 testa deslocamentos de −2 a +2 s (`V13_LAGS_S`) e usa o de menor
+  mediana; registra o deslocamento (`lag_s`) e a mediana sem alinhamento. Tolerância (2 GB) e a verificação de memória
+  acima do total inalteradas. Como o deslocamento 0 está incluído, nenhum nível antes válido passa a inválido.
+- **Efeito:** `f60-c1n10-1` revalidado, 20/20 VALIDA, sem reexecução. Os jobs seguintes já usam o V13 alinhado.
