@@ -8,3 +8,5 @@
 15:13:04 submitted f60-c1n10-2 7db761f4 (3 active, 36 workers)
 15:19:47 f60-c6n14-1: reports/data/F06/f60/validador/f60-c6n14-1.csv: 20 levels; VALIDA 20, INVALIDA_INFRA 0, INVALIDA_SISTEMA 0
 15:19:52 submitted f60-t1-2 e55ad2f3 (3 active, 34 workers)
+18:06:58 f60-t3-1: reports/data/F06/f60/validador/f60-t3-1.csv: 20 levels; VALIDA 20, INVALIDA_INFRA 0, INVALIDA_SISTEMA 0
+18:07:03 submitted f60-c6n14-2 44389422 (3 active, 36 workers)
