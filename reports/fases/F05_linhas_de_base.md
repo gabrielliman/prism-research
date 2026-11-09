@@ -222,7 +222,15 @@ cauda, porque a preempção libera KV que os 4 modelos disputam. Os controles n�
   job (Tabela 4) é bem mais estável que os valores absolutos, e é ela que sustenta as conclusões acima.
 - O critério não foi relaxado. Opções para o Gabriel no gate (abaixo).
 
-## Decisão do gate: AGUARDANDO REVISÃO
+## Decisão do gate: APROVADO (Gabriel, 2026-11-09, D49)
+
+- C-V2: opção (c), aceito com a limitação declarada (conclusões só nas diferenças pareadas com IC).
+- Artigo de resultados parciais: não fazer por enquanto; o foco é conseguir bons resultados.
+- Níveis de SLO da F6: S6 `k_R` ∈ {1, 2, 4} e S3 `k_A` = 5; hipótese do Gabriel a testar na F6.0: o S3 `k_A` = 5 só faz
+  sentido com preempção.
+- P16 investigada e corrigida antes da F6.0.
+
+Texto da revisão (como estava antes da decisão):
 
 Decisões que cabem ao Gabriel:
 1. **C-V2 falhou.** Opções: (a) mais repetições (as 5 do padrão do plano: +36 jobs, ~18 h com as regras atuais, C1

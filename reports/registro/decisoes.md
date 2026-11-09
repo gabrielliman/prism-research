@@ -629,3 +629,21 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
   O `map_trace.log` desse K1 descarta o `vm.max_map_count` (maior processo com 2739 mapeamentos, limite 65530; o mesmo
   T3 válido na repetição 2 tinha 2752). A leitura que fica: o C1 com 14–19 modelos só quebra o driver quando roda ao
   lado de outro job que troca muito; sozinho, não.
+
+## D49 — Gate da F5 aprovado; sem artigo parcial por enquanto; níveis de SLO da F6; P16 antes da F6.0 (2026-11-09, Gabriel)
+
+1. **C-V2 (CV ≤ 15% entre repetições) falhou** (10 de 90 células, mediana 0,37; relatório F05): opção (c), aceito com a
+   limitação declarada. As conclusões da F5 e das fases seguintes se apoiam nas diferenças pareadas no mesmo job, com
+   IC 95% por bootstrap, não nos valores absolutos. Gate da F5 **APROVADO**.
+2. **Artigo de resultados parciais: não fazer por enquanto.** O foco é conseguir bons resultados (F6 em diante). O item
+   da F5.3 ("proposta de conteúdo do artigo parcial") e o ponto de decisão 4 do plano ficam adiados, sem data.
+3. **Níveis de SLO das políticas por prazo (F5.2b):** aceita a proposta do agente: S6 `k_R` ∈ {1, 2, 4} (prazo de 1, 2 e
+   4 rotações reais sem preempção; 8B ≈ 16, 31 e 63 s) e S3 `k_A` = 5 (continuidade com a F6a); S2 `k_T` = 10 continua
+   nas tabelas como referência estrita, calculada depois da execução. **Hipótese do Gabriel, a testar na F6.0:** o S3
+   `k_A` = 5 (prazo de ~7 s para um 8B) só faz sentido com preempção, porque sem preempção uma rotação real leva ~16 s
+   (a vítima termina o lote) e o prazo vence antes. A F6.0 já roda com e sem preempção; a comparação do S3 `k_A` = 5
+   entre os dois braços responde a hipótese.
+4. **P16 primeiro:** investigar e corrigir a P16 (preempção deixa requisições "rodando" num modelo já inativo) antes da
+   F6.0: um nível curto da A0.4p com `PRISM_TRACE_RIDS=1`, correção, teste unitário e verificação de que as entradas
+   presas somem.
+5. **Próxima sessão:** a F6 começa numa sessão nova (pedido do Gabriel), a partir do commit que registra esta decisão.

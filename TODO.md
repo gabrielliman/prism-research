@@ -76,7 +76,7 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F4.5 Zero impasses; sem piora significativa nos cenários sem impasse — impasse = T1 ≥ 100 s, 0 de 70 níveis com A1 (C10 refeito com P15, 8/8 VALIDA); leitura (b) (D37): OK para A0.1 + A1; A0.3 + A1 folga 3 GB falha no C7; A0.4 (folga 0) OK em T3/C3/C7/C6 (verificação da folga, 24/24 VALIDA), não testada nas outras 6 cargas; aprovado com a lacuna declarada (D38)
 - [x] F4.6 Parâmetros `b`, `Δ_imp`, `T_min` registrados; relatório F04 — D34, D37; `reports/fases/F04_restricoes.md`; gate APROVADO (D38, 2026-11-06)
 
-## F5 — Linhas de base na nova metodologia · gate [HUMANO]
+## F5 — Linhas de base na nova metodologia · gate [HUMANO] · APROVADO (D49, 2026-11-09)
 - [x] F5.0a (D32, vinha da F6b) `polyaxon/swap_cost.py`: custo real da troca (decisão → vítima fora → pedido de ativação → modelo pronto), decisão ligada à ativação pelo `decisions.jsonl`, dados da F6a e de 28/10; `Ĉ_rot(m)` com e sem preempção; comparação com `ê_r` (só análise)
 - [x] F5.0b Família S6 (`k_R · Ĉ_rot`) no `slo_metrics.py` e no `overload_load.py --slo-spec` — duas bases (D42): `S6` sem preempção (testada primeiro), `S6P` com preempção
 - [x] F5.0c Violações inevitáveis pela ativação × pela rotação × evitáveis só com residência prévia × evitáveis (`slo_metrics.py`), com a classificação antiga ao lado — D43; + `viol_tpot_em_troca`
@@ -87,12 +87,13 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F5.2 Tabelas e figuras de referência (SLO total, TTFT p50/p90, evitáveis/inevitáveis pela classificação nova, ociosidade da GPU, pior modelo, trocas, perdas) — `polyaxon/f5_analysis.py`, `f5_report_tables.py`, `f5_figs.py`; `reports/data/F05/campanha/`, `reports/figs/F05/` (2026-11-09)
 - [x] F5.2a Curvas de todas as famílias de SLO calculadas pós-execução; SLO mínimo atingível (90% e 99%) por política e carga, nas três vistas — `curvas_niveis.csv`, Tabela 5 (2026-11-09)
 - [~] F5.2c Decomposição das violações (ambos / só TTFT / só TPOT / nenhum) e CDFs de TTFT e TPOT normalizados, por política e por modelo — decomposição em `niveis.csv` (colunas `*_1s`) e Tabela 2; quantis do TTFT/TPOT normalizados em `niveis.csv`; figuras de CDF ainda não feitas
-- [ ] F5.2b Escolher o subconjunto de níveis de SLO para as políticas por prazo (alto, meio da queda, baixo) e registrar em `decisoes.md` — proposta no relatório F05 (S6 k_R ∈ {1, 2, 4}, S3 k_A = 5), aguarda o Gabriel
-- [ ] F5.3 C-V1 e C-V2 satisfeitos; relatório F05 com proposta de conteúdo do artigo parcial — C-V1 OK; C-V2 FALHOU (gate); relatório `reports/fases/F05_linhas_de_base.md` AGUARDANDO REVISÃO
+- [x] F5.2b Escolher o subconjunto de níveis de SLO para as políticas por prazo (alto, meio da queda, baixo) e registrar em `decisoes.md` — D49: S6 k_R ∈ {1, 2, 4} e S3 k_A = 5 (S2 k_T = 10 como referência)
+- [x] F5.3 C-V1 e C-V2 satisfeitos; relatório F05 com proposta de conteúdo do artigo parcial — C-V1 OK; C-V2 falhou, aceito com limitação (D49); sem artigo parcial por enquanto (D49); relatório `reports/fases/F05_linhas_de_base.md`
 
 ## F6 — Ativação e despejo por folga (A2–A4) e por atraso virtual (A9) · gate [HUMANO]
 - Prioridades (D31, D32, `PLANO_AGENTE.md` seção F6): custo real da troca → A3.1 → A10 (throughput × prazo × fila) → A2.3 → A4 → classes de prazo (F8) → A9.2; ciclo 1 s e A5 fora de prioridade; pior modelo só como observação; objetivo SLO + TTFT p50/p90 + nenhuma espera absurda (D33); SLOs ≥ tempo de rotação (S3 kA=5, S6 kR ∈ {1, 2})
-- [ ] F6.0 (D31, D32; primeira tarefa da F6) Repetição da triagem da F6a sem drenagem, **com e sem preempção**: C1 0,2 e T1 ts1, 2 rep., ≤ 3 jobs; por job A0.1, A0.2, A0.3, A0.3p, `fair` + A2.1 e A9.1 × {S3 kA=5, S6 kR=1, S6 kR=2} × {P0, P1} (17 níveis, 4 jobs); smoke antes; comparação com a F6a só pela diferença pareada no mesmo job; relatório `reports/fases/F06_0_repeticao_sem_drenagem.md`; gate [HUMANO]
+- [ ] F6.P16 (D49; antes da F6.0) Investigar e corrigir a P16 (`reports/erros.md`: com preempção, requisições ficam "rodando" num modelo inativo no espelho do controlador): nível curto da A0.4p com `PRISM_TRACE_RIDS=1`; causa; correção; teste unitário; verificação
+- [ ] F6.0 (D31, D32; primeira tarefa da F6) Repetição da triagem da F6a sem drenagem, **com e sem preempção**: C1 0,2 e T1 ts1, 2 rep., ≤ 3 jobs; por job A0.1, A0.2, A0.3, A0.3p, `fair` + A2.1 e A9.1 × {S3 kA=5, S6 kR=1, S6 kR=2, S6 kR=4} × {P0, P1} (níveis da D49; testar a hipótese do Gabriel: S3 kA=5 só faz sentido com preempção; as linhas de base da F6.0 devem ser revistas à luz da F4/F5: A0.4/A0.4p com A1 no lugar de A0.3/A0.3p); smoke antes; comparação com a F6a só pela diferença pareada no mesmo job; relatório `reports/fases/F06_0_repeticao_sem_drenagem.md`; gate [HUMANO]
 - [ ] F6.1 A2.1 EDF entre modelos + testes
 - [ ] F6.2 A2.2 menor folga com antecipação (+ variação do ciclo do controlador) + testes
 - [ ] F6.3 A2.3 residência preditiva (`λ̂`, horizonte `H`) + testes
