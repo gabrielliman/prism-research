@@ -1,10 +1,13 @@
-# F6.0 (polyaxon/f6_0_suites.sh): suffix<TAB>suite; 3 workloads x 3 reps
+# F6.0 (polyaxon/f6_0_suites.sh): suffix<TAB>suite; 4 workloads x 3 reps
 f60-c1n10-1	polyaxon/configs/f60_C1n10_o1_suite.tsv
 f60-t1-1	polyaxon/configs/f60_T1_o1_suite.tsv
 f60-c6n14-1	polyaxon/configs/f60_C6n14_o1_suite.tsv
+f60-t3-1	polyaxon/configs/f60_T3_o1_suite.tsv
 f60-c1n10-2	polyaxon/configs/f60_C1n10_o2_suite.tsv
 f60-t1-2	polyaxon/configs/f60_T1_o2_suite.tsv
 f60-c6n14-2	polyaxon/configs/f60_C6n14_o2_suite.tsv
+f60-t3-2	polyaxon/configs/f60_T3_o2_suite.tsv
 f60-c1n10-3	polyaxon/configs/f60_C1n10_o3_suite.tsv
 f60-t1-3	polyaxon/configs/f60_T1_o3_suite.tsv
 f60-c6n14-3	polyaxon/configs/f60_C6n14_o3_suite.tsv
+f60-t3-3	polyaxon/configs/f60_T3_o3_suite.tsv

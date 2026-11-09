@@ -4,8 +4,10 @@
 # baselines, all with A1 (D38) and in the same job (rule 3). One job = one workload x one repetition.
 #   A0.2_A1   idle threshold 10 s + A1 (best F5 baseline on SLO)
 #   A0.4      throughput swap, no preemption, headroom 0 + A1 (best F5 baseline on tail / waits)
-#   A0.4p     the same with preemption (the preemption baseline for the p1 arms)
-#   A0.1_A1   Prism as published + A1 (F5 paired reference), only with F60_REF=1
+#   A0.4p     the same with preemption: not run by default (agent proposal 2026-11-09, pending Gabriel: its code changed with P16, F5 already
+#             shows it is the worst, and the S3 question compares each deadline policy p0 vs p1); F60_BASE adds it
+#   A0.1_A1   Prism as published + A1 (F5 paired reference); F60_BASE adds it
+# The baselines that do run are the pairing references (rule 3, D49): F5's values are from another window.
 # Deadline arms: the request's TTFT deadline is sent to the server (PRISM_OVL_SLO_SPEC; kD = 5 only enters the
 # metrics); A1 on and activation headroom 0 as the A0.4 (D37 item 3: with A1 the kvcached floor replaces the
 # headroom); T_min = A1.3 = 10 s; rotation budget 1 (code default); no drain (D30).
@@ -13,11 +15,11 @@
 # Order: units = baselines and (policy, level) pairs; a pair's p0 and p1 run back to back (the S3 hypothesis compares
 # them), which of the two goes first alternates with the repetition, and the unit order rotates by 4 per repetition.
 # Writes polyaxon/configs/f60_<W>_o<rep>_suite.tsv and the driver queue polyaxon/configs/f60_queue.tsv (rep 1 of every
-# workload, then rep 2, then rep 3: each wave of 3 jobs is one repetition of the 3 workloads).
+# workload, then rep 2, then rep 3; the driver packs jobs under its 36-worker budget: C1n10 10, T1 12, C6n14 14, T3 12).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPS=${F60_REPS:-3}
-WORKLOADS=(${F60_WORKLOADS:-C1n10 T1 C6n14})
+WORKLOADS=(${F60_WORKLOADS:-C1n10 T1 C6n14 T3})
 A1="PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10"
 declare -A W=(
   [C1n10]="PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2"
@@ -33,8 +35,7 @@ declare -A ENV=(
   [A0.4p]="PRISM_EVICTION=throughput PRISM_SWAP_PREEMPT=1 PRISM_ACTIVATION_HEADROOM_GB=0 $A1"
 )
 declare -A SLO=([S3k5]="S3:kA=5,kD=5" [S6k1]="S6:kR=1,kD=5" [S6k2]="S6:kR=2,kD=5" [S6k4]="S6:kR=4,kD=5")
-UNITS=(A0.2_A1 A0.4 A0.4p)
-[ "${F60_REF:-0}" = 1 ] && UNITS=(A0.1_A1 "${UNITS[@]}")
+UNITS=(${F60_BASE:-A0.2_A1 A0.4})
 for pol in edf lvf; do for lv in S3k5 S6k1 S6k2 S6k4; do UNITS+=("$pol:$lv"); done; done
 arm() {  # name<TAB>vars of one arm
   local w=$1 name=$2
