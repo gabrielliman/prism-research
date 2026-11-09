@@ -5,8 +5,9 @@ This repo is a fork of **Prism** (multi-LLM serving on shared GPUs, built on **S
 evict and swap models on a GPU under memory and compute overload. Experiments run as Polyaxon jobs on a
 shared 8×H200 node. Results go into dated reports in `reports/`, written in Portuguese.
 
-Work branch: `f3-cargas` (SGLang only: the vLLM backend was removed). Branch `main` is upstream Prism. The old work
-branch `sglang-only` was deleted on 2026-11-09 (all its commits are in `f3-cargas`); older reports still name it.
+Work branch: `scheduling-research` (SGLang only: the vLLM backend was removed). Branch `main` is upstream Prism.
+History (2026-11-09): the work branch was `sglang-only` until F3, then `f3-cargas`; `sglang-only` was deleted (all its
+commits are in `f3-cargas`) and `f3-cargas` was renamed `scheduling-research`. Older reports still use the old names.
 
 ## Hard rules (read before doing anything)
 
