@@ -14,3 +14,5 @@
 18:19:48 submitted f60-t3-2 ef7ff04e (3 active, 38 workers)
 20:09:26 f60-t1-2: reports/data/F06/f60/validador/f60-t1-2.csv: 20 levels; VALIDA 20, INVALIDA_INFRA 0, INVALIDA_SISTEMA 0
 22:47:07 f60-c6n14-2: reports/data/F06/f60/validador/f60-c6n14-2.csv: 20 levels; VALIDA 20, INVALIDA_INFRA 0, INVALIDA_SISTEMA 0
+22:53:30 f60-t3-2: reports/data/F06/f60/validador/f60-t3-2.csv: 20 levels; VALIDA 20, INVALIDA_INFRA 0, INVALIDA_SISTEMA 0
+22:53:30 campaign done
