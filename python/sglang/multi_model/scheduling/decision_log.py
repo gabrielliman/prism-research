@@ -8,7 +8,8 @@ With PRISM_DECISION_LOG=<path> the policy appends one JSON line per scheduling c
                       DEACTIVATING as INACTIVE), "lifecycle": ACTIVE|INACTIVE|ACTIVATING|DEACTIVATING (D45), "gpu": [...],
                       "weights_gb", "waiting", "running", "oldest_wait_s", "min_deadline_in_s" (earliest
                       arrival + SLO of the waiting requests, minus t), "since_last_arrival_s",
-                      "since_last_finish_s", "active_for_s"}},
+                      "since_last_finish_s", "active_for_s", "running_rids" (only when the lifecycle is not
+                      ACTIVE and the controller still counts running requests: P16 diagnosis)}},
    "actions": [{"kind": activate|deactivate|migrate, "model", "gpu", "reason", ...}],
    "notes": [{"kind": "no_fit", "model", "need_gb"}, {"kind": "reservation_lapsed" | "reservation_dropped", ...},
              ...],
@@ -79,6 +80,9 @@ class DecisionLog:
                 "since_last_finish_s": _num(now - q.get_last_finished_time()) if q else None,
                 "active_for_s": _num(now - active_since[name]) if name in active_since else None,
             }
+            lifecycle = insts[0].state.name if insts else None
+            if q and lifecycle != "ACTIVE" and q.running_reqs:
+                self._cur["models"][name]["running_rids"] = [r.rid for r in q.running_reqs]
 
     def action(self, kind, model, gpu, reason, **extra):
         if self._cur is not None:

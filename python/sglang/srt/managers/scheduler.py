@@ -947,6 +947,8 @@ class Scheduler:
         # Prefill first
         new_batch = self.get_new_batch_prefill()
         if new_batch is not None:
+            if TRACE_RIDS:
+                logger.info(f"RID worker_prefill {self.model_config.name} {[r.rid for r in new_batch.reqs]}")
             self.send_to_controller.send_pyobj(
                 BatchRunReq(
                     rids=[req.rid for req in new_batch.reqs],
@@ -1176,6 +1178,8 @@ class Scheduler:
             retracted_reqs, new_token_ratio = batch.retract_decode()
             if new_token_ratio == 0.0:
                 new_token_ratio = old_ratio
+            if TRACE_RIDS:
+                logger.info(f"RID worker_retract_oom {self.model_config.name} {[r.rid for r in retracted_reqs]}")
             # send to controller
             self.send_to_controller.send_pyobj(
                 BatchRetractDecodeReq(
@@ -1813,6 +1817,21 @@ class Scheduler:
                 raise NotImplementedError(
                     f"Preempt mode {preempt_mode} is not supported"
                 )
+        # P16: no chunked prefill may outlive the deactivation, whatever path ran (without preemption,
+        # _run_to_completion_normal stops when no batch can run, e.g. a chunk postponed for lack of KV).
+        inflight = self._take_inflight_req()
+        if inflight is not None:
+            logger.warning(f"P16: chunked prefill of {inflight.rid} left at deactivation; back to the frontend")
+            self.send_to_controller.send_pyobj(
+                BatchRetractDecodeReq(
+                    rids=[inflight.rid],
+                    len_output_ids=[len(inflight.output_ids)],
+                    model=self.model_config.name,
+                    retract_time=time.time(),
+                )
+            )
+            self.waiting_queue.append(inflight)
+            self._evict_all_waiting_requests()
         t1 = time.perf_counter()
         time_taken = t1 - start_time
         logger.info(
@@ -2007,6 +2026,15 @@ class Scheduler:
                         self.tree_cache.cache_finished_req(req)
                     except Exception as e:
                         logger.error(f"Error in cache_finished_req: {e}")
+        # P16: the request half-way through a chunked prefill is in neither the running batch nor the waiting
+        # queue; retract it with the batch (it was reported as running by BatchRunReq).
+        inflight = self._take_inflight_req()
+        if inflight is not None:
+            rids.append(inflight.rid)
+            len_output_ids.append(len(inflight.output_ids))
+            self.waiting_queue.append(inflight)
+        if TRACE_RIDS:
+            logger.info(f"RID worker_retract {self.model_config.name} {rids}")
 
         self.send_to_controller.send_pyobj(
             BatchRetractDecodeReq(
@@ -2019,6 +2047,36 @@ class Scheduler:
         self.batch_is_full = False
         self.running_batch = None
         self.last_batch = None
+
+    def _take_inflight_req(self):
+        """P16 (F6.P16, 2026-11-09): take the request whose prompt is half-way through a chunked prefill
+        (current_inflight_req) out of the engine, ready to restart from its prompt (RECOMPUTE), or None.
+
+        A deactivation used to leave it behind: it was filtered out of the last prefill batch, so a preempting
+        deactivation neither reported it as retracted (the controller kept it RUNNING on the old model forever)
+        nor sent it back to the frontend (the request was never answered), and the field survived into this
+        worker's next activation, possibly for another model. Its KV slot was already released (the merge in
+        get_next_batch_to_run / _retract_running_batch_normal frees it after each chunk); only the tree-cache
+        lock taken by cache_unfinished_req is still held. PRISM_DEACTIVATE_REQUEUE_INFLIGHT=0 restores the old
+        behaviour (diagnosis only)."""
+        req = self.current_inflight_req
+        if TRACE_RIDS and req is not None:
+            logger.info(f"RID worker_inflight_at_deactivate {self.model_config.name} {req.rid}")
+        if req is None or os.environ.get("PRISM_DEACTIVATE_REQUEUE_INFLIGHT", "1") != "1":
+            return None
+        self.current_inflight_req = None
+        if req.last_node is not None:
+            try:
+                self.tree_cache.dec_lock_ref(req.last_node)
+            except Exception as e:
+                logger.error(f"P16: dec_lock_ref of the inflight request failed: {e}")
+        req.prefix_indices = []
+        req.last_node = None
+        req.extend_input_len = 0
+        req.last_update_decode_tokens = 0
+        req.logprob_start_len = 10**9
+        req.is_inflight_req = 0
+        return req
 
     def flush_cache(self):
         """Flush the memory pool and cache."""
