@@ -44,3 +44,9 @@ Full history: `reports/erros.md` (each error, its cause, how it was handled, sta
   run time from Prism.
 - An "infra" classification needs external evidence: a degraded window seen in concurrent jobs, or the health
   probe (D11). Follow `PLANO_AGENTE.md` §0.3 to investigate a failed run.
+- `PRISM_CHUNKED_PREFILL_SIZE` (stress tests only) must be at least the load's `--max-prompt` (4096 in the `ovl_*`
+  steps): smaller chunks trip SGLang 0.3.4's `assert self.current_inflight_req is None` on fresh workers (P16 work,
+  `f6-p16-3`). Never seen with the default 8192.
+- Requests "running" on an `INACTIVE` model in `decisions.jsonl` (its `running_rids` field lists them): with
+  preemption before R2.6 this was P16 (a request dropped mid chunked prefill, then answered by the wrong model);
+  in jobs with K1 or dead workers it is the dead workers' requests. Check worker deaths before blaming a policy.

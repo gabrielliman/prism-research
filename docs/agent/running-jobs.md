@@ -107,7 +107,7 @@ Default model: `meta-llama/Llama-3.1-8B-Instruct` (`PRISM_OVL_MODEL`). Workload 
 Policy knobs: `PRISM_IDLE_THRESHOLD`, `PRISM_SCHEDULE_INTERVAL`, `PRISM_EVICTION` and its knobs
 ([policies.md](policies.md)). Robustness and diagnostics: `PRISM_MEMORY_ARBITER` (0), `PRISM_DETECT_DEAD_WORKERS` (1),
 `PRISM_DETECT_DEAD_MODEL_SERVICE` (1), `PRISM_DECISION_LOG` (on by default in `run_examples.sh`; set it empty to
-disable), `PRISM_TRACE_RIDS=1`, `PRISM_STACK_DUMPS=1` with `PRISM_STACK_DUMP_AT="<s> ..."`, and `PRISM_FAULT`
+disable), `PRISM_TRACE_RIDS=1` (worker hops `worker_prefill`, `worker_retract`, `worker_retract_oom`, `worker_inflight_at_deactivate` since P16; `polyaxon/trace_rids.py`), `PRISM_STACK_DUMPS=1` with `PRISM_STACK_DUMP_AT="<s> ..."`, and `PRISM_FAULT`
 (`kill`/`kill_model_service`/`ballast` fault injection).
 
 ## Downloading results (ONE job at a time)
