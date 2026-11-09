@@ -1,0 +1,30 @@
+job,carga,rep,motivo,level,status
+f5-c1n10-1,C1n10,1,"V2: {'k1': 2, 'worker_died': 2}",outputs/A0.1/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n10-1,C1n10,1,"V2: {'k1': 3, 'worker_died': 3}",outputs/A0.1_A1/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n10-1,C1n10,1,,outputs/A0.2_A1/ovl_mem/rate0.2,VALIDA
+f5-c1n10-1,C1n10,1,"V2: {'k1': 1, 'worker_died': 1}; V3: [('model_9', 'deactivate', 206.1)]",outputs/A0.4/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n10-1,C1n10,1,,outputs/A0.4p/ovl_mem/rate0.2,VALIDA
+f5-c1n14-1,C1n14,1,,outputs/A0.1/ovl_mem/rate0.2,VALIDA
+f5-c1n14-1,C1n14,1,,outputs/A0.1_A1/ovl_mem/rate0.2,VALIDA
+f5-c1n14-1,C1n14,1,,outputs/A0.2_A1/ovl_mem/rate0.2,VALIDA
+f5-c1n14-1,C1n14,1,"V2: {'k1': 2, 'torch_oom': 1, 'worker_died': 3, 'worker_exit': 1, 'traceback': 1}",outputs/A0.4p/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n14-1b,C1n14,1,,outputs/A0.1/ovl_mem/rate0.2,VALIDA
+f5-c1n14-1b,C1n14,1,"V2: {'k1': 1, 'worker_died': 1}",outputs/A0.1_A1/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n14-1b,C1n14,1,,outputs/A0.2_A1/ovl_mem/rate0.2,VALIDA
+f5-c1n14-1b,C1n14,1,"V2: {'k1': 1, 'worker_died': 1}",outputs/A0.4/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n14-1b,C1n14,1,"V2: {'k1': 3, 'worker_died': 3}",outputs/A0.4p/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n19-1,C1n19,1,"V2: {'k1': 5, 'worker_died': 5}",outputs/A0.1_A1/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n19-1,C1n19,1,"V2: {'k1': 2, 'worker_died': 2}",outputs/A0.2_A1/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n19-1,C1n19,1,"V2: {'k1': 1, 'worker_died': 1}; V3: [('model_16', 'deactivate', 371.8)]",outputs/A0.4/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n19-1,C1n19,1,"V2: {'k1': 2, 'worker_died': 2}",outputs/A0.4p/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n19-1b,C1n19,1,,outputs/A0.1/ovl_mem/rate0.2,VALIDA
+f5-c1n19-1b,C1n19,1,"V2: {'k1': 2, 'worker_died': 2}; V3: [('model_6', 'deactivate', 196.7), ('model_1', 'deactivate', 196.7)]",outputs/A0.1_A1/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n19-1b,C1n19,1,"V2: {'k1': 1, 'worker_died': 1}",outputs/A0.2_A1/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n19-1b,C1n19,1,"V2: {'k1': 4, 'worker_died': 4}; V3: [('model_4', 'deactivate', 218.9), ('model_5', 'deactivate', 218.1)]",outputs/A0.4/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c1n19-1b,C1n19,1,"V2: {'k1': 5, 'worker_died': 5}; V3: [('model_12', 'deactivate', 271.7), ('model_5', 'deactivate', 275.7), ('model_6', 'deactivate', 265.6)]",outputs/A0.4p/ovl_mem/rate0.2,INVALIDA_SISTEMA
+f5-c5-1,C5,1,"V14: {'health_before': 'ok', 'degraded_windows': [], 'health_after': 'failed', 'utc_offset_h': 8}",outputs/A0.1/ovl_compute/rate25,INVALIDA_INFRA
+f5-c5-1,C5,1,"V14: {'health_before': 'ok', 'degraded_windows': [], 'health_after': 'failed', 'utc_offset_h': 8}",outputs/A0.1_A1/ovl_compute/rate25,INVALIDA_INFRA
+f5-c5-1,C5,1,"V14: {'health_before': 'ok', 'degraded_windows': [], 'health_after': 'failed', 'utc_offset_h': 8}",outputs/A0.2_A1/ovl_compute/rate25,INVALIDA_INFRA
+f5-c5-1,C5,1,"V14: {'health_before': 'ok', 'degraded_windows': [], 'health_after': 'failed', 'utc_offset_h': 8}",outputs/A0.4/ovl_compute/rate25,INVALIDA_INFRA
+f5-c5-1,C5,1,,outputs/A0.4p/ovl_compute/rate25,VALIDA
+f5-t3-1,T3,1,K1_ABORT: K1 in ovl_tr_azfn/ts1 at 2026-11-08T00:34:06Z: cuMemCreate out of memory,outputs/A0.1,INVALIDA_SISTEMA

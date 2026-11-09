@@ -84,11 +84,11 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F5.0e `report_tables.py`: TTFT p50 e p90 e cauda de espera (p99, máximo, fração > 10× a mediana; D33) nas tabelas, ao lado das três vistas de SLO
 - [x] F5.0f Log de decisões: reserva de memória vencida sem ativação, e quem ficou com a memória (D30)
 - [x] F5.1 A0.1–A0.5 (+A1), com A0.3 e A0.3p (sem e com preempção) e a melhor ociosidade de valor arbitrário (seção 0.10), em todas as cargas aprovadas, níveis de `ρ_mem` definidos, 5 repetições — escopo da D39/D46: 5 configurações (A0.1, A0.1+A1, A0.2+A1, A0.4, A0.4p) × 18 cargas × 3 repetições = 270 níveis, todos VALIDA (2026-11-08, `reports/data/F05/camp/`; D47, D48)
-- [ ] F5.2 Tabelas e figuras de referência (SLO total, TTFT p50/p90, evitáveis/inevitáveis pela classificação nova, ociosidade da GPU, pior modelo, trocas, perdas)
-- [ ] F5.2a Curvas de todas as famílias de SLO calculadas pós-execução; SLO mínimo atingível (90% e 99%) por política e carga, nas três vistas
-- [ ] F5.2c Decomposição das violações (ambos / só TTFT / só TPOT / nenhum) e CDFs de TTFT e TPOT normalizados, por política e por modelo
-- [ ] F5.2b Escolher o subconjunto de níveis de SLO para as políticas por prazo (alto, meio da queda, baixo) e registrar em `decisoes.md`
-- [ ] F5.3 C-V1 e C-V2 satisfeitos; relatório F05 com proposta de conteúdo do artigo parcial
+- [x] F5.2 Tabelas e figuras de referência (SLO total, TTFT p50/p90, evitáveis/inevitáveis pela classificação nova, ociosidade da GPU, pior modelo, trocas, perdas) — `polyaxon/f5_analysis.py`, `f5_report_tables.py`, `f5_figs.py`; `reports/data/F05/campanha/`, `reports/figs/F05/` (2026-11-09)
+- [x] F5.2a Curvas de todas as famílias de SLO calculadas pós-execução; SLO mínimo atingível (90% e 99%) por política e carga, nas três vistas — `curvas_niveis.csv`, Tabela 5 (2026-11-09)
+- [~] F5.2c Decomposição das violações (ambos / só TTFT / só TPOT / nenhum) e CDFs de TTFT e TPOT normalizados, por política e por modelo — decomposição em `niveis.csv` (colunas `*_1s`) e Tabela 2; quantis do TTFT/TPOT normalizados em `niveis.csv`; figuras de CDF ainda não feitas
+- [ ] F5.2b Escolher o subconjunto de níveis de SLO para as políticas por prazo (alto, meio da queda, baixo) e registrar em `decisoes.md` — proposta no relatório F05 (S6 k_R ∈ {1, 2, 4}, S3 k_A = 5), aguarda o Gabriel
+- [ ] F5.3 C-V1 e C-V2 satisfeitos; relatório F05 com proposta de conteúdo do artigo parcial — C-V1 OK; C-V2 FALHOU (gate); relatório `reports/fases/F05_linhas_de_base.md` AGUARDANDO REVISÃO
 
 ## F6 — Ativação e despejo por folga (A2–A4) e por atraso virtual (A9) · gate [HUMANO]
 - Prioridades (D31, D32, `PLANO_AGENTE.md` seção F6): custo real da troca → A3.1 → A10 (throughput × prazo × fila) → A2.3 → A4 → classes de prazo (F8) → A9.2; ciclo 1 s e A5 fora de prioridade; pior modelo só como observação; objetivo SLO + TTFT p50/p90 + nenhuma espera absurda (D33); SLOs ≥ tempo de rotação (S3 kA=5, S6 kR ∈ {1, 2})
