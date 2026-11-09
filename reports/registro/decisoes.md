@@ -665,4 +665,9 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
    repetições** (limitação declarada: IC por bootstrap sobre 2 pares é fraco; as conclusões da F6.0 são de triagem).
    Por job: 2 linhas de base + 3 políticas (A2.1, A9.1, A9.2) × 3 níveis × {sem, com preempção} = 20 níveis; 4 cargas
    × 2 repetições = 8 jobs, 160 níveis (`polyaxon/f6_0_suites.sh`, fila `polyaxon/configs/f60_queue.tsv`).
-4. **Pendente:** go para submeter (smoke `f60_smoke_suite.tsv`, depois `bash polyaxon/f4_driver_start.sh f60`).
+4. **Sem orçamento de workers na F6.0** (levantado pelo Gabriel; o agente concorda): o limite de 36 da D47 era hipótese e
+   a D48 a contradisse (K1 com 35 workers; C6 com 19 modelos + 14 = 33 limpo; o K1 depois da D48 tinha ~32). O que
+   quebra o driver é o C1 com 14–19 modelos ao lado de outro job que troca muito, e esse continua sozinho no nó. Na F6.0
+   só a combinação C6 14 + T1 12 + T3 12 = 38 passaria de 36; ficam o limite de 3 jobs e a interrupção no K1.
+   `f4_driver_start.sh f60` usa `F4_MAX_WORKERS=0`. Ganho: ~1,5–2 h (estimativa ~13–17 h em vez de ~15–19 h).
+5. **Pendente:** go para submeter (smoke `f60_smoke_suite.tsv`, depois `bash polyaxon/f4_driver_start.sh f60`).
