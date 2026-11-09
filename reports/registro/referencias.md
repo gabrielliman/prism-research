@@ -12,7 +12,7 @@ antes de ser tomada, e cita as entradas daqui em `decisoes.md`.
 | R3 | SwapServeLLM (SC Workshops'25) | D45 item 3; A11 |
 | R4 | SuperInfer (MLSys'26) | A9 (D4) |
 | R5 | MuxServe (ICML'24) | D44 item 2; D46 item 2 |
-| R6 | Aegaeon (SOSP'25) | D46 item 3 |
+| R6 | Aegaeon (SOSP'25) | D46 item 3; desenho da F6.0 (hipótese do S3, D49) |
 | R7 | Serverless in the Wild (ATC'20) | D46 item 3 |
 
 ## R1 — Prism: Unleashing GPU Sharing for Cost-Efficient Multi-LLM Serving
@@ -100,6 +100,20 @@ Xiang et al. (Alibaba Group e Universidade de Pequim), SOSP 2025. PDF: <https://
 - **Por que foi adicionada:** dá a métrica `modelos_ativos_medio` (observado) contra `modelos_ativos_esperado`
   (`Σ_m (1 − e^(−λ_m T_m))`, a fórmula com taxa por modelo) e `modelos_residentes_medio`: quando cabem menos modelos do
   que os ativos, alguém espera troca. Mede o tamanho da sobrecarga de memória por política, ao lado do `ρ_mem`.
+
+### R6 — adendo (2026-11-09, preempção com prazo curto; desenho da F6.0, hipótese do S3 da D49)
+
+- **Verificado (PDF, §2 "Head-of-line blocking" e "Our approach", §4, §5):** trocar de modelo só na granularidade da
+  requisição faz as requisições de outros modelos esperarem o fim das que estão rodando ("severe head-of-line (HOL)
+  blocking ... prohibitively long TTFT and SLO violations for the waiting models"); a solução do Aegaeon "mitigates HOL
+  blocking by preemptively scaling down active models and scaling up pending models". Mas isso só compensa com a troca
+  barata: o §5 reduz o custo da troca em 97% (reuso de componentes, KV movido para a CPU em paralelo, sem recomputar),
+  e o §4 agrupa prefills do mesmo modelo para evitar "excessive preemptive auto-scaling" sob carga alta.
+- **Por que foi adicionada:** apoia a hipótese do Gabriel (D49) de que um prazo de TTFT menor que uma troca sem
+  preempção (S3 `k_A` = 5) só é alcançável preemptando, e ao mesmo tempo mostra a condição que nós não temos: aqui a
+  preempção recomputa o que estava rodando e a troca leva 13–17 s (F5.0a). Por isso a F6.0 mede a diferença com e sem
+  preempção em cada nível de SLO, em vez de assumir o sinal; a F5 já mostrou a troca por throughput com preempção
+  (A0.4p) pior que sem (A0.4) em todos os níveis.
 
 ## R7 — Serverless in the Wild: Characterizing and Optimizing the Serverless Workload at a Large Cloud Provider
 

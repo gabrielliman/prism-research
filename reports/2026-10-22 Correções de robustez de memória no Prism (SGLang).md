@@ -289,6 +289,12 @@ Estas mudanças não alteram o Prism, mas mudam a forma como os testes rodam.
 
 **Efeito nos dados anteriores.** Teto de 0,8% das requisições no total e de 4,6% na pior configuração (`ovl_mem` 0,2 com troca). Ainda não testado num job.
 
+### R2.6 Desativação com preempção perdia a requisição no meio de um prefill em pedaços (SGLang, P16), 2026-11-09
+
+**Problema.** O prefill de um lote cabe em 8192 tokens (`chunked_prefill_size`); quando o lote enche esse orçamento, a última requisição é cortada e continua no próximo passo (`current_inflight_req`). Numa desativação **com preempção** (`_retract_running_batch_normal`), essa requisição era tirada do último lote e descartada: não ia na mensagem de retirada (`BatchRetractDecodeReq`), então o controlador a mantinha "rodando" num modelo que já tinha saído; não voltava para a fila do frontend, então nunca era respondida; e o campo continuava preenchido na próxima ativação do mesmo worker, inclusive para **outro** modelo. Nos logs da F5 (A0.4p), toda entrada presa vem de uma desativação logo depois de um prefill com 8192 tokens, e os 27 níveis sem esse evento terminam sem nenhuma (P16 em `reports/erros.md`).
+
+**O que mudou.** `srt/managers/scheduler.py`: `_take_inflight_req` tira a requisição do worker pronta para recomeçar do prompt (libera a trava da árvore de cache que `cache_unfinished_req` tinha pego; o slot de KV já tinha sido liberado); `_retract_running_batch_normal` a inclui na retirada (mensagem ao controlador e fila de espera, que `_evict_all_waiting_requests` devolve ao frontend); no fim de toda desativação, uma guarda devolve qualquer prefill em pedaços que tenha sobrado (sem preempção, `_run_to_completion_normal` pode parar com um pedaço adiado por falta de KV). `PRISM_DEACTIVATE_REQUEUE_INFLIGHT=0` volta ao comportamento antigo (só para diagnóstico). Com `PRISM_TRACE_RIDS=1`, novos passos no trace: `worker_prefill`, `worker_retract`, `worker_retract_oom`, `worker_inflight_at_deactivate`. Teste: `tests/robustness/test_preempt_inflight.py` (5 testes).
+
 ### Resultados
 
 - **Rodada `fix2`** (só com a R2.1): 71 execuções, 4,3% de requisições perdidas. Por causa:
@@ -333,7 +339,7 @@ Sem o árbitro, uma ativação que fica sem memória ainda pode morrer pelo `abo
 | `python/sglang/multi_model/memory_arbiter.py` (novo) | árbitro de memória por GPU, `ActivationOutOfMemory`, registro de PIDs dos workers |
 | `python/sglang/multi_model/kvcached_patches.py` (novo) | ajustes do kvcached aplicados pelo Prism |
 | `python/sglang/srt/model_executor/worker_pool_model_runner.py` (do Prism) | reserva (com o árbitro) e desfazer da ativação, registro do PID |
-| `python/sglang/srt/managers/scheduler.py` | rodada 1: `handle_activate_request` (do Prism) responde `success=False` quando a ativação não tem memória. Rodada 2 (SGLang): `get_new_batch_prefill` aloca o batch antes de mudar o estado e trata `PrefillKVFull`; `run_scheduler_process` encerra só o worker numa exceção. R2.5 (SGLang): `process_batch_result_prefill` grava só o primeiro fim de prefill e marca o término quando a requisição acaba no prefill |
+| `python/sglang/srt/managers/scheduler.py` | rodada 1: `handle_activate_request` (do Prism) responde `success=False` quando a ativação não tem memória. Rodada 2 (SGLang): `get_new_batch_prefill` aloca o batch antes de mudar o estado e trata `PrefillKVFull`; `run_scheduler_process` encerra só o worker numa exceção. R2.5 (SGLang): `process_batch_result_prefill` grava só o primeiro fim de prefill e marca o término quando a requisição acaba no prefill. R2.6 (SGLang, P16): `_take_inflight_req`, a retirada e a guarda no fim de `handle_deactivate_request` devolvem o prefill em pedaços |
 | `python/sglang/srt/managers/schedule_batch.py` (SGLang, rodada 2) | `PrefillKVFull`; `alloc_token_slots` e `prepare_for_extend` não encerram o processo num prefill sem KV |
 | `python/sglang/multi_model/scheduling/policy/simple_global.py` (rodada 2) | contabilidade das ativações pendentes (`pending_activations`, `activation_done`, `ACTIVATION_KV_GB`) |
 | `python/sglang/multi_model/scheduling/gpu/gpu_scheduler.py` | `_on_model_lost`, detecção de mortes, aviso da falta de worker livre; rodada 2: evento `model_activated` e desativações superadas (`_pending_deacts`, `_stale_deacts`) |
@@ -366,6 +372,7 @@ Sem o árbitro, uma ativação que fica sem memória ainda pode morrer pelo `abo
 | 2026-10-27 | Desativação atrasada não desativa um modelo já reativado (R2.3) | só age na corrida | ligado |
 | 2026-10-26/27 | Infraestrutura: até 6 jobs juntos, espera por GPU, nova tentativa de inicialização, diagnóstico do nó (R2.4) | testes | — |
 | 2026-10-28 | TTFT pelo primeiro prefill e término marcado quando a requisição acaba no prefill (R2.5, SGLang) | só medição | ligado |
+| 2026-11-09 | Desativação devolve ao frontend a requisição no meio de um prefill em pedaços (R2.6, SGLang, P16) | corrige perda de requisição | ligado (`PRISM_DEACTIVATE_REQUEUE_INFLIGHT=0` desliga) |
 
 ## Como reproduzir
 
