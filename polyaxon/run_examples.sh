@@ -315,6 +315,9 @@ start_server() {
 start_server_once() {
   local step=$1 port=$2 cfg=$3; shift 3
   mapfile -t args < <(backend_args "$@"); set -- "${args[@]}"
+  # F6.P16: PRISM_CHUNKED_PREFILL_SIZE=<tokens> (stress test only; unset = the server default, 8192) makes chunked
+  # prefills, and so a request half-way through one at a deactivation, much more frequent.
+  [ -n "${PRISM_CHUNKED_PREFILL_SIZE:-}" ] && set -- "$@" --chunked-prefill-size "$PRISM_CHUNKED_PREFILL_SIZE"
   local n_on; n_on=$(python3 -c "import json;print(sum(any(p['on'] for p in m['init_placements']) for m in json.load(open('$cfg'))))")
   mkdir -p "$RESULTS/$step"
   wait_ports_free "$port" 8 || return 1
