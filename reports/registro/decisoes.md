@@ -659,5 +659,10 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
    vítimas pelo menor custo por GB. Desenho no `PLANO_AGENTE.md` (A9.2), apoio na literatura em R2 (Clockwork, adendo)
    e R8 (GreedyDual-Size). Código `policy/deadline.py` `_lvf_cost_aware`, `PRISM_EVICTION=lvf PRISM_LVF_COST_AWARE=1`,
    19 testes. Roda nos mesmos 4 níveis de SLO × {sem, com preempção}.
-3. **Pendente (Gabriel):** go da campanha e a escolha das linhas de base (proposta do agente: A0.2+A1 e A0.4 em todo
-   job como referência pareada, A0.4p fora).
+3. **Escopo (Gabriel, 2026-11-09, aceitando as recomendações do agente):** linhas de base A0.2+A1 e A0.4 em todo job
+   como referência pareada (regra 3; A0.4p fora: código mudou com a P16, já é a pior na F5, e a pergunta do S3 compara
+   cada política com e sem preempção no mesmo job); S6 `k_R` = 2 fora (níveis: S3 `k_A` = 5, S6 `k_R` = 1 e 4); **2
+   repetições** (limitação declarada: IC por bootstrap sobre 2 pares é fraco; as conclusões da F6.0 são de triagem).
+   Por job: 2 linhas de base + 3 políticas (A2.1, A9.1, A9.2) × 3 níveis × {sem, com preempção} = 20 níveis; 4 cargas
+   × 2 repetições = 8 jobs, 160 níveis (`polyaxon/f6_0_suites.sh`, fila `polyaxon/configs/f60_queue.tsv`).
+4. **Pendente:** go para submeter (smoke `f60_smoke_suite.tsv`, depois `bash polyaxon/f4_driver_start.sh f60`).

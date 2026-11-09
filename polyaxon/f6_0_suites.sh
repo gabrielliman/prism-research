@@ -19,7 +19,7 @@
 # workload, then rep 2, then rep 3; the driver packs jobs under its 36-worker budget: C1n10 10, T1 12, C6n14 14, T3 12).
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-REPS=${F60_REPS:-3}
+REPS=${F60_REPS:-2}  # D50: 2 reps (Gabriel 2026-11-09)
 WORKLOADS=(${F60_WORKLOADS:-C1n10 T1 C6n14 T3})
 A1="PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10"
 declare -A W=(
@@ -37,7 +37,8 @@ declare -A ENV=(
 )
 declare -A SLO=([S3k5]="S3:kA=5,kD=5" [S6k1]="S6:kR=1,kD=5" [S6k2]="S6:kR=2,kD=5" [S6k4]="S6:kR=4,kD=5")
 UNITS=(${F60_BASE:-A0.2_A1 A0.4})
-for pol in ${F60_POLICIES:-edf lvf lvfr}; do for lv in S3k5 S6k1 S6k2 S6k4; do UNITS+=("$pol:$lv"); done; done
+# D50 (Gabriel 2026-11-09): S6 kR=2 dropped (F5: the curves change smoothly between kR=1 and kR=4)
+for pol in ${F60_POLICIES:-edf lvf lvfr}; do for lv in ${F60_LEVELS:-S3k5 S6k1 S6k4}; do UNITS+=("$pol:$lv"); done; done
 arm() {  # name<TAB>vars of one arm
   local w=$1 name=$2
   if [[ $name == *_p[01] ]]; then
