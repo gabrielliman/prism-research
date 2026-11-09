@@ -1,0 +1,6 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/A0.1/ovl_diurnal/rate2,/mnt/scratch/scheduler/prism-raw/F5/camp/f5-c8-3,46e742b1d4984ba69a06573dc823203e,f5-c8-3/outputs/A0.1/ovl_diurnal/rate2,VALIDA,,,2026-11-08 15:02:54,,1005,OK,OK,OK,OK,OK,N/A,N/A,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.1_A1/ovl_diurnal/rate2,/mnt/scratch/scheduler/prism-raw/F5/camp/f5-c8-3,46e742b1d4984ba69a06573dc823203e,f5-c8-3/outputs/A0.1_A1/ovl_diurnal/rate2,VALIDA,,,2026-11-08 15:32:33,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.2_A1/ovl_diurnal/rate2,/mnt/scratch/scheduler/prism-raw/F5/camp/f5-c8-3,46e742b1d4984ba69a06573dc823203e,f5-c8-3/outputs/A0.2_A1/ovl_diurnal/rate2,VALIDA,,,2026-11-08 15:59:31,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.4/ovl_diurnal/rate2,/mnt/scratch/scheduler/prism-raw/F5/camp/f5-c8-3,46e742b1d4984ba69a06573dc823203e,f5-c8-3/outputs/A0.4/ovl_diurnal/rate2,VALIDA,,,2026-11-08 16:25:42,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/A0.4p/ovl_diurnal/rate2,/mnt/scratch/scheduler/prism-raw/F5/camp/f5-c8-3,46e742b1d4984ba69a06573dc823203e,f5-c8-3/outputs/A0.4p/ovl_diurnal/rate2,VALIDA,,,2026-11-08 14:32:19,,29,OK,OK,OK,OK,OK,N/A,N/A,OK,OK,OK,OK,OK,OK,OK,OK

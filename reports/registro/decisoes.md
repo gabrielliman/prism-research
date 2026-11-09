@@ -621,3 +621,11 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
      nenhum dos 40 níveis dos 8 jobs válidos. O job interrompido precisa ser refeito inteiro (regra 3).
 - **A verificar:** se o C1 com 14 e 19 modelos sozinho fica sem K1 num job inteiro (o smoke sozinho, de 120 s, ficou).
   Se não ficar, o problema é dentro de um job (vazamento ou taxa de trocas) e a correção é no kvcached, não na fila.
+- **Resultado (2026-11-09, agente):** campanha da F5.1 concluída às 23:57 UTC de 08/11: as 54 combinações carga ×
+  repetição têm um job 5/5 VALIDA (270 níveis válidos; 61 jobs ao todo, 7 substituídos por refeitos: `f5-c1n10-1`,
+  `f5-c1n14-1`, `f5-c1n14-1b`, `f5-c1n19-1`, `f5-c1n19-1b`, `f5-c5-1`, `f5-t3-1`). Os 6 jobs do C1 com 14 e 19 modelos
+  sozinhos no nó deram 6/6 VALIDA (30 níveis) e levaram ~55–60 min cada, contra ~80 min com vizinhos. Depois da D48 houve
+  um único K1 (`f5-t3-1`, na subida, 00:34 UTC de 08/11, ao lado de dois jobs de 10 modelos), interrompido em ~2 min.
+  O `map_trace.log` desse K1 descarta o `vm.max_map_count` (maior processo com 2739 mapeamentos, limite 65530; o mesmo
+  T3 válido na repetição 2 tinha 2752). A leitura que fica: o C1 com 14–19 modelos só quebra o driver quando roda ao
+  lado de outro job que troca muito; sozinho, não.

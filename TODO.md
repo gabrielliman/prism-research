@@ -83,7 +83,7 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F5.0d Métrica de ociosidade da GPU: residência ociosa com demanda pendente; ociosidade esperada pela carga (`ρ_m` de `latencia_ded.json`) × observada (`gpu.csv`) — `polyaxon/gpu_idle.py`, D44; `ρ_m` pelo tempo de GPU ocupada (D46)
 - [x] F5.0e `report_tables.py`: TTFT p50 e p90 e cauda de espera (p99, máximo, fração > 10× a mediana; D33) nas tabelas, ao lado das três vistas de SLO
 - [x] F5.0f Log de decisões: reserva de memória vencida sem ativação, e quem ficou com a memória (D30)
-- [ ] F5.1 A0.1–A0.5 (+A1), com A0.3 e A0.3p (sem e com preempção) e a melhor ociosidade de valor arbitrário (seção 0.10), em todas as cargas aprovadas, níveis de `ρ_mem` definidos, 5 repetições
+- [x] F5.1 A0.1–A0.5 (+A1), com A0.3 e A0.3p (sem e com preempção) e a melhor ociosidade de valor arbitrário (seção 0.10), em todas as cargas aprovadas, níveis de `ρ_mem` definidos, 5 repetições — escopo da D39/D46: 5 configurações (A0.1, A0.1+A1, A0.2+A1, A0.4, A0.4p) × 18 cargas × 3 repetições = 270 níveis, todos VALIDA (2026-11-08, `reports/data/F05/camp/`; D47, D48)
 - [ ] F5.2 Tabelas e figuras de referência (SLO total, TTFT p50/p90, evitáveis/inevitáveis pela classificação nova, ociosidade da GPU, pior modelo, trocas, perdas)
 - [ ] F5.2a Curvas de todas as famílias de SLO calculadas pós-execução; SLO mínimo atingível (90% e 99%) por política e carga, nas três vistas
 - [ ] F5.2c Decomposição das violações (ambos / só TTFT / só TPOT / nenhum) e CDFs de TTFT e TPOT normalizados, por política e por modelo
