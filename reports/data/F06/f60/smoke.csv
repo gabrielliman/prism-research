@@ -1,0 +1,5 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/edf_S6k1_p1/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6/f60smoke/f60-smoke,49b56de093c3448c8081b008ebeb2802,f60-smoke/outputs/edf_S6k1_p1/ovl_mem/rate0.2,VALIDA,,,2026-11-09 09:42:41,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/lvf_S3k5_p0/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6/f60smoke/f60-smoke,49b56de093c3448c8081b008ebeb2802,f60-smoke/outputs/lvf_S3k5_p0/ovl_mem/rate0.2,VALIDA,,,2026-11-09 09:50:50,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/lvfr_S3k5_p1/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6/f60smoke/f60-smoke,49b56de093c3448c8081b008ebeb2802,f60-smoke/outputs/lvfr_S3k5_p1/ovl_mem/rate0.2,VALIDA,,,2026-11-09 09:59:01,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/lvfr_S6k1_p0/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6/f60smoke/f60-smoke,49b56de093c3448c8081b008ebeb2802,f60-smoke/outputs/lvfr_S6k1_p0/ovl_mem/rate0.2,VALIDA,,,2026-11-09 10:07:00,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
