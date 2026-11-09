@@ -1,0 +1,8 @@
+10:17:08 0 jobs in state, 8 to submit
+10:17:15 submitted f60-c1n10-1 9dea206c (1 active, 10 workers)
+10:17:40 submitted f60-t1-1 e76d8f6f (2 active, 22 workers)
+10:18:07 submitted f60-c6n14-1 8fddfa0e (3 active, 36 workers)
+13:23:14 f60-c1n10-1: reports/data/F06/f60/validador/f60-c1n10-1.csv: 20 levels; VALIDA 18, INVALIDA_INFRA 0, INVALIDA_SISTEMA 2
+13:23:19 submitted f60-t3-1 94336234 (3 active, 38 workers)
+15:12:58 f60-t1-1: reports/data/F06/f60/validador/f60-t1-1.csv: 20 levels; VALIDA 20, INVALIDA_INFRA 0, INVALIDA_SISTEMA 0
+15:13:04 submitted f60-c1n10-2 7db761f4 (3 active, 36 workers)
