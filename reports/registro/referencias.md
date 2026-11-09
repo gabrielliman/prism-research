@@ -8,12 +8,13 @@ antes de ser tomada, e cita as entradas daqui em `decisoes.md`.
 | id | referência | usada em |
 | --- | --- | --- |
 | R1 | Prism (OSDI'26) | D45 (contexto); D46 item 3 |
-| R2 | Clockwork (OSDI'20) | D45 itens 1–2 |
+| R2 | Clockwork (OSDI'20) | D45 itens 1–2; A9.2 (prioridade de carga) |
 | R3 | SwapServeLLM (SC Workshops'25) | D45 item 3; A11 |
 | R4 | SuperInfer (MLSys'26) | A9 (D4) |
 | R5 | MuxServe (ICML'24) | D44 item 2; D46 item 2 |
 | R6 | Aegaeon (SOSP'25) | D46 item 3; desenho da F6.0 (hipótese do S3, D49) |
 | R7 | Serverless in the Wild (ATC'20) | D46 item 3 |
+| R8 | GreedyDual-Size (USITS'97) | A9.2 (vítima pelo custo de voltar por GB) |
 
 ## R1 — Prism: Unleashing GPU Sharing for Cost-Efficient Multi-LLM Serving
 
@@ -40,6 +41,18 @@ Gujarati et al., OSDI 2020, pp. 443–462. <https://arxiv.org/abs/2006.02464>
   carga/descarga em andamento, atualizado pelo resultado reportado pelo worker (nossos eventos `model_activated` /
   `model_deactivated`), e prazos servem só como limite de segurança de uma ação (nosso `LIFECYCLE_TIMEOUT_S`), não como
   forma de inferir que ela terminou.
+
+### R2 — adendo (2026-11-09, A9.2)
+
+- **Verificado (PDF, §5.3, "Action scheduler"/LOAD):** a prioridade de carga de um modelo estima o trabalho não
+  atendido, `p_m = d_m − Σ_g a_{m,g}·capacity_g/l_g` (`d_m` = tempo estimado das requisições pendentes); "a model that
+  is not loaded on any GPUs has priority equal to its outstanding work; a model loaded on a GPU that sits mostly idle
+  has negative priority"; a prioridade é atualizada, entre outros momentos, "when a request crosses the point where it
+  can benefit from LOAD before its deadline"; "Clockwork uses a least-recently-used (LRU) eviction policy when
+  selecting models to UNLOAD".
+- **Por que foi adicionada:** sustenta o ganho `G_m` da A9.2 — ativos e inativos medidos pela mesma demanda, e só a
+  demanda que ainda se beneficia depois da carga conta. A despejo do Clockwork é LRU, o mesmo defeito da A9.1 (vítima
+  pelo tempo ativo); lá as cargas levam milissegundos, aqui 6–16 s, por isso a A9.2 pesa o custo da vítima (R8).
 
 ## R3 — Engine-Agnostic Model Hot-Swapping for Cost-Effective LLM Inference (SwapServeLLM)
 
@@ -128,3 +141,15 @@ Shahrad et al., USENIX ATC 2020. arXiv 2003.03423: <https://arxiv.org/abs/2003.0
   contra memória desperdiçada, por política (o limiar de ociosidade da A0.1/A0.2 é um keep-alive fixo). Diferença: no
   FaaS a memória ociosa custa dinheiro; aqui ela custa SLO de quem espera, por isso `ocio_residente_demanda` (só
   quando há fila) continua como a métrica principal.
+
+## R8 — Cost-Aware WWW Proxy Caching Algorithms (GreedyDual-Size)
+
+Cao e Irani, USENIX USITS 1997, pp. 193–206.
+<https://www.usenix.org/publications/library/proceedings/usits97/full_papers/cao/cao_html/node8.html>
+
+- **Verificado (seção 4, "GreedyDual-Size Algorithm", e a Figura 5):** o GreedyDual original dá a cada página `H` =
+  "the cost of bringing the page into the cache", despeja a de menor `H` e restaura `H` num acesso; o GreedyDual-Size
+  usa `H = L + c(p)/s(p)` (custo por tamanho) e despeja a de menor `H`, com `L` subindo para o `H` despejado.
+- **Por que foi adicionada:** sustenta a escolha de vítima da A9.2: despejar primeiro o modelo cujo retorno custa
+  menos por GB liberado (`K_v / GB`); um modelo sem nada para fazer custa 0 e sai primeiro. Diferença declarada: não
+  usamos o envelhecimento `L`, porque `K_v` já cresce com o atraso das requisições do modelo.

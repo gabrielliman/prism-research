@@ -9,6 +9,9 @@ state objects, no I/O, so the policies' decision functions stay testable with ha
                                                 budget), one batch after the other
   queue_time_hybrid(...)                        q̂_r + p̂_r: observed first-token rate when the model has enough recent
                                                 completions, else the prefill sum (F2.5, decision D17)
+  rotation_cost(weights_gb, table)              Ĉ_rot: real swap time (decision -> entering model ready), measured in
+                                                F5.0a (reports/registro/c_rot.json), by weights, linear between sizes
+  load_rotation_table(path, preempt)            that table, with or without preemption, or None (A9.2, F6)
   RateEstimator                                 λ̂_m: exponentially weighted arrival rate over a short and a long
                                                 window; the short one is used while it is well above (a burst) or,
                                                 with symmetric=True (default), well below (a lull) the long one
@@ -18,6 +21,30 @@ import math
 
 def activation_cost(weights_gb, ahead, coef):
     return coef["a"] + coef["b"] * weights_gb + coef["c"] * ahead
+
+
+def rotation_cost(weights_gb, table):
+    """Ĉ_rot(m): table {weights_gb: seconds}; linear between the measured sizes, constant outside them."""
+    pts = sorted(table.items())
+    if weights_gb <= pts[0][0]:
+        return pts[0][1]
+    for (w0, c0), (w1, c1) in zip(pts, pts[1:]):
+        if weights_gb <= w1:
+            return c0 + (c1 - c0) * (weights_gb - w0) / (w1 - w0)
+    return pts[-1][1]
+
+
+def load_rotation_table(path, preempt):
+    """{weights_gb: Ĉ_rot} from c_rot.json (F5.0a): with preemption the 'por_pesos_gb' c_rot (preempted victim's exit
+    + a controller cycle + Ĉ_at), without it the measured median of 'sem_preempcao'. None if the file is missing."""
+    import json
+    import os
+    if not path or not os.path.exists(path):
+        return None
+    with open(path) as f:
+        d = json.load(f)
+    src = d["por_pesos_gb"] if preempt else d["sem_preempcao"]["por_pesos_gb"]
+    return {float(w): float(v["c_rot"]) for w, v in src.items()}
 
 
 def prefill_time(tokens, coef):

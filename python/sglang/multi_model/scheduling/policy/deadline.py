@@ -22,6 +22,19 @@ the snapshot, so tests/policy/ checks the decisions on hand-built states (sectio
               Otherwise, in decreasing VLT, models are placed in free memory; the ones that do not fit and have
               VLT > 0 rotate in (at most `budget` rotations in flight) by evicting the active models with the most
               negative VLT (active longest) that were resident for ≥ min_residency.
+  lvf_select with Params.cost_aware: A9.2 "residency-aware lag" (F6, 2026-11-09; references R2 Clockwork §5.3 and
+              R8 GreedyDual-Size in reports/registro/referencias.md). A9.1 scores an active model only by how long it
+              has been active, so it evicted busy models (F6a H3). A9.2 gives every model the same lag measure, the
+              largest lag of its waiting requests at a time t', lag_m(t'), and uses the measured swap time Ĉ_rot
+              (c_rot.json, with or without preemption, as the policy runs):
+                gain of an inactive model    G_m = lag_m(now + Ĉ_rot(m))  (when its requests can start if it
+                                             rotates in now: only demand that still benefits counts, Clockwork)
+                cost of evicting an active v K_v = 0 if it has nothing waiting or running; else
+                                             max(lag_v(now + Ĉ_rot(v)) of its waiting requests (they wait for it to
+                                             come back), and, with preemption, α·ReLU(Ĉ_rot(v) − β_B·SLO_TPOT) for
+                                             its running requests, which restart from the prompt)
+              m rotates in only if G_m > K_v + margin for every victim taken; victims in increasing K_v per GB freed
+              (GreedyDual-Size: evict the one cheapest to bring back per unit of size), then active longest.
 
 Memory: a model needs need_gb (weights + activation headroom + max(R2.1 KV pages, A1.1 reserve), computed by the
 caller) of free memory on one GPU. A victim frees free_gb (weights + KV of its running requests). Activations are
@@ -54,6 +67,7 @@ class ModelSnap:
     running: int = 0
     active_since: Optional[float] = None
     c_at: float = 0.0  # Ĉ_at(m) (s)
+    c_rot: float = 0.0  # Ĉ_rot(m) (s): measured swap time, with or without preemption as the policy runs (A9.2)
     reserved: bool = False  # victims were evicted for it and it is not active yet: placed first
     cooldown: bool = False  # a rotation for it happened recently: no new rotation for it
     blocked: bool = False  # active but already being evicted this cycle (idle eviction): not a victim
@@ -82,6 +96,9 @@ class Params:
     tpot_slo: float = 0.0  # SLO_TPOT for the β_B term (not known to the controller; with β_B = 0 it does not matter)
     budget: int = 1  # rotations in flight at once (PRISM_LVF_BUDGET / PRISM_EDF_BUDGET)
     min_residency: float = 0.0  # A1.3 T_min (PRISM_MIN_RESIDENCY)
+    cost_aware: bool = False  # A9.2 (PRISM_LVF_COST_AWARE)
+    margin: float = 0.0  # A9.2: G_m must beat K_v by this many seconds (PRISM_LVF_MARGIN)
+    preempt: bool = False  # victims are preempted (PRISM_SWAP_PREEMPT): their running requests restart (A9.2)
 
 
 @dataclasses.dataclass
@@ -126,6 +143,32 @@ def vlt(m: ModelSnap, snap: Snapshot, p: Params) -> float:
         elif r.slo is not None:
             lag = max(lag, max(0.0, snap.now - r.arrival - p.beta_f * r.slo))
     return lag
+
+
+def lag_at(m: ModelSnap, t: float, p: Params) -> float:
+    """A9.2: largest lag of m's waiting requests at time t (A9.1's request lag), whether m is active or not."""
+    lag = 0.0
+    for r in m.waiting:
+        if r.preempted_at is not None:
+            lag = max(lag, p.alpha * max(0.0, t - r.preempted_at - p.beta_b * p.tpot_slo))
+        elif r.slo is not None:
+            lag = max(lag, max(0.0, t - r.arrival - p.beta_f * r.slo))
+    return lag
+
+
+def rotation_gain(m: ModelSnap, snap: Snapshot, p: Params) -> float:
+    """A9.2 G_m: lag of m's requests when they can start if m rotates in now."""
+    return lag_at(m, snap.now + m.c_rot, p)
+
+
+def eviction_cost(v: ModelSnap, snap: Snapshot, p: Params) -> float:
+    """A9.2 K_v: lag that evicting v now imposes on its own requests (they wait one swap for v to come back)."""
+    if not v.waiting and not v.running:
+        return 0.0
+    cost = lag_at(v, snap.now + v.c_rot, p)
+    if p.preempt and v.running:
+        cost = max(cost, p.alpha * max(0.0, v.c_rot - p.beta_b * p.tpot_slo))
+    return cost
 
 
 def _waiting_inactive(snap: Snapshot) -> List[ModelSnap]:
@@ -226,6 +269,8 @@ def edf_select(snap: Snapshot, p: Params) -> Decision:
 
 
 def lvf_select(snap: Snapshot, p: Params) -> Decision:
+    if p.cost_aware:
+        return _lvf_cost_aware(snap, p)
     dec = Decision()
     lag = {}
     for m in snap.models.values():
@@ -250,4 +295,47 @@ def lvf_select(snap: Snapshot, p: Params) -> Decision:
             dec.unplaced.append(m.name)
             continue
         budget -= 1
+    return dec
+
+
+def _lvf_cost_aware(snap: Snapshot, p: Params) -> Decision:
+    """A9.2 (see the module docstring)."""
+    dec = Decision()
+    gain, cost = {}, {}
+    for m in snap.models.values():
+        if m.active:
+            cost[m.name] = eviction_cost(m, snap, p)
+            if m.waiting or m.running:
+                dec.scores[m.name] = {"vlt": round(lag_at(m, snap.now, p), 3), "k": round(cost[m.name], 3),
+                                      "active": True}
+        elif m.waiting or m.running:
+            gain[m.name] = rotation_gain(m, snap, p)
+            dec.scores[m.name] = {"vlt": round(lag_at(m, snap.now, p), 3), "g": round(gain[m.name], 3),
+                                  "active": False}
+    cands = sorted(_waiting_inactive(snap), key=lambda m: (not m.reserved, -gain[m.name]))
+    free = dict(snap.gpu_free)
+    left = _place(cands, free, dec)
+    if not left:  # contention check: everything that waits fits
+        return dec
+
+    budget = p.budget - snap.in_flight
+    victims_by_gpu: Dict[int, List[ModelSnap]] = {}
+    for v in snap.models.values():
+        if _resident_enough(v, snap, p):
+            victims_by_gpu.setdefault(v.gpu, []).append(v)
+    per_gb = lambda v: cost[v.name] / v.free_gb if v.free_gb > 0 else INF
+    for cands_g in victims_by_gpu.values():
+        cands_g.sort(key=lambda v: (per_gb(v), v.active_since if v.active_since is not None else 0.0))
+    for m in left:
+        g = gain[m.name]
+        if budget <= 0 or m.cooldown or g <= 0:
+            dec.unplaced.append(m.name)
+            continue
+        allowed = {gpu: [v for v in vs if cost[v.name] + p.margin < g] for gpu, vs in victims_by_gpu.items()}
+        if not _rotate(m, free, allowed, "lvf", dec):  # same reason text as A9.1 (extract_ovl.py)
+            dec.unplaced.append(m.name)
+            continue
+        budget -= 1
+        taken = {x[0] for x in dec.victims}
+        victims_by_gpu = {gpu: [v for v in vs if v.name not in taken] for gpu, vs in victims_by_gpu.items()}
     return dec

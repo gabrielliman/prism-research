@@ -6,7 +6,7 @@ from typing import Dict, List, Set, Tuple, Optional, DefaultDict
 from collections import defaultdict, deque
 
 from sglang.multi_model.scheduling.decision_log import DecisionLog
-from sglang.multi_model.scheduling.estimators import activation_cost
+from sglang.multi_model.scheduling.estimators import activation_cost, load_rotation_table, rotation_cost
 from sglang.multi_model.scheduling.policy import deadline, structural
 from sglang.multi_model.scheduling.action import (
     ActivateAction,
@@ -204,6 +204,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
         #             (EDF between models); policy/deadline.py edf_select. Knobs PRISM_EDF_FLOOR, PRISM_EDF_BUDGET.
         #   lvf       F6a/A9.1: by SuperInfer's virtual lag time (largest lag first); policy/deadline.py lvf_select.
         #             Knobs PRISM_LVF_ALPHA, PRISM_LVF_BETA_F, PRISM_LVF_BETA_B, PRISM_LVF_BUDGET.
+        #             PRISM_LVF_COST_AWARE=1: A9.2, residency-aware lag with the measured swap cost (PRISM_LVF_MARGIN).
         #             Both: victims are deactivated as the throughput swap's (PRISM_SWAP_PREEMPT),
         #             only after PRISM_MIN_RESIDENCY s resident (A1.3), and a model needs PRISM_KV_RESERVE_REQS
         #             requests' worth of KV on top of its weights to be activated (A1.1). The idle eviction (step 1)
@@ -237,6 +238,19 @@ class SimpleGlobalPolicy(GlobalPolicy):
         self.SWAP_MIN_RESIDENCY = float(os.environ.get("PRISM_SWAP_MIN_RESIDENCY", 20))
         self.SWAP_AGING_S = float(os.environ.get("PRISM_SWAP_AGING_S", 30))
         self.SWAP_PREEMPT = os.environ.get("PRISM_SWAP_PREEMPT", "0") == "1"
+        # A9.2 (F6, 2026-11-09): residency-aware lag (policy/deadline.py _lvf_cost_aware), only with PRISM_EVICTION=lvf.
+        # Ĉ_rot by weights from the F5.0a measurement (PRISM_CROT_FILE, default reports/registro/c_rot.json), with or
+        # without preemption as PRISM_SWAP_PREEMPT; a missing table is an error, not a silent fallback.
+        self.LVF_COST_AWARE = os.environ.get("PRISM_LVF_COST_AWARE", "0") == "1"
+        self.LVF_MARGIN = float(os.environ.get("PRISM_LVF_MARGIN", 0))
+        self.CROT_TABLE = None
+        if self.LVF_COST_AWARE:
+            root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.dirname(os.path.abspath(__file__)))))))
+            path = os.environ.get("PRISM_CROT_FILE", os.path.join(root, "reports", "registro", "c_rot.json"))
+            self.CROT_TABLE = load_rotation_table(path, self.SWAP_PREEMPT)
+            if self.CROT_TABLE is None:
+                raise FileNotFoundError(f"PRISM_LVF_COST_AWARE=1 needs the swap-cost table {path} (F5.0a)")
         for removed in ("PRISM_SWAP_DRAIN", "PRISM_SWAP_DRAIN_TIMEOUT"):
             if os.environ.get(removed, "0") not in ("", "0"):
                 # an old suite would otherwise run a different configuration without noticing
@@ -1139,6 +1153,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                 waiting=waiting, running=running,
                 active_since=self.active_since.get(name) if gpu is not None else None,
                 c_at=activation_cost(weights, ahead, self.CAT_COEF),
+                c_rot=rotation_cost(weights, self.CROT_TABLE) if self.CROT_TABLE else 0.0,
                 # in flight = victims evicted for it and its activation not sent yet (ACTIVATING counts as active
                 # here, so the rotation cap does not wait for the load; same as before D45)
                 reserved=gpu is None and self._reserved(name, now),
@@ -1167,7 +1182,9 @@ class SimpleGlobalPolicy(GlobalPolicy):
             dec = deadline.edf_select(snap, params)
         else:
             params = deadline.Params(alpha=self.LVF_ALPHA, beta_f=self.LVF_BETA_F, beta_b=self.LVF_BETA_B,
-                                     budget=self.LVF_BUDGET, min_residency=self.MIN_RESIDENCY)
+                                     budget=self.LVF_BUDGET, min_residency=self.MIN_RESIDENCY,
+                                     cost_aware=self.LVF_COST_AWARE, margin=self.LVF_MARGIN,
+                                     preempt=self.SWAP_PREEMPT)
             dec = deadline.lvf_select(snap, params)
         self.dlog.policy(self.EVICTION, dec.scores, in_flight=snap.in_flight, rotated_for=dec.rotated_for)
         for name in dec.rotated_for:

@@ -1,6 +1,7 @@
 #!/bin/bash
-# F6.0 suites (D31, D32, D49): deadline policies A2.1 (EDF between models, PRISM_EVICTION=edf) and A9.1 (Virtual Lag
-# Time, PRISM_EVICTION=lvf) x SLO levels {S3 kA=5, S6 kR=1, 2, 4} x {without (p0), with (p1) preemption}, against the F5
+# F6.0 suites (D31, D32, D49): deadline policies A2.1 (EDF between models, PRISM_EVICTION=edf), A9.1 (Virtual Lag
+# Time, PRISM_EVICTION=lvf) and A9.2 (residency-aware lag, arm name lvfr: PRISM_EVICTION=lvf PRISM_LVF_COST_AWARE=1,
+# asked by Gabriel 2026-11-09) x SLO levels {S3 kA=5, S6 kR=1, 2, 4} x {without (p0), with (p1) preemption}, against the F5
 # baselines, all with A1 (D38) and in the same job (rule 3). One job = one workload x one repetition.
 #   A0.2_A1   idle threshold 10 s + A1 (best F5 baseline on SLO)
 #   A0.4      throughput swap, no preemption, headroom 0 + A1 (best F5 baseline on tail / waits)
@@ -36,13 +37,14 @@ declare -A ENV=(
 )
 declare -A SLO=([S3k5]="S3:kA=5,kD=5" [S6k1]="S6:kR=1,kD=5" [S6k2]="S6:kR=2,kD=5" [S6k4]="S6:kR=4,kD=5")
 UNITS=(${F60_BASE:-A0.2_A1 A0.4})
-for pol in edf lvf; do for lv in S3k5 S6k1 S6k2 S6k4; do UNITS+=("$pol:$lv"); done; done
+for pol in ${F60_POLICIES:-edf lvf lvfr}; do for lv in S3k5 S6k1 S6k2 S6k4; do UNITS+=("$pol:$lv"); done; done
 arm() {  # name<TAB>vars of one arm
   local w=$1 name=$2
   if [[ $name == *_p[01] ]]; then
-    local pol=${name%%_*} rest=${name#*_}; local lv=${rest%_p*} p=${name##*_p}
+    local pol=${name%%_*} rest=${name#*_}; local lv=${rest%_p*} p=${name##*_p} ev
+    ev=$([ "$pol" = lvfr ] && echo "lvf PRISM_LVF_COST_AWARE=1" || echo "$pol")
     printf '%s\t%s PRISM_EVICTION=%s PRISM_SWAP_PREEMPT=%s PRISM_ACTIVATION_HEADROOM_GB=0 %s PRISM_OVL_SLO_SPEC=%s\n' \
-      "$name" "${W[$w]}" "$pol" "$p" "$A1" "${SLO[$lv]}"
+      "$name" "${W[$w]}" "$ev" "$p" "$A1" "${SLO[$lv]}"
   else
     printf '%s\t%s %s\n' "$name" "${W[$w]}" "${ENV[$name]}"
   fi

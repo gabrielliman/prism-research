@@ -647,3 +647,17 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
    F6.0: um nível curto da A0.4p com `PRISM_TRACE_RIDS=1`, correção, teste unitário e verificação de que as entradas
    presas somem.
 5. **Próxima sessão:** a F6 começa numa sessão nova (pedido do Gabriel), a partir do commit que registra esta decisão.
+
+## D50 — F6.0: T3 entra, nova variante A9.2 do VLT ciente da residência (2026-11-09, Gabriel)
+
+1. **T3 (trace Azure Functions) entra na F6.0** como quarta carga, ao lado de C1 com 10 modelos, T1 e C6 com 14
+   modelos (pedido do Gabriel). Relevância pela F5: melhor linha de base 66% (S3 `k_A` = 5) e 71% (S6 `k_R` = 1) só
+   TTFT, 29–54% das violações evitáveis.
+2. **Nova política A9.2 na F6.0** (pedido do Gabriel: "o VLT não olhava se o modelo estava ativo ou não"): mesma medida
+   de atraso para modelos ativos e inativos, com o tempo real da troca `Ĉ_rot` (F5.0a); ganho `G_m` do modelo que entra,
+   custo `K_v` da vítima (inclui as requisições rodando que recomeçam com preempção), troca só se `G_m > K_v + margem`,
+   vítimas pelo menor custo por GB. Desenho no `PLANO_AGENTE.md` (A9.2), apoio na literatura em R2 (Clockwork, adendo)
+   e R8 (GreedyDual-Size). Código `policy/deadline.py` `_lvf_cost_aware`, `PRISM_EVICTION=lvf PRISM_LVF_COST_AWARE=1`,
+   19 testes. Roda nos mesmos 4 níveis de SLO × {sem, com preempção}.
+3. **Pendente (Gabriel):** go da campanha e a escolha das linhas de base (proposta do agente: A0.2+A1 e A0.4 em todo
+   job como referência pareada, A0.4p fora).
