@@ -50,7 +50,7 @@ arm() {  # name<TAB>vars of one arm
     printf '%s\t%s %s\n' "$name" "${W[$w]}" "${ENV[$name]}"
   fi
 }
-rm -f "$HERE"/configs/f60_*_suite.tsv
+rm -f "$HERE"/configs/f60_*_o*_suite.tsv
 Q="$HERE/configs/f60_queue.tsv"
 echo "# F6.0 (polyaxon/f6_0_suites.sh): suffix<TAB>suite; ${#WORKLOADS[@]} workloads x $REPS reps" > "$Q"
 n=${#UNITS[@]}
