@@ -670,4 +670,7 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
    quebra o driver é o C1 com 14–19 modelos ao lado de outro job que troca muito, e esse continua sozinho no nó. Na F6.0
    só a combinação C6 14 + T1 12 + T3 12 = 38 passaria de 36; ficam o limite de 3 jobs e a interrupção no K1.
    `f4_driver_start.sh f60` usa `F4_MAX_WORKERS=0`. Ganho: ~1,5–2 h (estimativa ~13–17 h em vez de ~15–19 h).
-5. **Pendente:** go para submeter (smoke `f60_smoke_suite.tsv`, depois `bash polyaxon/f4_driver_start.sh f60`).
+5. **Go (Gabriel, 2026-11-09):** smoke `f60_smoke_suite.tsv`, depois `bash polyaxon/f4_driver_start.sh f60`.
+6. **Reexecuções sem perguntar (Gabriel, 2026-11-09):** a partir da F6.0, o agente refaz por conta própria um job
+   inválido (K1, INVALIDA_*), sempre inteiro (regra 3), e depois avisa e reporta os erros (causa, motivo do validador,
+   IDs). Substitui o "sem reexecução automática: o Gabriel decide" da F5.
