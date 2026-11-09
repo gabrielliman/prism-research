@@ -4,6 +4,6 @@ f60-t1-1	polyaxon/configs/f60_T1_o1_suite.tsv	e76d8f6f19ff47d9bf166e5f654d5f7e	2
 f60-c6n14-1	polyaxon/configs/f60_C6n14_o1_suite.tsv	8fddfa0e02a6424fa10dfd376dedb84d	2026-11-09 10:18	succeeded	1
 f60-t3-1	polyaxon/configs/f60_T3_o1_suite.tsv	94336234257c4c4a94600a503a2dd438	2026-11-09 13:23	succeeded	1
 f60-c1n10-2	polyaxon/configs/f60_C1n10_o2_suite.tsv	7db761f468174089805f7b34e3012757	2026-11-09 15:13	succeeded	1
-f60-t1-2	polyaxon/configs/f60_T1_o2_suite.tsv	e55ad2f33bc2465b9f6de9f8c50b414a	2026-11-09 15:19	running	0
+f60-t1-2	polyaxon/configs/f60_T1_o2_suite.tsv	e55ad2f33bc2465b9f6de9f8c50b414a	2026-11-09 15:19	succeeded	1
 f60-c6n14-2	polyaxon/configs/f60_C6n14_o2_suite.tsv	4438942291a841599ece620609532f1a	2026-11-09 18:07	running	0
-f60-t3-2	polyaxon/configs/f60_T3_o2_suite.tsv	ef7ff04e35fa463b904b29c8907091e5	2026-11-09 18:19	created	0
+f60-t3-2	polyaxon/configs/f60_T3_o2_suite.tsv	ef7ff04e35fa463b904b29c8907091e5	2026-11-09 18:19	running	0
