@@ -20,6 +20,12 @@ elif [ "${1:-}" = f5smoke ] || [ "${1:-}" = f5 ]; then  # F5.1 smoke / campaign 
     F4_RAW=/mnt/scratch/scheduler/prism-raw/F5/$k F4_VAL=reports/data/F05/$k/validador F4_TIMEOUT=14400 \
     F4_MAX_WORKERS=36 F4_EXCLUSIVE='_C1n1[49]_'  # D47 worker budget; D48 C1 14/19 models alone on the node
   log=reports/data/F05/$k/driver.log
+elif [ "${1:-}" = f60 ]; then  # F6.0 (polyaxon/f6_0_suites.sh): 19 levels per job, up to ~5 h; 10+12+14 = 36 workers
+  mkdir -p reports/data/F06/f60/validador
+  export F4_QUEUE=polyaxon/configs/f60_queue.tsv F4_STATE=reports/data/F06/f60/jobs.tsv \
+    F4_RAW=/mnt/scratch/scheduler/prism-raw/F6/f60 F4_VAL=reports/data/F06/f60/validador F4_TIMEOUT=25200 \
+    F4_MAX_WORKERS=36
+  log=reports/data/F06/f60/driver.log
 fi
 setsid nohup /mnt/scratch/scheduler/opt-env/bin/python polyaxon/f4_driver.py >> "$log" 2>&1 < /dev/null &
 echo "driver pid $! (log $log)"
