@@ -36,7 +36,7 @@ sys.path.insert(0, str(HERE))
 import slo_metrics as sm  # noqa: E402
 from f5_analysis import extract, events, tail, write_csv  # noqa: E402
 
-LEVELS = {"S3k5": "S3:kA=5,kD=5", "S6k1": "S6:kR=1,kD=5", "S6k4": "S6:kR=4,kD=5"}
+LEVELS = {"S3k5": "S3:kA=5,kD=5", "S6k1": "S6:kR=1,kD=5", "S6k2": "S6:kR=2,kD=5", "S6k4": "S6:kR=4,kD=5"}
 REFS = {"S2k10": "S2:kT=10,kD=5", "S1": "S1:ttft=1,tpot=0.1"}
 BASES = ["A0.2_A1", "A0.4"]
 POLICIES = ["edf", "lvf", "lvfr"]
@@ -52,7 +52,7 @@ def workload_rep(job):
 
 
 def parse_config(cfg):
-    m = re.match(r"(edf|lvfr|lvfp|lvf|loss|value|pred)_(S3k5|S6k1|S6k4)_p([01s])$", cfg)
+    m = re.match(r"(edf|lvfr|lvfp|lvf|loss|value|pred)_(S3k5|S6k1|S6k2|S6k4)_p([01s])$", cfg)
     # preemption: 0 without, 1 with (global), 2 decided per swap (A9.4, F6.16)
     return (m.group(1), m.group(2), 2 if m.group(3) == "s" else int(m.group(3))) if m else (cfg, None, None)
 

@@ -1,0 +1,21 @@
+# F6.15 confirmation (polyaxon/f6_15_suites.sh): suffix<TAB>suite; 4 workloads x 5 reps
+f615-c1n10-1	polyaxon/configs/f615_C1n10_o1_suite.tsv
+f615-t1-1	polyaxon/configs/f615_T1_o1_suite.tsv
+f615-c6n14-1	polyaxon/configs/f615_C6n14_o1_suite.tsv
+f615-t3-1	polyaxon/configs/f615_T3_o1_suite.tsv
+f615-c1n10-2	polyaxon/configs/f615_C1n10_o2_suite.tsv
+f615-t1-2	polyaxon/configs/f615_T1_o2_suite.tsv
+f615-c6n14-2	polyaxon/configs/f615_C6n14_o2_suite.tsv
+f615-t3-2	polyaxon/configs/f615_T3_o2_suite.tsv
+f615-c1n10-3	polyaxon/configs/f615_C1n10_o3_suite.tsv
+f615-t1-3	polyaxon/configs/f615_T1_o3_suite.tsv
+f615-c6n14-3	polyaxon/configs/f615_C6n14_o3_suite.tsv
+f615-t3-3	polyaxon/configs/f615_T3_o3_suite.tsv
+f615-c1n10-4	polyaxon/configs/f615_C1n10_o4_suite.tsv
+f615-t1-4	polyaxon/configs/f615_T1_o4_suite.tsv
+f615-c6n14-4	polyaxon/configs/f615_C6n14_o4_suite.tsv
+f615-t3-4	polyaxon/configs/f615_T3_o4_suite.tsv
+f615-c1n10-5	polyaxon/configs/f615_C1n10_o5_suite.tsv
+f615-t1-5	polyaxon/configs/f615_T1_o5_suite.tsv
+f615-c6n14-5	polyaxon/configs/f615_C6n14_o5_suite.tsv
+f615-t3-5	polyaxon/configs/f615_T3_o5_suite.tsv
