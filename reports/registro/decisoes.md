@@ -710,3 +710,9 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
   interessam; com a análise, a confirmação de 5 repetições (F6.15) é montada depois.
 - Antes de implementar: busca na literatura de cada política (registrada em `referencias.md`) e desenho curto para
   aprovação do Gabriel.
+- **Desenhos aceitos (Gabriel, 2026-11-10):** A9.4 (preemptar por troca se salvas ≥ 3 × perdidas, R10 Shepherd), A3.1
+  (ganho − perda em requisições viáveis > 0, vítimas por perda/GB), A10.1 (troca por throughput só para modelos com
+  requisição viável depois de uma troca real), A2.3 (custo de despejo da A9.2 + chegada esperada durante a ausência,
+  R7). **A A9.2 sem preempção entra como referência.** Por job: A0.2+A1, A0.4 e 5 políticas × {S3 `k_A`=5, S6 `k_R`=1}
+  = 12 níveis; 4 cargas × 2 repetições = 8 jobs (`polyaxon/f6_16_suites.sh`, `f4_driver_start.sh f616`). Testes:
+  `tests/policy/test_f616.py` (16), 175 no total.
