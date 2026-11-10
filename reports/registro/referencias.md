@@ -13,8 +13,10 @@ antes de ser tomada, e cita as entradas daqui em `decisoes.md`.
 | R4 | SuperInfer (MLSys'26) | A9 (D4) |
 | R5 | MuxServe (ICML'24) | D44 item 2; D46 item 2 |
 | R6 | Aegaeon (SOSP'25) | D46 item 3; desenho da F6.0 (hipótese do S3, D49) |
-| R7 | Serverless in the Wild (ATC'20) | D46 item 3 |
+| R7 | Serverless in the Wild (ATC'20) | D46 item 3; desenho da F6.16: A2.3 |
 | R8 | GreedyDual-Size (USITS'97) | A9.2 (vítima pelo custo de voltar por GB) |
+| R9 | QLM (SoCC'24) | desenho da F6.16: A3.1, A10.1 (troca e despejo guiados pela estimativa de espera contra o SLO) |
+| R10 | Shepherd (NSDI'23) | desenho da F6.16: A9.4 (preemptar só se o ganho for λ vezes a perda) |
 
 ## R1 — Prism: Unleashing GPU Sharing for Cost-Efficient Multi-LLM Serving
 
@@ -142,6 +144,18 @@ Shahrad et al., USENIX ATC 2020. arXiv 2003.03423: <https://arxiv.org/abs/2003.0
   FaaS a memória ociosa custa dinheiro; aqui ela custa SLO de quem espera, por isso `ocio_residente_demanda` (só
   quando há fila) continua como a métrica principal.
 
+### R7 — adendo (2026-11-10, A2.3)
+
+- **Verificado (PDF, §4.2 "Hybrid Histogram Policy"):** por aplicação, um histograma dos tempos ociosos (ITs) entre
+  invocações; "We use the head to select the pre-warming window for the application, and the tail to select the
+  keep-alive window", com cabeça e cauda "by default [at] the 5th- and 99th-percentiles of the IT distribution" e "a 10%
+  'margin'"; quando o histograma não é representativo (poucos ITs ou comportamento mudando), volta a um keep-alive
+  padrão; previsão por série temporal (ARIMA) quando a maioria dos ITs cai fora do histograma.
+- **Por que foi adicionada:** sustenta a A2.3 (residência preditiva): decidir quanto manter um modelo carregado pelo
+  padrão de chegadas do próprio modelo, e não por um limiar fixo (os 10 s da A0.2). Diferença: lá a carga é barata e a
+  memória sobra; aqui a decisão só importa sob disputa de memória, por isso a A2.3 entra no custo de despejo, não como
+  pré-aquecimento.
+
 ## R8 — Cost-Aware WWW Proxy Caching Algorithms (GreedyDual-Size)
 
 Cao e Irani, USENIX USITS 1997, pp. 193–206.
@@ -153,3 +167,32 @@ Cao e Irani, USENIX USITS 1997, pp. 193–206.
 - **Por que foi adicionada:** sustenta a escolha de vítima da A9.2: despejar primeiro o modelo cujo retorno custa
   menos por GB liberado (`K_v / GB`); um modelo sem nada para fazer custa 0 e sai primeiro. Diferença declarada: não
   usamos o envelhecimento `L`, porque `K_v` já cresce com o atraso das requisições do modelo.
+
+## R9 — Queue Management for SLO-Oriented Large Language Model Serving (QLM)
+
+Patke et al., ACM SoCC 2024. <https://arxiv.org/abs/2407.00047> (versão HTML v2 lida).
+
+- **Verificado (§2.4, §3.1, §5, §6, §7):** um estimador de espera (RWT) estima "the waiting time ... by dividing the total
+  number of output tokens for the pending requests" e um limite superior do tempo de conclusão; "Request eviction is
+  invoked when the RWT estimator detects an SLO violation" e as requisições em execução voltam à fila global (o KV vai
+  para a CPU); grupos de requisições do mesmo modelo e SLO numa fila virtual por instância, reordenados por um programa
+  linear para maximizar o SLO, com penalidade "the difference between the waiting time and the SLO value"; o modelo da
+  cabeça da fila fica na GPU e o custo de troca entra como "swap times associated with transferring model weights into
+  GPU memory". Não há regra explícita de quando trocar além da ordem da fila.
+- **Por que foi adicionada:** apoia A3.1 e A10.1: decidir troca e despejo pela espera estimada contra o prazo de cada
+  requisição, contando o custo real da troca. Diferença: o QLM ordena grupos por um LP; nós usamos regras gulosas por
+  ciclo (5 s) com o custo medido da troca.
+
+## R10 — SHEPHERD: Serving DNNs in the Wild
+
+Zhang, Tang, Khandelwal e Stoica, USENIX NSDI 2023, pp. 787–808. <https://www.usenix.org/conference/nsdi23/presentation/zhang-hong>
+
+- **Verificado (PDF, §3.1, §5, Theorem 5.1, Theorem 5.2):** "preempting a scheduled batch requires carefully weighing the
+  utility brought by the scheduled batch of requests against the utility of the new batch"; regra do FLEX: "If the
+  generated batch is λ times larger than currently running batch, the current batch is preempted"; as requisições
+  preemptadas que ainda cumprem o SLO voltam à fila; "the preempted work does not contribute to system goodput"; o λ
+  ótimo para a razão competitiva é "λ ≈ 3.03"; Theorem 5.1: nenhum algoritmo determinístico sem preempção tem razão
+  competitiva constante.
+- **Por que foi adicionada:** sustenta a regra de preemptar por troca da A9.4: preemptar só quando o que se salva com a
+  preempção é λ vezes o que se perde (as requisições em execução da vítima, que recomeçam do prompt), com λ = 3 como
+  padrão.
