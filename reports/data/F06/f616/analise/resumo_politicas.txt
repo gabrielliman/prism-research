@@ -1,0 +1,28 @@
+jobs: 8
+
+=== tight ~7 s
+                           total %  worst quarter %  worst model %   Jain  worst-model p90 s  max wait s TTFT p50/p90 s  rotations
+policy                                                                                                                            
+idle eviction 10 s            70.0              8.0            1.0  0.718              419.0       463.0          2/117        0.0
+throughput swap               57.0             26.0           22.0  0.855               97.0       142.0           4/42       60.0
+A9.4 VLT per-swap preempt     51.0             32.0           27.0  0.908              115.0       140.0           8/77       40.0
+VLT residency (ref.)          51.0             32.0           27.0  0.914              115.0       136.0           7/71       42.0
+A2.3 predictive               49.0             20.0           13.0  0.820              126.0       153.0           9/85       40.0
+
+=== one swap ~16 s
+                           total %  worst quarter %  worst model %   Jain  worst-model p90 s  max wait s TTFT p50/p90 s  rotations
+policy                                                                                                                            
+idle eviction 10 s            74.0              9.0            2.0  0.735              419.0       463.0          2/117        0.0
+throughput swap               68.0             36.0           30.0  0.908               97.0       142.0           4/42       60.0
+A9.4 VLT per-swap preempt     55.0             36.0           33.0  0.934              126.0       150.0          11/81       41.0
+VLT residency (ref.)          54.0             38.0           34.0  0.939              121.0       145.0          13/77       42.0
+A2.3 predictive               56.0             29.0           23.0  0.871              115.0       148.0           9/77       40.0
+
+=== four swaps ~63 s
+                      total %  worst quarter %  worst model %   Jain  worst-model p90 s  max wait s TTFT p50/p90 s  rotations
+policy                                                                                                                       
+idle eviction 10 s       85.0             20.0            9.0  0.804              419.0       463.0          2/117        0.0
+throughput swap          96.0             79.0           73.0  0.990               97.0       142.0           4/42       60.0
+A3.1 expected loss       90.0             59.0           49.0  0.937              245.0       290.0           2/69       39.0
+VLT residency (ref.)     84.0             72.0           67.0  0.986              109.0       129.0          10/73       40.0
+A10.1 value              95.0             80.0           74.0  0.990              103.0       126.0           6/48       56.0
