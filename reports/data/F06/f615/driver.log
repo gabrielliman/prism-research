@@ -17,3 +17,5 @@
 17:24:10 submitted f615-t3-2 f65ab1f7 (3 active, 38 workers)
 18:55:34 f615-t1-2: reports/data/F06/f615/validador/f615-t1-2.csv: 15 levels; VALIDA 15, INVALIDA_INFRA 0, INVALIDA_SISTEMA 0
 18:55:40 submitted f615-c1n10-3 da493cde (3 active, 36 workers)
+21:18:33 f615-c6n14-2: reports/data/F06/f615/validador/f615-c6n14-2.csv: 15 levels; VALIDA 15, INVALIDA_INFRA 0, INVALIDA_SISTEMA 0
+21:18:39 submitted f615-t1-3 ea6c674d (3 active, 34 workers)
