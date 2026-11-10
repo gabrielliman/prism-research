@@ -700,3 +700,13 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
    (o plano pede 5).
 4. **Gate da F6.0: APROVADO** com as mudanças acima. Antes de implementar a A9.4 ou rodar qualquer coisa, o agente
    apresenta o que falta do plano.
+
+## D53 — Triagem das políticas novas antes da confirmação (2026-11-10, Gabriel)
+
+- Para gastar menos GPU, implementar várias políticas antes de rodar: A9.4 (VLT residência com preemptar ou não por
+  troca, D52), A3.1 (despejo por perda esperada), A10.1 (troca por valor: filtro por prazo, escolha por throughput) e
+  A2.3 (residência preditiva).
+- **Primeiro uma triagem:** só as políticas novas e as linhas de base (A0.2+A1, A0.4), **2 repetições**, para ver quais
+  interessam; com a análise, a confirmação de 5 repetições (F6.15) é montada depois.
+- Antes de implementar: busca na literatura de cada política (registrada em `referencias.md`) e desenho curto para
+  aprovação do Gabriel.
