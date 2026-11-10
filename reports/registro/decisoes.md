@@ -721,3 +721,12 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
   real (~15,7 s num 8B), e nenhuma é. Passam a rodar no S6 `k_R`=4 (~63 s), com um nível da A9.2 ali como referência;
   A9.4 e A2.3 seguem no S3 `k_A`=5 e no S6 `k_R`=1. Por job: 11 níveis. Antes da campanha, smoke 2 (A9.4 no S6
   `k_R`=1, A3.1 e A10.1 no S6 `k_R`=4) para confirmar que agem.
+
+## D54 — Resultado da triagem F6.16 e escopo da confirmação (2026-11-10, Gabriel)
+
+- Triagem (`reports/fases/F06_16_triagem_politicas_novas.md`, 88/88 VALIDA): nenhuma política nova melhora as que já
+  tínhamos; A9.4 com λ = 3 é a A9.2 na prática (preemptou 13 de 343 trocas com vítima ocupada), A2.3 e A3.1 são menos
+  justas que a A9.2, A10.1 é a A0.4 no S6 `k_R`=4.
+- **Confirmação F6.15, 5 repetições:** A9.2 e A2.1 sem preempção, e **A9.4 com λ = 1** (preemptar se salvas ≥ perdidas),
+  contra A0.2+A1 e A0.4, nos prazos S3 `k_A`=5, S6 `k_R`=1, **S6 `k_R`=2** (acrescentado pelo Gabriel) e S6 `k_R`=4;
+  A2.1 com preempção no S6 `k_R`=4 (D52). Saem A2.3, A3.1 e A10.1. Objetivo: justiça sem grande perda de SLO (D52).
