@@ -2,7 +2,8 @@ suffix	suite	uuid	submitted_utc	status	downloaded
 f616-c1n10-1	polyaxon/configs/f616_C1n10_o1_suite.tsv	dde876d0cc404166a125da20e63256d0	2026-11-10 01:25	succeeded	1
 f616-t1-1	polyaxon/configs/f616_T1_o1_suite.tsv	d258a0ffed2c4c6d933e48fdfc65b58c	2026-11-10 01:25	succeeded	1
 f616-c6n14-1	polyaxon/configs/f616_C6n14_o1_suite.tsv	839d7581526d4ab5833a3677a7bffba9	2026-11-10 01:25	succeeded	1
-f616-t3-1	polyaxon/configs/f616_T3_o1_suite.tsv	de83768806c0403a8074d349a4b3c3ef	2026-11-10 03:09	running	0
+f616-t3-1	polyaxon/configs/f616_T3_o1_suite.tsv	de83768806c0403a8074d349a4b3c3ef	2026-11-10 03:09	succeeded	1
 f616-c1n10-2	polyaxon/configs/f616_C1n10_o2_suite.tsv	70d66a574e4c4cc1a655717bb9d752da	2026-11-10 04:01	succeeded	1
 f616-t1-2	polyaxon/configs/f616_T1_o2_suite.tsv	17633de57ef940b7a8fa0e58ec670f07	2026-11-10 04:11	running	0
-f616-c6n14-2	polyaxon/configs/f616_C6n14_o2_suite.tsv	cf56c543568e4533827523b080a2a89a	2026-11-10 05:42	created	0
+f616-c6n14-2	polyaxon/configs/f616_C6n14_o2_suite.tsv	cf56c543568e4533827523b080a2a89a	2026-11-10 05:42	running	0
+f616-t3-2	polyaxon/configs/f616_T3_o2_suite.tsv	1f479900a9aa4258be32b48108f6c581	2026-11-10 05:46	created	0
