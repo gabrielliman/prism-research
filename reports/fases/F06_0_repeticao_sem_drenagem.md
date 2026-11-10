@@ -199,7 +199,9 @@ Efeito da preempção (com − sem, no mesmo job, só TTFT no nível próprio; T
 | Toda diferença > 2× com explicação mecânica | **OK**: justiça da A0.2+A1 (modelos que começam fora nunca entram enquanto há tráfego); preempção (recomputação) |
 | Sinal para a confirmação (> ~8 pontos sobre a melhor linha de base, ou melhora clara no TTFT p50/p90 sem piorar SLO nem cauda) | **Depende da leitura (decisão do Gabriel)**: nenhuma política ganha 8 pontos de SLO total. Contra a A0.2+A1, todas melhoram muito o p90 e a cauda, mas o SLO total cai (A2.1 e A9.2 sem preempção: IC inclui 0). Contra a A0.4, a A9.2 sem preempção ganha em justiça (pior quarto +8,5 *) sem perda significativa de total, e empata na cauda |
 
-## Decisão do gate: AGUARDANDO REVISÃO
+## Decisão do gate: APROVADO (Gabriel, 2026-11-10, D52)
+
+Objetivo passa a ser justiça entre modelos sem grande perda de SLO; preempção só por troca (nova A9.4), padrão sem preempção; confirmação com A9.2, A2.1 (sem preempção), A9.4 e A2.1 com preempção só no S6 `k_R`=4. As questões abaixo foram as apresentadas ao gate.
 
 Questões para o Gabriel:
 

@@ -685,3 +685,18 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
   mediana; registra o deslocamento (`lag_s`) e a mediana sem alinhamento. Tolerância (2 GB) e a verificação de memória
   acima do total inalteradas. Como o deslocamento 0 está incluído, nenhum nível antes válido passa a inválido.
 - **Efeito:** `f60-c1n10-1` revalidado, 20/20 VALIDA, sem reexecução. Os jobs seguintes já usam o V13 alinhado.
+
+## D52 — Gate da F6.0: objetivo é justiça sem grande perda de SLO; preempção só por troca; confirmação (2026-11-10, Gabriel)
+
+1. **Objetivo (muda a D31 sobre justiça):** "alcançar justiça entre modelos sem grandes perdas de SLO". O pior modelo
+   deixa de ser só observação: as políticas são julgadas pela justiça (pior quarto dos modelos, índice de Jain, p90 do
+   pior modelo) junto com o SLO total e a cauda de espera (D33). Motivo: a F6.0 mostrou que a A0.2+A1 tem o maior SLO
+   total deixando 20 de 96 pares modelo × job abaixo de 10% no prazo.
+2. **Preempção:** não roda mais como chave global. Padrão de todas as políticas: sem preempção. Nova variante do VLT
+   (**A9.4**) que decide preemptar ou não **a cada troca** (pela perda das requisições em execução da vítima, que a A9.2
+   já mede). Preempção que guarda o KV (mudança no SGLang) fica fora por ora.
+3. **Confirmação (aceita a proposta do agente, mais a A9.4):** A9.2 e A2.1 sem preempção, A9.4, contra A0.2+A1 e A0.4,
+   nos níveis S3 `k_A`=5 e S6 `k_R`=1; A2.1 com preempção só no S6 `k_R`=4. Repetições e cargas a definir com o agente
+   (o plano pede 5).
+4. **Gate da F6.0: APROVADO** com as mudanças acima. Antes de implementar a A9.4 ou rodar qualquer coisa, o agente
+   apresenta o que falta do plano.
