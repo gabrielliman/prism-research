@@ -1,0 +1,4 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/loss_S6k4_p0/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6/f616smoke/f616-smoke2,69968c1eb95748fca3df5f92a59e2c2e,f616-smoke2/outputs/loss_S6k4_p0/ovl_mem/rate0.2,VALIDA,,,2026-11-10 01:07:58,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/lvfp_S6k1_ps/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6/f616smoke/f616-smoke2,69968c1eb95748fca3df5f92a59e2c2e,f616-smoke2/outputs/lvfp_S6k1_ps/ovl_mem/rate0.2,VALIDA,,,2026-11-10 01:00:17,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
+outputs/value_S6k4_p0/ovl_mem/rate0.2,/mnt/scratch/scheduler/prism-raw/F6/f616smoke/f616-smoke2,69968c1eb95748fca3df5f92a59e2c2e,f616-smoke2/outputs/value_S6k4_p0/ovl_mem/rate0.2,VALIDA,,,2026-11-10 01:15:39,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
