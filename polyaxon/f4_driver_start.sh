@@ -26,6 +26,12 @@ elif [ "${1:-}" = f60 ]; then  # F6.0 (polyaxon/f6_0_suites.sh): 20 levels per j
     F4_RAW=/mnt/scratch/scheduler/prism-raw/F6/f60 F4_VAL=reports/data/F06/f60/validador F4_TIMEOUT=36000 \
     F4_MAX_WORKERS=0  # D50: no worker budget (D48: K1 is not the worker count); 3 jobs max still (F4_MAX_ACTIVE)
   log=reports/data/F06/f60/driver.log
+elif [ "${1:-}" = f616 ]; then  # F6.16 screening (polyaxon/f6_16_suites.sh): 12 levels per job, up to ~4 h
+  mkdir -p reports/data/F06/f616/validador
+  export F4_QUEUE=polyaxon/configs/f616_queue.tsv F4_STATE=reports/data/F06/f616/jobs.tsv \
+    F4_RAW=/mnt/scratch/scheduler/prism-raw/F6/f616 F4_VAL=reports/data/F06/f616/validador F4_TIMEOUT=25200 \
+    F4_MAX_WORKERS=0  # D50: no worker budget; 3 jobs max (F4_MAX_ACTIVE)
+  log=reports/data/F06/f616/driver.log
 fi
 setsid nohup /mnt/scratch/scheduler/opt-env/bin/python polyaxon/f4_driver.py >> "$log" 2>&1 < /dev/null &
 echo "driver pid $! (log $log)"

@@ -47,13 +47,14 @@ OTHER = ("ttft_p50", "ttft_p90", "espera_max")
 
 
 def workload_rep(job):
-    m = re.match(r"f60-(\w+?)-(\d+)[a-z]?$", job)
+    m = re.match(r"f6\d*-(\w+?)-(\d+)[a-z]?$", job)
     return {"c1n10": "C1n10", "t1": "T1", "c6n14": "C6n14", "t3": "T3"}[m.group(1)], int(m.group(2))
 
 
 def parse_config(cfg):
-    m = re.match(r"(edf|lvfr|lvf)_(S3k5|S6k1|S6k4)_p([01])$", cfg)
-    return (m.group(1), m.group(2), int(m.group(3))) if m else (cfg, None, None)
+    m = re.match(r"(edf|lvfr|lvfp|lvf|loss|value|pred)_(S3k5|S6k1|S6k4)_p([01s])$", cfg)
+    # preemption: 0 without, 1 with (global), 2 decided per swap (A9.4, F6.16)
+    return (m.group(1), m.group(2), 2 if m.group(3) == "s" else int(m.group(3))) if m else (cfg, None, None)
 
 
 def level(args):
