@@ -8,7 +8,7 @@
 #   loss_<lv>_p0     A3.1 expected deadline loss
 #   value_<lv>_p0    A10.1 throughput swap restricted to waiting models with a viable request
 #   pred_<lv>_p0     A2.3 = A9.2 + predictive residency (expected arrival while away)
-# Levels (<lv>): S3k5 (S3 kA=5, ~7 s for an 8B) and S6k1 (S6 kR=1, ~16 s): the deadline is sent per request
+# Levels (<lv>): S3k5 (S3 kA=5, ~7 s for an 8B), S6k1 (S6 kR=1, ~16 s), S6k4 (~63 s): the deadline is sent per request
 # (PRISM_OVL_SLO_SPEC; kD = 5 only in the metrics). The baselines do not depend on it and run once per job.
 # Order: units = baselines and policies (each policy's two levels back to back); the unit order rotates by 3 per
 # repetition. Writes polyaxon/configs/f616_<W>_o<rep>_suite.tsv and the driver queue polyaxon/configs/f616_queue.tsv.
@@ -16,7 +16,9 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPS=${F616_REPS:-2}
 WORKLOADS=(${F616_WORKLOADS:-C1n10 T1 C6n14 T3})
-LEVELS=(${F616_LEVELS:-S3k5 S6k1})
+# levels per policy (D53, smoke f616-smoke 807890d9): A3.1 and A10.1 only swap for requests still viable after a real swap
+# (~15.7 s for an 8B), which never happens at S3 kA=5 or S6 kR=1, so they run at S6 kR=4 (~63 s), with an A9.2 reference there
+declare -A LVLS=([lvfr]="S3k5 S6k1 S6k4" [lvfp]="S3k5 S6k1" [pred]="S3k5 S6k1" [loss]="S6k4" [value]="S6k4")
 A1="PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10"
 declare -A W=(
   [C1n10]="PRISM_STEPS=ovl_mem PRISM_OVL_RATES=0.2"
@@ -36,7 +38,7 @@ declare -A POL=(
   [pred]="PRISM_EVICTION=lvf PRISM_LVF_COST_AWARE=1 PRISM_LVF_PREDICTIVE=1"
 )
 declare -A TAG=([lvfr]=p0 [lvfp]=ps [loss]=p0 [value]=p0 [pred]=p0)
-declare -A SLO=([S3k5]="S3:kA=5,kD=5" [S6k1]="S6:kR=1,kD=5")
+declare -A SLO=([S3k5]="S3:kA=5,kD=5" [S6k1]="S6:kR=1,kD=5" [S6k4]="S6:kR=4,kD=5")
 UNITS=(A0.2_A1 A0.4 lvfr lvfp loss value pred)
 rm -f "$HERE"/configs/f616_*_o*_suite.tsv
 Q="$HERE/configs/f616_queue.tsv"
@@ -52,7 +54,7 @@ for rep in $(seq 1 "$REPS"); do
         if [ -n "${BASE[$u]:-}" ]; then
           printf '%s\t%s %s\n' "$u" "${W[$w]}" "${BASE[$u]}"
         else
-          for lv in "${LEVELS[@]}"; do
+          for lv in ${LVLS[$u]}; do
             printf '%s_%s_%s\t%s %s PRISM_SWAP_PREEMPT=0 PRISM_ACTIVATION_HEADROOM_GB=0 %s PRISM_OVL_SLO_SPEC=%s\n' \
               "$u" "$lv" "${TAG[$u]}" "${W[$w]}" "${POL[$u]}" "$A1" "${SLO[$lv]}"
           done
@@ -65,7 +67,7 @@ done
 # smoke: every new policy once on C1 (10 models)
 S="$HERE/configs/f616_smoke_suite.tsv"
 {
-  echo "# F6.16 smoke: A9.4, A3.1, A10.1, A2.3 once each on C1 n10 (lines from f616_C1n10_o1_suite.tsv)"
-  grep -P "^(lvfp_S3k5_ps|loss_S6k1_p0|value_S6k1_p0|pred_S3k5_p0)\t" "$HERE/configs/f616_C1n10_o1_suite.tsv"
+  echo "# F6.16 smoke 2: A9.4 at S6k1, A3.1 and A10.1 at S6k4 on C1 n10 (lines from f616_C1n10_o1_suite.tsv)"
+  grep -P "^(lvfp_S6k1_ps|loss_S6k4_p0|value_S6k4_p0)\t" "$HERE/configs/f616_C1n10_o1_suite.tsv"
 } > "$S"
 echo "wrote $(ls "$HERE"/configs/f616_*_o*_suite.tsv | wc -l) suites, queue $Q, smoke $S"

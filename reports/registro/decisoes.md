@@ -716,3 +716,8 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
   R7). **A A9.2 sem preempção entra como referência.** Por job: A0.2+A1, A0.4 e 5 políticas × {S3 `k_A`=5, S6 `k_R`=1}
   = 12 níveis; 4 cargas × 2 repetições = 8 jobs (`polyaxon/f6_16_suites.sh`, `f4_driver_start.sh f616`). Testes:
   `tests/policy/test_f616.py` (16), 175 no total.
+- **Níveis por política (Gabriel, 2026-11-10, opção 1):** o smoke `f616-smoke` (`807890d9`, 4/4 VALIDA) mostrou que
+  A3.1 e A10.1 nunca trocam no S3 `k_A`=5 nem no S6 `k_R`=1: só trocam por requisições viáveis depois de uma troca
+  real (~15,7 s num 8B), e nenhuma é. Passam a rodar no S6 `k_R`=4 (~63 s), com um nível da A9.2 ali como referência;
+  A9.4 e A2.3 seguem no S3 `k_A`=5 e no S6 `k_R`=1. Por job: 11 níveis. Antes da campanha, smoke 2 (A9.4 no S6
+  `k_R`=1, A3.1 e A10.1 no S6 `k_R`=4) para confirmar que agem.
