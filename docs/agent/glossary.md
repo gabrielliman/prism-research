@@ -39,8 +39,9 @@ The reports are in Portuguese. Common words: *sobrecarga* = overload, *ociosidad
 | Term | Meaning |
 | --- | --- |
 | TTFT / TPOT | Time to first token / time per output token (server timestamps) |
-| Combined SLO | TTFT < 1 s **and** TPOT < 100 ms, as a fraction of **all sent** requests (unserved = miss). Always shown with the TTFT-only and TPOT-only views |
+| Combined SLO | Up to F6.16: TTFT < 1 s **and** TPOT < 100 ms. From F6.15 on (D56): TTFT < 1 s **and** TPOT ≤ 5 × the model's dedicated P95 TPOT (S1D kD=5). Always a fraction of **all sent** requests (unserved = miss), shown with the TTFT-only and TPOT-only views |
 | S1 | Absolute SLO, the same for every request (default 1 s / 100 ms) |
+| S1D | Absolute TTFT with the Prism paper's TPOT SLO: kD × the model's dedicated-GPU P95 TPOT (§7.1; the paper's "TPOT SLO scale" is 2.0–4.0). Report standard since D56 (kD 2 and 5) |
 | S2 / S2M | Relative SLO: k_T × TTFT_base, k_D × TPOT_base, where the base is the P95 (S2) or P50 (S2M) of the model's own workload on a dedicated GPU, pooled over identical models (D20, D21; `latencia_ded.json`) |
 | S3 | TTFT relative to the activation cost (k_A × Ĉ_at) |
 | S6 / S6P | TTFT relative to the real rotation time (k_R × Ĉ_rot): S6 = victim finishes its batch (no preemption, 8B 15.7 s), S6P = victim preempted (8B 6.4 s); D42 |

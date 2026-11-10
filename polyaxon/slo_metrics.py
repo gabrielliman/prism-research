@@ -10,6 +10,8 @@ A level directory is what extract_ovl.py writes (summary.json, requests.csv, eve
 a data directory is collect_reps.py's <scenario>/<config>/r<k>/<level>/. The SLO is never read from a constant: each
 SPEC is a family and a level (PLANO_AGENTE.md section 5.4), default S1:ttft=1,tpot=0.1:
   S1:ttft=<s>,tpot=<s>    absolute, the same for every request
+  S1D:ttft=<s>,kD=<k>     absolute TTFT, TPOT_r = kD · TPOT_base(m): the Prism paper's TPOT SLO (§7.1; its "TPOT SLO
+                          scale" kD is 2.0-4.0 in §7.4 / Fig. 9b) next to the S1 TTFT; report standard (D56)
   S2:kT=<k>,kD=<k>        TTFT_r = kT · TTFT_base(m), TPOT_r = kD · TPOT_base(m)              (P95 base)
   S2M:kT=<k>,kD=<k>       the same with the P50 base (D21, the stable statistic)
   S3:kA=<k>,kD=<k>        TTFT_r = kA · Ĉ_at(m),      TPOT_r = kD · TPOT_base(m)
@@ -79,7 +81,7 @@ DEFAULT_CYCLE_S = 5.0  # PRISM_SCHEDULE_INTERVAL default (controller_global.py)
 def parse_slo(spec):
     fam, _, rest = spec.partition(":")
     params = {k: float(v) for k, v in (kv.split("=") for kv in rest.split(",") if kv)}
-    need = {"S1": {"ttft", "tpot"}, "S2": {"kT", "kD"}, "S2M": {"kT", "kD"}, "S2L": {"kT", "kD"}, "S3": {"kA", "kD"}, "S6": {"kR", "kD"},
+    need = {"S1": {"ttft", "tpot"}, "S1D": {"ttft", "kD"}, "S2": {"kT", "kD"}, "S2M": {"kT", "kD"}, "S2L": {"kT", "kD"}, "S3": {"kA", "kD"}, "S6": {"kR", "kD"},
             "S6P": {"kR", "kD"}, "S4": {"kT", "kD", "bT"}}[fam]
     if set(params) != need:
         raise ValueError(f"{spec}: {fam} takes {sorted(need)}")
@@ -168,6 +170,8 @@ def slo_of(req, path, fam, p, refs, base=None):
         return p["kT"] * (iso["ttft_a"] + iso["ttft_b"] * req["prompt_len"]), p["kD"] * iso["tpot_iso"]
     if base is None:
         raise FileNotFoundError(f"TTFT_base/TPOT_base of {req['model']} not in {DED} (D20, polyaxon/iso_dedicated.py)")
+    if fam == "S1D":  # D56: the paper's TPOT SLO next to the absolute TTFT
+        return p["ttft"], p["kD"] * base[1]
     if fam == "S4":  # F3.1, C9 classes (D19, provisional): interactive = S2 (kT, kD); batch = TTFT bT s, no TPOT limit
         if req.get("slo_class") == "batch":
             return p["bT"], math.inf

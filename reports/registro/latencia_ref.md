@@ -59,7 +59,12 @@ Para uma requisição do modelo `m` na carga `c`:
 S2:   SLO_TTFT = k_T · pool_ttft_p95(c, m)    SLO_TPOT = k_D · pool_tpot_p95(c, m)
 S2M:  SLO_TTFT = k_T · pool_ttft_p50(c, m)    SLO_TPOT = k_D · pool_tpot_p50(c, m)
 S3:   SLO_TTFT = k_A · Ĉ_at(m)                SLO_TPOT = k_D · pool_tpot_p95(c, m)
+S6:   SLO_TTFT = k_R · Ĉ_rot(m)               SLO_TPOT = k_D · pool_tpot_p95(c, m)
+S1D:  SLO_TTFT = ttft (absoluto, 1 s)         SLO_TPOT = k_D · pool_tpot_p95(c, m)
 ```
+
+- **S1D (D56):** o TPOT do artigo do Prism (§7.1) ao lado do TTFT absoluto do S1. É o padrão das tabelas desde a F6.15: só TPOT com `k_D = 2` (valor do artigo, §7.4: "TPOT SLO scale is 2.0"; Fig. 9b varia de 2,0 a 4,0) e `k_D = 5` (o `k_D` dos níveis S2/S3/S6, D23), e combinado 1 s + 5×P95. Para os 8B: 2×P95 ≈ 45–60 ms, 5×P95 ≈ 113–148 ms (C6 113, T1 120, C1 128, T3 148).
+- **Limitação do `k_D = 2` aqui:** sob a sobrecarga dos nossos cenários (10–14 modelos por GPU, sem CUDA graphs, D22), o TPOT servido fica em 51–54 ms no p10 e 73–92 ms na mediana (F6.15, A0.4 e A2.1 no C1/T1); o `k_D = 2` cai abaixo de quase tudo (4–16% atendem) e quase não separa políticas. O `k_D = 5` é a coluna informativa.
 
 - O cálculo é feito por `polyaxon/slo_metrics.py`, que busca a base pela carga (a parte `ovl_*` do caminho do nível) e pelo nome do modelo. Se a base faltar, o script aborta.
 - O SLO não depende do tamanho do prompt, como no artigo.

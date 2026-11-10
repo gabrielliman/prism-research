@@ -730,3 +730,30 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
 - **Confirmação F6.15, 5 repetições:** A9.2 e A2.1 sem preempção, e **A9.4 com λ = 1** (preemptar se salvas ≥ perdidas),
   contra A0.2+A1 e A0.4, nos prazos S3 `k_A`=5, S6 `k_R`=1, **S6 `k_R`=2** (acrescentado pelo Gabriel) e S6 `k_R`=4;
   A2.1 com preempção no S6 `k_R`=4 (D52). Saem A2.3, A3.1 e A10.1. Objetivo: justiça sem grande perda de SLO (D52).
+
+## D56 — SLO de TPOT como no artigo do Prism no padrão das tabelas (2026-11-10, Gabriel)
+
+- **Pedido (Gabriel):** usar o mesmo cálculo de SLO de TPOT do artigo do Prism.
+- **O artigo (R1, verificado no texto OSDI'26 `Prism.pdf` e no arXiv v3):**
+  - §7.1: "To establish SLOs for each model, we first ran its workload on dedicated GPUs to measure its P95 TTFT and
+    TPOT latencies. This process produced [...] TPOT SLOs from 5.2ms to 50.9ms. We then scaled these base values by a
+    factor";
+  - §2: TPOT é a latência média entre tokens da requisição (a mesma definição nossa);
+  - as escalas de TTFT e TPOT são separadas: §7.4, "SLO scale is 5 and TPOT SLO scale is 2.0"; a Fig. 9b varia a "TPOT
+    SLO Scale" de 2,0 a 4,0;
+  - o artigo reporta atendimento de TTFT e de TPOT separados, sem SLO combinado.
+- **Estado anterior:** os níveis S2/S3/S6 já usavam o TPOT do artigo (`k_D · P95` dedicado, D20; base juntando os
+  modelos idênticos, D21; `k_D = 5`, D23). Só o padrão das tabelas (CLAUDE.md regra 7) usava TPOT absoluto de 100 ms e
+  combinado 1 s + 100 ms.
+- **Decisão (Gabriel aprovou a proposta do agente; `k_D = 2` acrescentado pelo agente por ser o valor do artigo):**
+  - família nova **S1D** em `polyaxon/slo_metrics.py`: TTFT absoluto, TPOT = `k_D · pool_tpot_p95(c, m)`;
+  - padrão das tabelas a partir da F6.15: só TTFT 1/2/5 s; só TPOT `k_D = 2` e `k_D = 5`; combinado 1 s + 5×P95; o
+    TPOT 100 ms fica como referência secundária;
+  - a base continua juntando os modelos idênticos (D21), e não o P95 por modelo do artigo (ruído do nó);
+  - fases anteriores (relatórios aprovados) não são refeitas.
+- **Achado:** com 10–14 modelos por GPU e sem CUDA graphs, o TPOT servido fica 7–9× a mediana dedicada (p10 51–54 ms,
+  mediana 73–92 ms nos 3 primeiros jobs da F6.15). O `k_D = 2` (~50 ms) fica abaixo de quase tudo: 4–16% atendem em
+  todas as configurações. A coluna informativa é a de `k_D = 5`. Limitação registrada em `latencia_ref.md`.
+- **Arquivos:** `polyaxon/slo_metrics.py` (S1D), `polyaxon/f60_analysis.py` (referências `S1Dk2`, `S1Dk5`),
+  `polyaxon/f615_compare.py` (`tabela_padrao.md`), `tests/metrics/test_slo_metrics.py`, CLAUDE.md regra 7,
+  `docs/agent/glossary.md`, `reports/registro/latencia_ref.md`, `referencias.md` (R1).

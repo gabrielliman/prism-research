@@ -39,6 +39,24 @@ class ParseTest(unittest.TestCase):
             sm.parse_slo("S7:kR=1,kD=5")
 
 
+class S1DTest(unittest.TestCase):
+    """D56: absolute TTFT, TPOT = kD x the dedicated P95 TPOT (the Prism paper's TPOT SLO)."""
+
+    def test_parse(self):
+        self.assertEqual(sm.parse_slo("S1D:ttft=1,kD=2"), ("S1D", {"ttft": 1.0, "kD": 2.0}))
+        with self.assertRaises(ValueError):
+            sm.parse_slo("S1D:ttft=1,tpot=0.1")
+
+    def test_ttft_absolute_tpot_scaled(self):
+        st, sp = sm.slo_of(REQ, L8, "S1D", {"ttft": 1.0, "kD": 2.0}, sm.Refs(), BASE)
+        self.assertAlmostEqual(st, 1.0)
+        self.assertAlmostEqual(sp, 2.0 * BASE[1])
+
+    def test_no_base_fails_loudly(self):
+        with self.assertRaises(FileNotFoundError):
+            sm.slo_of(REQ, L8, "S1D", {"ttft": 1.0, "kD": 2.0}, sm.Refs(), None)
+
+
 class S6BaseTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

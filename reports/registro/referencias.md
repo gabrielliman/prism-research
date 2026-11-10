@@ -7,7 +7,7 @@ antes de ser tomada, e cita as entradas daqui em `decisoes.md`.
 
 | id | referência | usada em |
 | --- | --- | --- |
-| R1 | Prism (OSDI'26) | D45 (contexto); D46 item 3 |
+| R1 | Prism (OSDI'26) | D45 (contexto); D46 item 3; D56 (SLO de TPOT) |
 | R2 | Clockwork (OSDI'20) | D45 itens 1–2; A9.2 (prioridade de carga) |
 | R3 | SwapServeLLM (SC Workshops'25) | D45 item 3; A11 |
 | R4 | SuperInfer (MLSys'26) | A9 (D4) |
@@ -29,6 +29,11 @@ Yu, Xing et al., OSDI 2026. arXiv 2505.04021 (v3): <https://arxiv.org/abs/2505.0
 - **Por que foi adicionada:** é o sistema que estudamos. Mostra que o desenho publicado deixa implícito o intervalo entre
   decisão e carga/saída (lacuna que a D45 torna explícita) e que, na migração, o próprio Prism já espera um evento
   ("target is ready") em vez de um tempo fixo — o mesmo princípio que a D45 aplica à reserva de troca.
+- **Adendo (D56, 2026-11-10, `Prism.pdf` e arXiv v3):** SLO de TPOT. §7.1: "we first ran its workload on dedicated
+  GPUs to measure its P95 TTFT and TPOT latencies [...] TPOT SLOs from 5.2ms to 50.9ms. We then scaled these base values
+  by a factor"; §2: TPOT = latência média entre tokens; escalas de TTFT e TPOT separadas (§7.4: "SLO scale is 5 and TPOT
+  SLO scale is 2.0"; Fig. 9b: "TPOT SLO Scale" 2,0–4,0); atendimentos de TTFT e de TPOT reportados separados, sem
+  combinado. Sustenta a família S1D e o padrão das tabelas da D56.
 
 ## R2 — Serving DNNs like Clockwork: Performance Predictability from the Bottom Up
 

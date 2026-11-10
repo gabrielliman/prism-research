@@ -30,9 +30,12 @@ commits are in `f3-cargas`) and `f3-cargas` was renamed `scheduling-research`. O
 7. **Reports:** *offer* a report when a big phase ends and write it only after approval. Each report is
    `reports/YYYY-MM-DD <título>.md` in Portuguese, with the date also in the H1. It must name the
    scripts, commands, env vars and run IDs needed to reproduce it.
-   Table standard: separate TTFT-only SLO columns at 1/2/5 s, a TPOT-only column (100 ms) and the
-   combined SLO; generate tables with `polyaxon/report_tables.py`. Reports that use S2/S2M/S3 cite
-   `reports/registro/latencia_ref.md`.
+   Table standard (D56, from F6.15 on): separate TTFT-only SLO columns at 1/2/5 s; TPOT-only columns
+   as in the Prism paper, kD × the model's dedicated-GPU P95 TPOT at kD = 2 (the paper's value) and
+   kD = 5 (SLO family S1D); the combined SLO TTFT < 1 s and TPOT ≤ 5×P95; and the absolute 100 ms TPOT
+   column as a secondary reference. Older phases used 100 ms / 1 s + 100 ms. F6.15+ tables come from
+   `polyaxon/f615_compare.py` (`tabela_padrao.md`); older phases have their own `*_report_tables.py`.
+   Reports that use S1D/S2/S2M/S3/S6 cite `reports/registro/latencia_ref.md`.
 8. **Never relax an acceptance criterion yourself.** The mission plan is `PLANO_AGENTE.md`, tracked in
    `TODO.md`. A phase starts only after the previous phase's gate is APROVADO (by Gabriel, the user).
    Decisions are logged in `reports/registro/decisoes.md`.

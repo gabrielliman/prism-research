@@ -37,7 +37,9 @@ import slo_metrics as sm  # noqa: E402
 from f5_analysis import extract, events, tail, write_csv  # noqa: E402
 
 LEVELS = {"S3k5": "S3:kA=5,kD=5", "S6k1": "S6:kR=1,kD=5", "S6k2": "S6:kR=2,kD=5", "S6k4": "S6:kR=4,kD=5"}
-REFS = {"S2k10": "S2:kT=10,kD=5", "S1": "S1:ttft=1,tpot=0.1"}
+REFS = {"S2k10": "S2:kT=10,kD=5", "S1": "S1:ttft=1,tpot=0.1",
+        # D56 report standard: TPOT-only as in the Prism paper (kD x P95 TPOT on a dedicated GPU)
+        "S1Dk2": "S1D:ttft=1,kD=2", "S1Dk5": "S1D:ttft=1,kD=5"}
 BASES = ["A0.2_A1", "A0.4"]
 POLICIES = ["edf", "lvf", "lvfr"]
 NAMES = {"edf": "A2.1 EDF", "lvf": "A9.1 VLT", "lvfr": "A9.2 VLT residência", "A0.2_A1": "A0.2+A1", "A0.4": "A0.4"}

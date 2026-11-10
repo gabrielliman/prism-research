@@ -1,8 +1,9 @@
 """F6.15 confirmation (D54): per-policy tables and paired differences with 95% bootstrap CIs.
 
 Usage: f615_compare.py <analysis dir> [--boot 10000]
-Reads niveis.csv and justica.csv written by f60_analysis.py / f60_fairness.py; writes tabela_politicas.csv and
-pareado.csv into the analysis dir and prints both.
+Reads niveis.csv and justica.csv written by f60_analysis.py / f60_fairness.py (and levels/*/requests.csv for the
+TTFT-only 1/2/5 s columns); writes tabela_politicas.csv, pareado.csv and tabela_padrao.md (CLAUDE.md rule 7 with the
+D56 TPOT columns) into the analysis dir and prints them.
 
 Arms (per deadline level lv in S3k5, S6k1, S6k2, S6k4): lvfr_<lv>_p0 (A9.2 residency-aware VLT, no preemption),
 edf_<lv>_p0 (A2.1 EDF), lvfp_<lv>_ps (A9.4, per-swap preemption, lambda 1) and, at S6k4 only, edf_S6k4_p1 (A2.1 with
@@ -34,7 +35,9 @@ def metrics(lv):  # (column, label, scale)
             (f"{lv}_quartil_ttft", "worst quarter %", 100), (f"{lv}_pior_ttft", "worst model %", 100),
             (f"{lv}_jain_ttft", "Jain x100", 100), (f"{lv}_pior_p90_s", "worst-model p90 s", 1),
             ("ttft_p50", "TTFT p50 s", 1), ("ttft_p90", "TTFT p90 s", 1), ("espera_p99", "wait p99 s", 1),
-            ("espera_max", "max wait s", 1), ("rotacoes", "rotations", 1), ("preemptadas", "preempted", 1)]
+            ("espera_max", "max wait s", 1), ("rotacoes", "rotations", 1), ("preemptadas", "preempted", 1),
+            ("S1Dk2_so_tpot", "TPOT 2xP95 %", 100), ("S1Dk5_so_tpot", "TPOT 5xP95 %", 100),
+            ("S1Dk5_comb", "comb 1 s + 5xP95 %", 100)]
 
 
 rng = np.random.default_rng(1)
@@ -87,6 +90,33 @@ for lv in LEVELS:
 p = pd.DataFrame(rows)
 p.to_csv(D + "pareado.csv", index=False)
 
+# ---- report-standard table (CLAUDE.md rule 7, D56): TTFT-only 1/2/5 s (strict <, from requests.csv), TPOT-only as in
+# the Prism paper (kD x the dedicated P95 TPOT, kD 2 and 5), combined TTFT 1 s + TPOT 5xP95, TPOT 100 ms (secondary)
+
+
+def ttft_only(r):
+    q = pd.read_csv(f"{D}levels/{r.job}/{r.config}/{r['cenário']}/{r['nível']}/requests.csv")
+    ok = q.status == "ok"
+    return pd.Series({f"t{s}": ((ok) & (q.ttft < s)).sum() / len(q) for s in (1, 2, 5)})
+
+
+n = n.join(n.apply(ttft_only, axis=1))
+order = [("A0.2_A1", "A0.2_A1"), ("A0.4", "A0.4")] + [(k, c) for lv in LEVELS for k, c in arms(lv)]
+pc = lambda v: f"{100 * v:.0f}%"
+md = ["| Configuração | jobs | servidas | TTFT 1 s | TTFT 2 s | TTFT 5 s | TPOT 2×P95 | TPOT 5×P95 | "
+      "combinado 1 s + 5×P95 | TPOT 100 ms | TTFT p50 / p90 (s) | espera p99 / máx. (s) |",
+      "| --- |" + " --- |" * 11]
+for key, cfg in order:
+    x = n[n.config == cfg]
+    if x.empty:
+        continue
+    lv = "" if cfg in ("A0.2_A1", "A0.4") else f" ({cfg.split('_')[1]})"
+    md.append(f"| {NAME[key]}{lv} | {len(x)} | {pc(x.atendidas.mean())} | {pc(x.t1.mean())} | {pc(x.t2.mean())} | "
+              f"{pc(x.t5.mean())} | {pc(x.S1Dk2_so_tpot.mean())} | {pc(x.S1Dk5_so_tpot.mean())} | "
+              f"{pc(x.S1Dk5_comb.mean())} | {pc(x.S1_so_tpot.mean())} | {x.ttft_p50.mean():.0f} / {x.ttft_p90.mean():.0f} | "
+              f"{x.espera_p99.mean():.0f} / {x.espera_max.mean():.0f} |")
+open(D + "tabela_padrao.md", "w").write("\n".join(md) + "\n")
+
 # ---- print
 pd.set_option("display.width", 250)
 SHOW = ["total %", "worst quarter %", "worst model %", "Jain x100", "worst-model p90 s", "TTFT p50 s", "TTFT p90 s",
@@ -107,3 +137,4 @@ for carga in ["todas"] + sorted(set(p.carga) - {"todas"}):
                                for r in g.itertuples())
             print(f"  {braco[:28]:28s} - {ref[:14]:14s}: {cells}")
 print("\ncolumns: " + " | ".join(KEY))
+print("\n=== report standard (rule 7, D56)\n" + "\n".join(md))
