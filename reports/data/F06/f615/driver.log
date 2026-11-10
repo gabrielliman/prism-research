@@ -1,0 +1,9 @@
+10:12:26 0 jobs in state, 20 to submit
+10:12:33 submitted f615-c1n10-1 5c1dc2d8 (1 active, 10 workers)
+10:12:58 submitted f615-t1-1 a94786da (2 active, 22 workers)
+10:13:23 submitted f615-c6n14-1 4d1a5fa7 (3 active, 36 workers)
+13:12:25 download f615-c1n10-1 failed: Command '['/mnt/scratch/scheduler/polyax-env/bin/polyaxon', 'ops', 'artifacts', '-p', 'kunumi/hpc4ai', '-uid', '5c1dc2d81f714a70b34caeccb96d5060', '-d', 'outputs', '--path', '/mnt/scratch/scheduler/prism-raw/F6/f615/f615-c1n10-1']' returned non-zero exit status 1.
+13:12:32 submitted f615-t3-1 681495e1 (3 active, 38 workers)
+13:15:55 download f615-c1n10-1 failed: [Errno 2] No such file or directory: '/mnt/scratch/scheduler/prism-raw/F6/f615/f615-c1n10-1/outputs/run.log'
+13:18:58 download f615-c1n10-1 failed: [Errno 2] No such file or directory: '/mnt/scratch/scheduler/prism-raw/F6/f615/f615-c1n10-1/outputs/run.log'
+13:22:43 4 jobs in state, 16 to submit

@@ -11,6 +11,7 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -123,6 +124,9 @@ def submit(suffix, suite):
 
 def download(r):
     dest = os.path.join(RAW, r["suffix"])
+    # a failed attempt can leave a truncated outputs.tar.gz and an empty outputs/ (F6.15, f615-c1n10-1, 2026-11-10):
+    # every retry starts from an empty directory
+    shutil.rmtree(dest, ignore_errors=True)
     os.makedirs(dest, exist_ok=True)
     subprocess.run([PLX, "ops", "artifacts", "-p", PROJ, "-uid", r["uuid"], "-d", "outputs", "--path", dest],
                    capture_output=True, text=True, timeout=3600, check=True)
