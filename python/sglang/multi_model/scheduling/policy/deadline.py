@@ -35,6 +35,20 @@ the snapshot, so tests/policy/ checks the decisions on hand-built states (sectio
                                              its running requests, which restart from the prompt)
               m rotates in only if G_m > K_v + margin for every victim taken; victims in increasing K_v per GB freed
               (GreedyDual-Size: evict the one cheapest to bring back per unit of size), then active longest.
+  lvf_select with Params.preempt_per_swap: A9.4 (F6.16, D52/D53; reference R10 Shepherd). As A9.2 with the costs
+              of a swap without preemption, plus a per-swap choice: for each rotation, saved = waiting requests of the
+              incoming model that meet their TTFT deadline only if it starts after the preempting swap time
+              (now + Ĉ_rot^P ≤ deadline < now + Ĉ_rot^noP), lost = running requests of its victims (they restart
+              from the prompt); preempt iff lost == 0 or saved ≥ λ·lost (λ = Params.preempt_lambda, 3 ≈ Shepherd's
+              optimal 3.03). The flag goes to Decision.preempt.
+  lvf_select with Params.predictive: A2.3 (F6.16; reference R7). As A9.2, but an active model that expects at least
+              one arrival while away (rate · Ĉ_rot ≥ 1) also costs the lag such an arrival takes:
+              K_v ≥ ReLU(Ĉ_rot(v) − β_F·SLO_v), SLO_v = its typical TTFT SLO.
+  loss_select A3.1 (F6.16; references R9 QLM, R8 GreedyDual-Size): expected deadline loss, current queue only (no
+              rate). Gain of an inactive model = its waiting requests still viable if it rotates in now
+              (deadline ≥ now + Ĉ_rot); loss of evicting an active model = its waiting requests viable now
+              (deadline ≥ now) that would miss while it is away (deadline < now + Ĉ_rot); rotate iff gain − Σ loss
+              > θ; victims by loss per GB, then active longest; candidates by gain. No preemption.
 
 Memory: a model needs need_gb (weights + activation headroom + max(R2.1 KV pages, A1.1 reserve), computed by the
 caller) of free memory on one GPU. A victim frees free_gb (weights + KV of its running requests). Activations are
@@ -68,6 +82,10 @@ class ModelSnap:
     active_since: Optional[float] = None
     c_at: float = 0.0  # Ĉ_at(m) (s)
     c_rot: float = 0.0  # Ĉ_rot(m) (s): measured swap time, with or without preemption as the policy runs (A9.2)
+    c_rot_p: float = 0.0  # Ĉ_rot(m) with preemption (A9.4)
+    c_rot_np: float = 0.0  # Ĉ_rot(m) without preemption (A9.4)
+    rate: float = 0.0  # arrivals/s over the recent window (A2.3)
+    slo_typ: Optional[float] = None  # typical TTFT SLO of its requests (A2.3)
     reserved: bool = False  # victims were evicted for it and it is not active yet: placed first
     cooldown: bool = False  # a rotation for it happened recently: no new rotation for it
     blocked: bool = False  # active but already being evicted this cycle (idle eviction): not a victim
@@ -99,6 +117,10 @@ class Params:
     cost_aware: bool = False  # A9.2 (PRISM_LVF_COST_AWARE)
     margin: float = 0.0  # A9.2: G_m must beat K_v by this many seconds (PRISM_LVF_MARGIN)
     preempt: bool = False  # victims are preempted (PRISM_SWAP_PREEMPT): their running requests restart (A9.2)
+    preempt_per_swap: bool = False  # A9.4 (PRISM_LVF_PREEMPT=per_swap)
+    preempt_lambda: float = 3.0  # A9.4 (PRISM_LVF_PREEMPT_LAMBDA)
+    predictive: bool = False  # A2.3 (PRISM_LVF_PREDICTIVE)
+    theta: float = 0.0  # A3.1 (PRISM_LOSS_THETA)
 
 
 @dataclasses.dataclass
@@ -108,6 +130,7 @@ class Decision:
     rotated_for: List[str] = dataclasses.field(default_factory=list)  # models victims were evicted for
     scores: Dict[str, dict] = dataclasses.field(default_factory=dict)  # model -> what the decision used
     unplaced: List[str] = dataclasses.field(default_factory=list)  # waiting models left out this cycle
+    preempt: Dict[str, bool] = dataclasses.field(default_factory=dict)  # victim -> preempt it (A9.4); absent = default
 
 
 def _prefill(tokens, snap):
@@ -163,9 +186,12 @@ def rotation_gain(m: ModelSnap, snap: Snapshot, p: Params) -> float:
 
 def eviction_cost(v: ModelSnap, snap: Snapshot, p: Params) -> float:
     """A9.2 K_v: lag that evicting v now imposes on its own requests (they wait one swap for v to come back)."""
+    expected = 0.0  # A2.3: an arrival is expected while v is away
+    if p.predictive and v.rate * v.c_rot >= 1.0 and v.slo_typ is not None:
+        expected = max(0.0, v.c_rot - p.beta_f * v.slo_typ)
     if not v.waiting and not v.running:
-        return 0.0
-    cost = lag_at(v, snap.now + v.c_rot, p)
+        return expected
+    cost = max(lag_at(v, snap.now + v.c_rot, p), expected)
     if p.preempt and v.running:
         cost = max(cost, p.alpha * max(0.0, v.c_rot - p.beta_b * p.tpot_slo))
     return cost
@@ -332,10 +358,87 @@ def _lvf_cost_aware(snap: Snapshot, p: Params) -> Decision:
             dec.unplaced.append(m.name)
             continue
         allowed = {gpu: [v for v in vs if cost[v.name] + p.margin < g] for gpu, vs in victims_by_gpu.items()}
+        n_before = len(dec.victims)
         if not _rotate(m, free, allowed, "lvf", dec):  # same reason text as A9.1 (extract_ovl.py)
             dec.unplaced.append(m.name)
             continue
+        if p.preempt_per_swap:
+            picked = [snap.models[v[0]] for v in dec.victims[n_before:]]
+            choice = preempt_choice(m, picked, snap, p)
+            for v in picked:
+                dec.preempt[v.name] = choice["preempt"]
+            dec.scores[m.name] |= choice
         budget -= 1
         taken = {x[0] for x in dec.victims}
         victims_by_gpu = {gpu: [v for v in vs if v.name not in taken] for gpu, vs in victims_by_gpu.items()}
+    return dec
+
+
+def preempt_choice(m: ModelSnap, victims: List[ModelSnap], snap: Snapshot, p: Params) -> dict:
+    """A9.4: preempt the victims of the rotation for m iff they run nothing or saved ≥ λ·lost (Shepherd, R10)."""
+    lo, hi = snap.now + m.c_rot_p, snap.now + m.c_rot_np
+    saved = sum(1 for r in m.waiting if r.slo is not None and lo <= r.arrival + r.slo < hi)
+    lost = sum(v.running for v in victims)
+    return {"saved": saved, "lost": lost, "preempt": lost == 0 or saved >= p.preempt_lambda * lost}
+
+
+def viable_count(m: ModelSnap, t: float) -> int:
+    """A3.1: waiting requests of m whose TTFT deadline is not before t."""
+    return sum(1 for r in m.waiting if r.slo is not None and r.arrival + r.slo >= t)
+
+
+def loss_select(snap: Snapshot, p: Params) -> Decision:
+    """A3.1 (see the module docstring)."""
+    dec = Decision()
+    gain, loss = {}, {}
+    for m in snap.models.values():
+        if m.active:
+            loss[m.name] = viable_count(m, snap.now) - viable_count(m, snap.now + m.c_rot)
+            if m.waiting or m.running:
+                dec.scores[m.name] = {"loss": loss[m.name], "active": True}
+        elif m.waiting or m.running:
+            gain[m.name] = viable_count(m, snap.now + m.c_rot)
+            dec.scores[m.name] = {"gain": gain[m.name], "active": False}
+    oldest = lambda m: min((r.arrival for r in m.waiting), default=snap.now)
+    cands = sorted(_waiting_inactive(snap), key=lambda m: (not m.reserved, -gain[m.name], oldest(m)))
+    free = dict(snap.gpu_free)
+    left = _place(cands, free, dec)
+    if not left:
+        return dec
+    budget = p.budget - snap.in_flight
+    victims_by_gpu: Dict[int, List[ModelSnap]] = {}
+    for v in snap.models.values():
+        if _resident_enough(v, snap, p):
+            victims_by_gpu.setdefault(v.gpu, []).append(v)
+    per_gb = lambda v: loss[v.name] / v.free_gb if v.free_gb > 0 else INF
+    for cands_g in victims_by_gpu.values():
+        cands_g.sort(key=lambda v: (per_gb(v), v.active_since if v.active_since is not None else 0.0))
+    for m in left:
+        g = gain[m.name]
+        if budget <= 0 or m.cooldown or g <= p.theta:
+            dec.unplaced.append(m.name)
+            continue
+        best = None  # fewest lost requests on one GPU, then fewest victims
+        for gpu, vs in victims_by_gpu.items():
+            freed, picked = free.get(gpu, 0.0), []
+            for v in vs:
+                if freed >= m.need_gb:
+                    break
+                picked.append(v)
+                freed += v.free_gb
+            lost = sum(loss[v.name] for v in picked)
+            if freed >= m.need_gb and picked and g - lost > p.theta:
+                if best is None or (lost, len(picked)) < (best[1], len(best[2])):
+                    best = (gpu, lost, picked)
+        if best is None:
+            dec.unplaced.append(m.name)
+            continue
+        gpu, lost, picked = best
+        free[gpu] = max(0.0, free.get(gpu, 0.0) + sum(v.free_gb for v in picked) - m.need_gb)
+        for v in picked:
+            victims_by_gpu[gpu].remove(v)
+            dec.victims.append((v.name, gpu, f"loss rotation for {m.name}"))
+        dec.rotated_for.append(m.name)
+        dec.scores[m.name]["lost"] = lost
+        budget -= 1
     return dec

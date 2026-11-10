@@ -77,7 +77,7 @@ def level(args):
     row |= tail(reqs, s["elapsed_s"])
     e = events(out)
     evl = list(csv.DictReader(open(out / "events.csv"))) if (out / "events.csv").exists() else []
-    row |= {"rotacoes": sum(x["kind"] in ("evict_edf", "evict_lvf", "evict_swap") for x in evl),
+    row |= {"rotacoes": sum(x["kind"] in ("evict_edf", "evict_lvf", "evict_loss", "evict_swap") for x in evl),
             "preemptadas": e["preemptadas"], "ativacoes_min": 60 * e["ativacoes"] / (s["elapsed_s"] or 1)}
     for x in VIEWS:  # the arm's own level (deadline arms) for the paired tables
         row[f"proprio_{x}"] = row[f"{own}_{x}"] if own else math.nan

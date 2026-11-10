@@ -44,7 +44,7 @@ sys.path.insert(0, str(HERE))
 import extract_ovl  # noqa: E402
 import slo_metrics as sm  # noqa: E402
 
-ROT_KINDS = {"evict_swap", "evict_edf", "evict_lvf", "evict_fair", "evict_pressure", "evict_deadlock"}
+ROT_KINDS = {"evict_swap", "evict_edf", "evict_lvf", "evict_loss", "evict_fair", "evict_pressure", "evict_deadlock"}
 LAPSE_S = 120.0
 SAME_CYCLE_S = 1.0
 CAT = json.load(open(HERE.parent / "reports" / "data" / "F02" / "cat" / "cat_model.json"))

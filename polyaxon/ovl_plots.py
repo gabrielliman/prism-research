@@ -30,13 +30,14 @@ EV = {  # log events: color, marker, label
     "evict_swap": ("#008300", "v", "troca por throughput/GB"),
     "evict_edf": ("#d55181", "v", "rodízio por folga (A2.1 EDF)"),
     "evict_lvf": ("#8f4ad6", "v", "rodízio por atraso virtual (A9.1 LVF)"),
+    "evict_loss": ("#1baf7a", "v", "rodízio por perda esperada (A3.1)"),
     "evict_deadlock": ("#b3261e", "v", "despejo pelo detector de impasse (A1.2)"),
     "kv_oom": (ERRO, "x", "kvcached sem memória (ativação falhou)"),
     "model_lost": ("#c98500", "X", "modelo perdido (ativação falhou ou worker morto)"),
     "kv_refused": ("#6da7ec", "|", "KV recusado pelo árbitro (sem queda)"),
     "oom": (ERRO, "X", "worker sem memória (torch OOM)"),
 }
-DESPEJOS = ("evict", "evict_pressure", "evict_fair", "evict_swap", "evict_edf", "evict_lvf", "evict_deadlock")
+DESPEJOS = ("evict", "evict_pressure", "evict_fair", "evict_swap", "evict_edf", "evict_lvf", "evict_loss", "evict_deadlock")
 SLOS_TTFT = (1, 2, 5)  # s; extra TTFT-only SLO columns of metricas()
 PESOS_8B_GB = 15.0
 

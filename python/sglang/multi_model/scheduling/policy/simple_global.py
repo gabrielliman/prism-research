@@ -210,7 +210,10 @@ class SimpleGlobalPolicy(GlobalPolicy):
         #             requests' worth of KV on top of its weights to be activated (A1.1). The idle eviction (step 1)
         #             still runs.
         self.EVICTION = os.environ.get("PRISM_EVICTION", "idle")
-        assert self.EVICTION in ["idle", "pressure", "adaptive", "fair", "throughput", "edf", "lvf"]
+        #   loss      F6.16/A3.1: expected deadline loss (policy/deadline.py loss_select), PRISM_LOSS_THETA (0).
+        #   value     F6.16/A10.1: throughput swap restricted to waiting models with a request that can still meet its
+        #             TTFT deadline after a real swap (Ĉ_rot); the rest as `throughput`.
+        assert self.EVICTION in ["idle", "pressure", "adaptive", "fair", "throughput", "edf", "lvf", "loss", "value"]
         # F6a knobs (D25). Defaults keep every other strategy unchanged: A1.1 and A1.3 are off unless set.
         self.EDF_FLOOR = float(os.environ.get("PRISM_EDF_FLOOR", 0))  # s; slack below it = request already lost
         self.EDF_BUDGET = int(os.environ.get("PRISM_EDF_BUDGET", 1))  # rotations in flight at once
@@ -243,14 +246,28 @@ class SimpleGlobalPolicy(GlobalPolicy):
         # without preemption as PRISM_SWAP_PREEMPT; a missing table is an error, not a silent fallback.
         self.LVF_COST_AWARE = os.environ.get("PRISM_LVF_COST_AWARE", "0") == "1"
         self.LVF_MARGIN = float(os.environ.get("PRISM_LVF_MARGIN", 0))
-        self.CROT_TABLE = None
-        if self.LVF_COST_AWARE:
+        # F6.16 (D52, D53): A9.4 per-swap preemption (needs A9.2; the victims' default is no preemption, so
+        # PRISM_SWAP_PREEMPT must stay 0), A2.3 predictive residency on A9.2, A3.1 threshold.
+        self.LVF_PREEMPT = os.environ.get("PRISM_LVF_PREEMPT", "global")
+        assert self.LVF_PREEMPT in ("global", "per_swap")
+        self.LVF_PREEMPT_LAMBDA = float(os.environ.get("PRISM_LVF_PREEMPT_LAMBDA", 3.0))
+        self.LVF_PREDICTIVE = os.environ.get("PRISM_LVF_PREDICTIVE", "0") == "1"
+        self.LOSS_THETA = float(os.environ.get("PRISM_LOSS_THETA", 0))
+        self.RATE_WINDOW_S = float(os.environ.get("PRISM_RATE_WINDOW_S", 60))  # A2.3 arrival-rate window
+        if (self.LVF_PREEMPT == "per_swap" or self.LVF_PREDICTIVE) and not (self.EVICTION == "lvf" and self.LVF_COST_AWARE):
+            raise ValueError("PRISM_LVF_PREEMPT=per_swap and PRISM_LVF_PREDICTIVE=1 need PRISM_EVICTION=lvf PRISM_LVF_COST_AWARE=1")
+        if self.LVF_PREEMPT == "per_swap" and self.SWAP_PREEMPT:
+            raise ValueError("PRISM_LVF_PREEMPT=per_swap decides preemption per swap: leave PRISM_SWAP_PREEMPT=0")
+        self.CROT_TABLE = self.CROT_P = self.CROT_NP = None
+        if self.LVF_COST_AWARE or self.EVICTION in ("loss", "value"):
             root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
                 os.path.dirname(os.path.abspath(__file__)))))))
             path = os.environ.get("PRISM_CROT_FILE", os.path.join(root, "reports", "registro", "c_rot.json"))
             self.CROT_TABLE = load_rotation_table(path, self.SWAP_PREEMPT)
+            self.CROT_P = load_rotation_table(path, True)
+            self.CROT_NP = load_rotation_table(path, False)
             if self.CROT_TABLE is None:
-                raise FileNotFoundError(f"PRISM_LVF_COST_AWARE=1 needs the swap-cost table {path} (F5.0a)")
+                raise FileNotFoundError(f"PRISM_LVF_COST_AWARE=1 / PRISM_EVICTION=loss|value need the swap-cost table {path} (F5.0a)")
         for removed in ("PRISM_SWAP_DRAIN", "PRISM_SWAP_DRAIN_TIMEOUT"):
             if os.environ.get(removed, "0") not in ("", "0"):
                 # an old suite would otherwise run a different configuration without noticing
@@ -596,6 +613,29 @@ class SimpleGlobalPolicy(GlobalPolicy):
             self.pressure_cooldown_until[model_name] = now + self.SWAP_RESERVATION
             self._reserve(model_name, now)
         return victims
+
+    def _has_viable(self, model_name: str, queue: Optional[ModelQueueTracker], now: float) -> bool:
+        """A10.1: some waiting request of model_name can still meet its TTFT deadline after a real swap (Ĉ_rot)."""
+        if queue is None:
+            return False
+        c_rot = rotation_cost(self.model_weights_info[model_name]["model_size"], self.CROT_TABLE)
+        return any(r.slo is not None and r.arrival_time is not None and not r.is_warmup
+                   and r.arrival_time + r.slo >= now + c_rot for r in queue.waiting_reqs)
+
+    def _arrival_rate(self, queue: Optional[ModelQueueTracker], now: float) -> float:
+        """A2.3: arrivals/s of the model over the last RATE_WINDOW_S s (all requests the controller received)."""
+        if queue is None:
+            return 0.0
+        start = now - self.RATE_WINDOW_S
+        n = sum(1 for r in queue.received_reqs.values()
+                if not r.is_warmup and r.arrival_time is not None and r.arrival_time >= start)
+        return n / self.RATE_WINDOW_S
+
+    def _typical_slo(self, queue: Optional[ModelQueueTracker]) -> Optional[float]:
+        """A2.3: median TTFT SLO of the model's received requests (None if it never had one)."""
+        slos = sorted(r.slo for r in (queue.received_reqs.values() if queue else []) if r.slo is not None
+                      and not r.is_warmup)
+        return slos[len(slos) // 2] if slos else None
 
     def _reserve(self, model_name: str, now: float):
         """Start a swap reservation for model_name (victims were evicted for it)."""
@@ -1154,6 +1194,10 @@ class SimpleGlobalPolicy(GlobalPolicy):
                 active_since=self.active_since.get(name) if gpu is not None else None,
                 c_at=activation_cost(weights, ahead, self.CAT_COEF),
                 c_rot=rotation_cost(weights, self.CROT_TABLE) if self.CROT_TABLE else 0.0,
+                c_rot_p=rotation_cost(weights, self.CROT_P) if self.CROT_P else 0.0,
+                c_rot_np=rotation_cost(weights, self.CROT_NP) if self.CROT_NP else 0.0,
+                rate=self._arrival_rate(queue, now) if self.LVF_PREDICTIVE else 0.0,
+                slo_typ=self._typical_slo(queue) if self.LVF_PREDICTIVE else None,
                 # in flight = victims evicted for it and its activation not sent yet (ACTIVATING counts as active
                 # here, so the rotation cap does not wait for the load; same as before D45)
                 reserved=gpu is None and self._reserved(name, now),
@@ -1180,11 +1224,15 @@ class SimpleGlobalPolicy(GlobalPolicy):
         if self.EVICTION == "edf":
             params = deadline.Params(floor=self.EDF_FLOOR, budget=self.EDF_BUDGET, min_residency=self.MIN_RESIDENCY)
             dec = deadline.edf_select(snap, params)
+        elif self.EVICTION == "loss":
+            params = deadline.Params(budget=self.EDF_BUDGET, min_residency=self.MIN_RESIDENCY, theta=self.LOSS_THETA)
+            dec = deadline.loss_select(snap, params)
         else:
             params = deadline.Params(alpha=self.LVF_ALPHA, beta_f=self.LVF_BETA_F, beta_b=self.LVF_BETA_B,
                                      budget=self.LVF_BUDGET, min_residency=self.MIN_RESIDENCY,
                                      cost_aware=self.LVF_COST_AWARE, margin=self.LVF_MARGIN,
-                                     preempt=self.SWAP_PREEMPT)
+                                     preempt=self.SWAP_PREEMPT, preempt_per_swap=self.LVF_PREEMPT == "per_swap",
+                                     preempt_lambda=self.LVF_PREEMPT_LAMBDA, predictive=self.LVF_PREDICTIVE)
             dec = deadline.lvf_select(snap, params)
         self.dlog.policy(self.EVICTION, dec.scores, in_flight=snap.in_flight, rotated_for=dec.rotated_for)
         for name in dec.rotated_for:
@@ -1195,7 +1243,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
             self.dlog.note("no_fit", name, need_gb=snap.models[name].need_gb)
         activation_plan = {(name, gpu): gpu for name, gpu in dec.activations}
         by_name = {inst.model_name: inst for insts in gpu_to_active_instances.values() for inst in insts}
-        evictions = [(by_name[name], gpu, reason) for name, gpu, reason in dec.victims]
+        evictions = [(by_name[name], gpu, reason, dec.preempt.get(name)) for name, gpu, reason in dec.victims]
         for name, score in dec.scores.items():
             logger.info(f"{self.EVICTION} score {name}: {score}")
         return activation_plan, evictions
@@ -1301,7 +1349,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
                     self.active_since[name] = inst.state_since  # loaded since the last cycle
                 else:
                     self.active_since.setdefault(name, now)
-        if self.EVICTION == "throughput" or self.deadlock.enabled:
+        if self.EVICTION in ("throughput", "value") or self.deadlock.enabled:
             self._update_tput(model_queues, active_models)
         if self.dlog.enabled:
             self.dlog.models(time.time(), model_queues, model_instance_state_dict, self.model_weights_info,
@@ -1389,7 +1437,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
         
         # 3. Activate inactive models with requests
         start_inactive = time.time()
-        if self.EVICTION in ("edf", "lvf"):
+        if self.EVICTION in ("edf", "lvf", "loss"):
             activation_plan, evictions = self._deadline_actions(
                 model_queues, model_instance_state_dict, gpu_to_active_instances, idle_instance_keys,
                 gpu_available_memory)
@@ -1408,7 +1456,7 @@ class SimpleGlobalPolicy(GlobalPolicy):
 
         sorted_clusters = self._prepare_gpu_clusters(gpu_available_memory)
         
-        if self.EVICTION not in ("edf", "lvf"):
+        if self.EVICTION not in ("edf", "lvf", "loss"):
             activation_plan = {}
         unplaced_models = []
         for model_name in sorted_inactive_models:
@@ -1427,12 +1475,15 @@ class SimpleGlobalPolicy(GlobalPolicy):
 
         # 3b. Alternative eviction strategies (PRISM_EVICTION): free room for the models that did not fit
         preempt = False
-        if self.EVICTION == "throughput":
+        if self.EVICTION in ("throughput", "value"):
+            swap_for = unplaced_models
+            if self.EVICTION == "value":  # A10.1: only models with a request that can still meet its deadline
+                swap_for = [m for m in unplaced_models if self._has_viable(m, model_queues.get(m), time.time())]
             evictions = self._throughput_swaps(
-                unplaced_models, model_queues, gpu_to_active_instances, idle_instance_keys, gpu_available_memory
+                swap_for, model_queues, gpu_to_active_instances, idle_instance_keys, gpu_available_memory
             )
             preempt = self.SWAP_PREEMPT
-        elif self.EVICTION in ("edf", "lvf"):
+        elif self.EVICTION in ("edf", "lvf", "loss"):
             preempt = self.SWAP_PREEMPT
         elif self.EVICTION != "idle":
             evictions = self._pressure_evictions(
@@ -1440,21 +1491,22 @@ class SimpleGlobalPolicy(GlobalPolicy):
             )
         else:
             evictions = []
-        for victim, gpu_id, reason in evictions:
+        for victim, gpu_id, reason, *own in evictions:
+            pre = own[0] if own and own[0] is not None else preempt  # A9.4: per-victim choice
             instance_key = (victim.model_name, victim.instance_idx)
             idle_instance_keys.add(instance_key)
             model_instance_to_action_dict.setdefault(instance_key, []).append(
                 DeactivateAction(
                     model_name=victim.model_name,
                     instance_idx=victim.instance_idx,
-                    preempt=preempt,
+                    preempt=pre,
                     preempt_mode="RECOMPUTE",
                     evict_waiting_requests=True,
                     gpu_id=gpu_id,
                 )
             )
             logger.info(f"ACTION: deactivate {victim.model_name}:{victim.instance_idx} on GPU {gpu_id}. Reason: {reason}")
-            self.dlog.action("deactivate", victim.model_name, gpu_id, reason, preempt=preempt)
+            self.dlog.action("deactivate", victim.model_name, gpu_id, reason, preempt=pre)
 
         # 3c. A1.2 impasse detector (PRISM_DEADLOCK_S): after any strategy's own decisions
         if self.deadlock.enabled:

@@ -128,9 +128,9 @@ def events(level_dir, t0):
             rows.append((t, "controller", "activate", m.group(1), ""))
         elif m := re.search(r"ACTION: deactivate (\S+?):\d+ .*idle instance eviction", line):
             rows.append((t, "controller", "evict", m.group(1), ""))
-        elif m := re.search(r"ACTION: deactivate (\S+?):\d+ .*Reason: (pressure eviction|fair rotation|throughput swap|edf rotation|lvf rotation|deadlock break) for (\S+)", line):
+        elif m := re.search(r"ACTION: deactivate (\S+?):\d+ .*Reason: (pressure eviction|fair rotation|throughput swap|edf rotation|lvf rotation|loss rotation|deadlock break) for (\S+)", line):
             kind = {"pressure eviction": "evict_pressure", "fair rotation": "evict_fair", "edf rotation": "evict_edf",
-                    "lvf rotation": "evict_lvf", "deadlock break": "evict_deadlock"}.get(m.group(2), "evict_swap")
+                    "lvf rotation": "evict_lvf", "loss rotation": "evict_loss", "deadlock break": "evict_deadlock"}.get(m.group(2), "evict_swap")
             rows.append((t, "controller", kind, m.group(1), m.group(3)))
         elif m := re.search(r"No suitable GPU found for inactive model (\S+)", line):
             rows.append((t, "controller", "no_fit", m.group(1), ""))
