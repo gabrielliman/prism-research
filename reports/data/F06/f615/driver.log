@@ -7,3 +7,5 @@
 13:15:55 download f615-c1n10-1 failed: [Errno 2] No such file or directory: '/mnt/scratch/scheduler/prism-raw/F6/f615/f615-c1n10-1/outputs/run.log'
 13:18:58 download f615-c1n10-1 failed: [Errno 2] No such file or directory: '/mnt/scratch/scheduler/prism-raw/F6/f615/f615-c1n10-1/outputs/run.log'
 13:22:43 4 jobs in state, 16 to submit
+14:29:35 f615-t1-1: reports/data/F06/f615/validador/f615-t1-1.csv: 15 levels; VALIDA 15, INVALIDA_INFRA 0, INVALIDA_SISTEMA 0
+14:29:41 submitted f615-c1n10-2 f54dfb78 (3 active, 36 workers)
