@@ -731,6 +731,38 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
   contra A0.2+A1 e A0.4, nos prazos S3 `k_A`=5, S6 `k_R`=1, **S6 `k_R`=2** (acrescentado pelo Gabriel) e S6 `k_R`=4;
   A2.1 com preempção no S6 `k_R`=4 (D52). Saem A2.3, A3.1 e A10.1. Objetivo: justiça sem grande perda de SLO (D52).
 
+## D55 — Revisão do plano: cortes, redução do custo da troca, política candidata nova, modelos heterogêneos e generalização (2026-11-10, Gabriel)
+
+Contexto: com a F6.15 em andamento (3 de 20 jobs), o agente levantou o estado do plano e propôs cortes e acréscimos.
+O Gabriel decidiu:
+
+1. **Cortados:** controle de admissão e arbitragem (F7 inteira: A5, A6, A0.5), oráculo offline (F9 inteira: A8) e
+   todos os cortes propostos: A2.2 (antecipação; prazos ≥ uma troca), A3.2 e A3.3 (a A3.1 perdeu justiça; a A3.2 usa o
+   mecanismo da A2.3 refutada), A4 na forma original (componentes falharam), A10.2 e A10.3 (a A10.1 virou a A0.4), A9.3,
+   a ablação ampla da F6.6, a sensibilidade de margem/`H`/`θ`/ciclo da F6.7 e a comparação com `fair` da F6.11. Os
+   números F7 e F9 ficam vagos; nenhuma fase é renumerada (referências em relatórios e código).
+2. **Novo — F12, redução do custo da troca (A13):** decomposição do `Ĉ_rot` nos dados da F6.15, depois ativação no
+   evento de memória liberada, controlador orientado a evento, saída parcial da vítima e cancelamento da desativação
+   (A11). Motivo: num 8B a ativação leva ~1,4 s, mas a troca 6,4 s com preempção e 15,7 s sem (p90 65 s).
+3. **Novo — F13, política candidata (A12):** troca por throughput/GB (A0.4) com garantia de justiça (limite de espera,
+   pontuação mista ou contador de serviço), com literatura e desenho aprovados antes. Motivo: a A0.4 tem 10–17 pontos a
+   mais de total que a A9.2 e é quase tão justa nos prazos S6; a A9.2 só ganha em justiça no S3 `k_A`=5.
+4. **Novo — F14, modelos heterogêneos e cargas com pesos diferentes por modelo,** com a lista inicial de modelos tirada
+   do artigo do Prism (R1: Tabela 3, Fig. 1, Fig. 10, §3.1): Llama-3.2-1B, Llama-3.2-3B, Llama-3.1-8B, Qwen2.5-7B,
+   Qwen2.5-14B (no lugar do DS-R1-Distill-Qwen-14B), Mistral-Nemo 12B (se o SGLang 0.3.4 suportar), Qwen2.5-32B; 70B
+   fora (não cabe numa H200 em BF16). Cargas H1 (proporção de tamanhos do artigo, mesma taxa), H2 (grandes populares e
+   contínuos, pequenos em rajadas, padrão do §3.1), H3 (pequenos populares, grandes na cauda), H4 opcional (trace).
+   Lista e cargas finais confirmadas pelo Gabriel no início da F14 (F14.0).
+5. **Novo — F15, generalização:** políticas finais em cargas aprovadas na F3 que a F6 não usou (proposta: C7, C2, T2,
+   C10), 5 repetições.
+6. **Ordem:** F6 (fecha com F6.15, F6.17, F6.9) → F12 → F13 → F14 (infra em paralelo desde já, limite de 3 jobs) →
+   F15 → F8 → F10 → F11.
+7. **Alinhamento do texto do plano a decisões anteriores:** objetivo da D52 (justiça entre modelos como critério 4 da
+   seção 7, no lugar de "só observação" da D31); TODO com A9.4, A2.3, A3.1 e A10.1 marcadas como feitas/encerradas;
+   tabela de fases sem as datas-alvo antigas (artigo parcial adiado, D49).
+
+Arquivos: `PLANO_AGENTE.md` (seções 2, A2–A13, 5.5, F6–F15, 7, 8), `TODO.md`.
+
 ## D56 — SLO de TPOT como no artigo do Prism no padrão das tabelas (2026-11-10, Gabriel)
 
 - **Pedido (Gabriel):** usar o mesmo cálculo de SLO de TPOT do artigo do Prism.
@@ -757,3 +789,81 @@ Origem: auditoria das máquinas de estado implícitas do `f3-cargas` contra o Pr
 - **Arquivos:** `polyaxon/slo_metrics.py` (S1D), `polyaxon/f60_analysis.py` (referências `S1Dk2`, `S1Dk5`),
   `polyaxon/f615_compare.py` (`tabela_padrao.md`), `tests/metrics/test_slo_metrics.py`, CLAUDE.md regra 7,
   `docs/agent/glossary.md`, `reports/registro/latencia_ref.md`, `referencias.md` (R1).
+
+## D57 — Recusa de requisições fora do plano (2026-11-10, Gabriel)
+
+- **Pedido (Gabriel):** "tirar tudo relacionado a recusa de requisições do plano".
+- **Feito no `PLANO_AGENTE.md`:** nenhuma política recusa requisições (a antiga A5, já cortada com a F7 na D55, sai
+  também como texto de registro); a observação 4.0 perde a resposta "recusar cedo"; a seção 7 deixa de ter recusas nas
+  métricas (as violações e as perdas contam só as não atendidas até o fim do prazo extra); a C9 não serve mais à
+  admissão; a A7 aplica os pesos às políticas finais; o validador já não tem o V6 no plano.
+- **Mantido como registro:** itens já feitos do `TODO.md` (F2.2 "V6 N/A", F3.1 "recusa como estado final") e o código
+  existente (`overload_load.py`, `validate_run.py`), que continua aceitando a recusa como estado final sem uso; nada de
+  código foi alterado.
+
+## D58 — F14 vira a próxima fase; plano limpo; popularidade variada nas cargas heterogêneas (2026-11-10, Gabriel)
+
+1. **Próximo passo depois da F6:** a F14 (modelos heterogêneos), testando **adaptações das melhores políticas** (A0.2+A1,
+   A0.4, A9.2, A2.1, vencedora da F6.15) **cientes do tamanho de cada modelo e do tempo de ativação** (família nova A14:
+   A14.1 troca por throughput com custo de ativação, A14.2 VLT ciente do tamanho, A14.3 EDF com `Ĉ_rot` do próprio
+   modelo, A14.4 ociosidade e `T_min` proporcionais ao custo de recarga; literatura e desenho aprovados antes). A F14
+   começa por uma linha de base heterogênea com as políticas sem adaptação. F12, F13 e F15 ficam depois; a ordem delas
+   é revista no gate da F14.
+2. **Popularidade nas cargas heterogêneas (pedido do Gabriel: "diferentes distribuições de popularidade, todas baseadas em
+   artigos se possível, com mais requisições para modelos maiores e o contrário"):** a mistura de tamanhos fica fixa
+   (proporção da Tabela 3 do Prism) e variam dois fatores. **Concentração:** uniforme (controle do DeltaZip), lei de
+   potência com α = 0,9 e 2,1 (MuxServe), α = 1,5 opcional (DeltaZip). **Quem é popular:** grandes (trace da Novita no
+   artigo do Prism, §3.1), pequenos (BurstGPT: ChatGPT ≫ GPT-4) e a ordem real do LMSYS-Chat-1M. Os números vieram de uma
+   busca; MuxServe, DeltaZip, BurstGPT e ServeGen são lidos no texto e registrados em `referencias.md` na F14.0, antes do
+   desenho das cargas. Cargas H-unif, H-G-α, H-P-α, H-real substituem as H1–H4 da D55.
+3. **Plano limpo (pedido do Gabriel):** `PLANO_AGENTE.md` reescrito. Fases concluídas (F0–F5, F6a e a parte feita da F6)
+   viram resumo do que foi feito e alcançado; sai o texto contrariado por decisões posteriores (drenagem, A0.3/A0.3p como
+   linhas de base, prioridades da D31, justiça "só como observação", níveis iniciais de SLO, variantes cortadas, matriz
+   original da F6.0, observação 4.0 "a verificar"); políticas em uso e a desenvolver numa tabela; seção de estado atual;
+   decisões pendentes só as futuras. Nenhum critério de aceitação foi relaxado. A versão anterior fica no git.
+
+## D59 — Comandos do ciclo de vida com identificador; timeout não presume sucesso; reentrada mantém `output_len` (2026-11-11, Gabriel)
+
+Revisão externa apontou quatro problemas; os quatro foram confirmados no código (commit `8912fbf`). Gabriel autorizou as
+correções "se não afetar os testes atuais": os jobs da F6.15 já submetidos levaram o código antigo, e nenhuma correção
+toca o SGLang.
+
+1. **Eventos sem geração (corrigido):** `ActivateAction`/`DeactivateAction` geram um `rid`, que o engine já ecoava; a
+   instância guarda `cmd_rid` e só eventos do comando corrente a movem. O GPU scheduler guarda um `Command` por modelo
+   (substitui os contadores `_pending_deacts`/`_stale_deacts` da R2.3) e descarta respostas atrasadas. Antes, um
+   "activated" atrasado de uma carga despejada confirmava uma ativação nova, e uma falha atrasada liberava o worker da
+   ativação nova.
+2. **Timeout e desativação falha (corrigido):** depois de `LIFECYCLE_TIMEOUT_S`, ACTIVATING não vira mais ACTIVE: o
+   controlador manda uma desativação de limpeza. DEACTIVATING continua DEACTIVATING, porque a política já o trata como
+   inativo. A única falha de desativação do engine é "já desativado", então INACTIVE estava certo; o GPU scheduler agora
+   também sai de "deactivating" (`reason=already_inactive`). Uma desativação de modelo sem worker é respondida na hora
+   (`not_served`) em vez de deixar o controlador esperando 120 s. A memória livre vem da medição da GPU, então o estado
+   errado não causava overcommit, mas um ACTIVATING que nunca confirmava ficava como servindo para sempre.
+3. **`output_len=512` na reentrada (corrigido no controlador):** `ModelQueueTracker` mantém o tamanho original. Com
+   RECOMPUTE a geração recomeça do zero, então esse é o restante correto. `_convert_req_to_frontend_reqs` (SGLang) fica
+   como está.
+4. **TPOT por N em vez de N−1 (não corrigido):** viés médio de +0,9% nas cargas da F6 (N de 11 a 1000). As bases
+   kD×P95 de `latencia_ref` usam a mesma fórmula, então mudar só o cálculo afetaria a comparação com os resultados
+   atuais. Se corrigido, deve ser junto com o recálculo das bases (offline, por `tpot × N/(N−1)` em `requests.csv`).
+
+Efeito nas comparações: execuções a partir de `8912fbf` têm o ciclo de vida corrigido. Pela regra 3, compare apenas com
+braços da mesma janela. Reexecuções da F6.15 devem usar o código anterior (`4d86101`).
+
+## D60 — Gate da F6 aprovado; A9.2 é a vencedora da F6.15; F6.17 pulada; sem limiar fixo de "grande perda de SLO" (2026-11-11, Gabriel)
+
+Contexto: confirmação F6.15 concluída (`reports/fases/F06_15_confirmacao.md`, 20 jobs, 300/300 VALIDA, sem reexecução).
+A9.2 mais justa que a A0.4 nos prazos de até 1 troca (S3 `k_A`=5: pior quarto +5,2\*, Jain +5,4\*, total −1,4 n.s.); A9.4
+com λ = 1 igual à A9.2; A0.4 a melhor com prazos de ≥ 2 trocas; A2.1 com cauda ~2×. Todos os critérios de aceitação da F6
+OK, com a decomposição das violações feita sobre os dados da F6.15 (`polyaxon/f615_decomp.py`).
+
+1. **Gate da F6 aprovado.** A F6.18 (decomposição evitável × inevitável) fica feita pela tabela D do relatório da F6.15.
+2. **A vencedora da F6.15 é a A9.2** (proposta do agente aceita): única com ganho de justiça confirmado no prazo curto,
+   sem preempção, menor maior espera em 3 dos 4 prazos. Onde o plano diz "vencedora da F6.15" (F14.5, A14, F13, F15),
+   leia-se A9.2; como ela já está nessas listas, nenhum braço é acrescentado. A A9.4 sai.
+3. **F6.17 (sensibilidade da vencedora) pulada:** a F14 adapta a A9.2 ao tamanho dos modelos, e parâmetros afinados com
+   modelos 8B iguais podem não valer lá.
+4. **Sem limiar fixo de "grande perda de SLO":** o objetivo da D52 continua; em vez de um número, cada relatório mostra a
+   diferença de total com IC 95% pareado ao lado do ganho de justiça e das caudas, por prazo e por carga, e a leitura é
+   feita no gate. O item "limiar" sai da F14.0 e das decisões pendentes.
+
+Próximo: F6.9 (relatório da F06), depois F14 (D58).

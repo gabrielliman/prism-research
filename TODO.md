@@ -40,7 +40,7 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F2.12 Curvas S2 (`k_T` × `k_D`) e S3 retroativas nos dados de 28/10, nas três vistas (2026-11-04, reports/data/F02/curvas/; refeitas com S2/S2M da D21)
 - [x] F2.9 Relatório F02 com opções de família principal de SLO, níveis `k_T`/`k_D`/`k_A` e SLOs por classe, para decisão do Gabriel (2026-11-04, reports/fases/F02_instrumentacao.md; gate APROVADO em 2026-11-04, D19)
 
-## F6a — Primeira rodada das políticas por prazo (A2.1, A9.1), adiantada · gate [HUMANO] · PRIORIDADE ATUAL (D24)
+## F6a — Primeira rodada das políticas por prazo (A2.1, A9.1), adiantada · gate [HUMANO] · APROVADO, negativo (D27)
 - [x] F6a.1 (2026-11-04, `overload_load.py --slo-spec`, `PRISM_OVL_SLO_SPEC`; D25) `overload_load.py --slo-spec`: prazo por requisição (S2/S2M/S3 com `latencia_ded.json`) enviado ao servidor; métricas com a mesma especificação
 - [x] F6a.2 (2026-11-04, `policy/deadline.py`; D25) `scheduling/policy/deadline.py`: `edf_select` (A2.1) e `lvf_select` (A9.1), funções puras; `simple_global.py` monta o retrato; `PRISM_EVICTION=edf|lvf`, A1.1 (`PRISM_KV_RESERVE_REQS`) e A1.3 (`PRISM_MIN_RESIDENCY`), padrões inalterados
 - [x] F6a.3 (2026-11-04, `tests/policy/test_deadline.py`, 28 testes; 45 no total com controller/robustness) Testes em `tests/policy/` (tudo cabe, fome C1, troca C2, impasse C3, fila inviável, rotativo com α, orçamento, `T_min`, memória no limite)
@@ -86,57 +86,72 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F5.1 A0.1–A0.5 (+A1), com A0.3 e A0.3p (sem e com preempção) e a melhor ociosidade de valor arbitrário (seção 0.10), em todas as cargas aprovadas, níveis de `ρ_mem` definidos, 5 repetições — escopo da D39/D46: 5 configurações (A0.1, A0.1+A1, A0.2+A1, A0.4, A0.4p) × 18 cargas × 3 repetições = 270 níveis, todos VALIDA (2026-11-08, `reports/data/F05/camp/`; D47, D48)
 - [x] F5.2 Tabelas e figuras de referência (SLO total, TTFT p50/p90, evitáveis/inevitáveis pela classificação nova, ociosidade da GPU, pior modelo, trocas, perdas) — `polyaxon/f5_analysis.py`, `f5_report_tables.py`, `f5_figs.py`; `reports/data/F05/campanha/`, `reports/figs/F05/` (2026-11-09)
 - [x] F5.2a Curvas de todas as famílias de SLO calculadas pós-execução; SLO mínimo atingível (90% e 99%) por política e carga, nas três vistas — `curvas_niveis.csv`, Tabela 5 (2026-11-09)
-- [~] F5.2c Decomposição das violações (ambos / só TTFT / só TPOT / nenhum) e CDFs de TTFT e TPOT normalizados, por política e por modelo — decomposição em `niveis.csv` (colunas `*_1s`) e Tabela 2; quantis do TTFT/TPOT normalizados em `niveis.csv`; figuras de CDF ainda não feitas
+- [~] F5.2c (CDFs pendentes, baixa prioridade) Decomposição das violações (ambos / só TTFT / só TPOT / nenhum) e CDFs de TTFT e TPOT normalizados, por política e por modelo — decomposição em `niveis.csv` (colunas `*_1s`) e Tabela 2; quantis do TTFT/TPOT normalizados em `niveis.csv`; figuras de CDF ainda não feitas
 - [x] F5.2b Escolher o subconjunto de níveis de SLO para as políticas por prazo (alto, meio da queda, baixo) e registrar em `decisoes.md` — D49: S6 k_R ∈ {1, 2, 4} e S3 k_A = 5 (S2 k_T = 10 como referência)
 - [x] F5.3 C-V1 e C-V2 satisfeitos; relatório F05 com proposta de conteúdo do artigo parcial — C-V1 OK; C-V2 falhou, aceito com limitação (D49); sem artigo parcial por enquanto (D49); relatório `reports/fases/F05_linhas_de_base.md`
 
-## F6 — Ativação e despejo por folga (A2–A4) e por atraso virtual (A9) · gate [HUMANO]
-- Prioridades (D31, D32, `PLANO_AGENTE.md` seção F6): custo real da troca → A3.1 → A10 (throughput × prazo × fila) → A2.3 → A4 → classes de prazo (F8) → A9.2; ciclo 1 s e A5 fora de prioridade; pior modelo só como observação; objetivo SLO + TTFT p50/p90 + nenhuma espera absurda (D33); SLOs ≥ tempo de rotação (S3 kA=5, S6 kR ∈ {1, 2})
-- [x] F6.P16 (2026-11-09, R2.6 em `scheduler.py`, `tests/robustness/test_preempt_inflight.py`, jobs `f6-p16-1..5` em `reports/data/F06/p16/`; causa: a desativação com preempção descartava a requisição no meio de um prefill em pedaços, que ficava "rodando" no controlador e era respondida pelo modelo errado; verificado: 0 respostas de outro modelo e 0 presas com a correção, contra 9 e 2 sem) Investigar e corrigir a P16 (`reports/erros.md`: com preempção, requisições ficam "rodando" num modelo inativo no espelho do controlador): nível curto da A0.4p com `PRISM_TRACE_RIDS=1`; causa; correção; teste unitário; verificação
-- [x] F6.0 (2026-11-09: campanha 160/160 VALIDA, relatório `reports/fases/F06_0_repeticao_sem_drenagem.md` APROVADO, D52; D31, D32, D49, D50; primeira tarefa da F6) Triagem das políticas por prazo sem drenagem, com A1 e as linhas de base da F5: C1 com 10 modelos, T1, C6 com 14 modelos e T3, 2 rep. (8 jobs × 20 níveis = 160, `polyaxon/f6_0_suites.sh`, driver `f4_driver_start.sh f60`, sem orçamento de workers); por job A0.2+A1 e A0.4 (referência pareada) + A2.1 (EDF), A9.1 (VLT) e A9.2 (VLT ciente da residência, nova, D50) × {S3 `k_A`=5, S6 `k_R`=1, S6 `k_R`=4} × {sem, com preempção}; hipótese do S3 (D49): diferença com − sem preempção no S3 contra a mesma no S6 `k_R`=4, pareada no job; smoke `f60_smoke_suite.tsv` antes; relatório `reports/fases/F06_0_repeticao_sem_drenagem.md`; gate [HUMANO]
-- [ ] F6.14 (D52) A9.4 VLT residência com preemptar ou não por troca + testes; padrão sem preempção em todas as políticas
-- [x] F6.16 (2026-11-10, 88/88 VALIDA, relatório `reports/fases/F06_16_triagem_politicas_novas.md`, D54) Triagem: A9.4, A3.1, A10.1, A2.3 + A0.2+A1 e A0.4, 2 rep.; literatura e desenho aprovados antes de implementar
-- [ ] F6.15 (D52, D54) Confirmação, 5 rep. (escopo final na D54: A9.2, A2.1 e A9.4 com λ = 1 em S3 `k_A`=5, S6 `k_R`=1, 2 e 4; A2.1 com preempção em S6 `k_R`=4); proposta inicial: A9.2, A2.1 (sem preempção) e A9.4 contra A0.2+A1 e A0.4 em S3 `k_A`=5 e S6 `k_R`=1; A2.1 com preempção em S6 `k_R`=4; objetivo justiça sem grande perda de SLO
+## F6 — Políticas por prazo e por atraso virtual: triagens e confirmação · gate [HUMANO] · escopo revisto na D55
+- Objetivo (D52): justiça entre modelos sem grande perda de SLO (pior quarto, Jain, p90 do pior modelo + SLO total, TTFT p50/p90, cauda). Prioridades antigas da D31/D32 superadas (D52–D55).
+- [x] F6.P16 (2026-11-09, R2.6 em `scheduler.py`, `tests/robustness/test_preempt_inflight.py`, jobs `f6-p16-1..5` em `reports/data/F06/p16/`; causa: a desativação com preempção descartava a requisição no meio de um prefill em pedaços, que ficava "rodando" no controlador e era respondida pelo modelo errado; verificado: 0 respostas de outro modelo e 0 presas com a correção, contra 9 e 2 sem) Investigar e corrigir a P16
+- [x] F6.0 (2026-11-09: campanha 160/160 VALIDA, relatório `reports/fases/F06_0_repeticao_sem_drenagem.md` APROVADO, D52; D50) Triagem sem drenagem: A2.1, A9.1, A9.2 × {S3 `k_A`=5, S6 `k_R`=1, 4} × {sem, com preempção}, com A0.2+A1 e A0.4; C1 10 modelos, T1, C6 14 modelos, T3; 2 rep.
 - [x] F6.1 (feito na F6a e na F6.0) A2.1 EDF entre modelos + testes
-- [ ] F6.2 A2.2 menor folga com antecipação (+ variação do ciclo do controlador) + testes
-- [ ] F6.3 A2.3 residência preditiva (`λ̂`, horizonte `H`) + testes
-- [ ] F6.4 A3.1–A3.3 despejo por perda esperada, preemptar × não preemptar (D30: sem drenagem com prazo) + testes
-- [ ] F6.13 (D32) A10.1–A10.3 troca por valor (throughput × prazo × fila), `PRISM_EVICTION=value` + testes; entra na ablação e na sensibilidade dos pesos
-- [ ] F6.5 A4 política combinada
-- [ ] F6.6 Ablação em C1, C2, C3, C6, C7, C11, T1 contra A0.1 e a melhor linha de base, 5 repetições
-- [ ] F6.7 Sensibilidade de margem, `H`, `θ`, ciclo; escolha registrada
-- [ ] F6.8 IC 95% pareado por semente para cada comparação, nas três vistas (combinada, só TTFT, só TPOT); explicação mecânica de toda diferença > 2× e de toda troca de violação de TTFT por TPOT (ou o inverso)
-- [x] F6.10 (A9.1 na F6a; A9.2 em 2026-11-09, D50) A9.1 LVF entre modelos (VLT do SuperInfer) e A9.2 LVF com custo de ativação + testes (`tests/policy/`)
-- [ ] F6.11 A9 na campanha de ablação da F6.6 (mesmas cargas e repetições), contra `fair`, A0.1, a melhor linha de base e A2/A4; sensibilidade de `α`, `β_F`, `β_B` e do orçamento de rotação
-- [ ] F6.12 (opcional, decidir pelo resultado da F6.11) A9.3 LVF entre requisições dentro do worker, com preempção por recomputação
-- [ ] F6.9 Relatório F06
+- [x] F6.10 (A9.1 na F6a; A9.2 em 2026-11-09, D50) A9.1 e A9.2 + testes
+- [x] F6.14 (2026-11-10, F6.16, `preempt_choice` em `policy/deadline.py`, `tests/policy/test_f616.py`) A9.4: preemptar ou não a cada troca (λ); padrão sem preempção em todas as políticas (D52)
+- [x] F6.3 / F6.4 / F6.13 (2026-11-10, só as variantes 1: A2.3, A3.1, A10.1; F6.16) Implementadas e triadas; **encerradas com resultado negativo** (D54)
+- [x] F6.16 (2026-11-10, 88/88 VALIDA, relatório `reports/fases/F06_16_triagem_politicas_novas.md`, D54) Triagem: A9.4, A3.1, A10.1, A2.3 + A0.2+A1 e A0.4, 2 rep.
+- [x] F6.15 (2026-11-11, 20 jobs, 300/300 VALIDA, relatório `reports/fases/F06_15_confirmacao.md`, D60) Confirmação, 5 rep.: A9.2 e A2.1 sem preempção, A9.4 com λ = 1, contra A0.2+A1 e A0.4, em S3 `k_A`=5 e S6 `k_R` ∈ {1, 2, 4}; A2.1 com preempção em S6 `k_R`=4; vencedora A9.2
+- [x] F6.17 Sensibilidade da vencedora: **pulada** (D60; a F14 adapta a A9.2 ao tamanho dos modelos)
+- [x] F6.18 (2026-11-11, `polyaxon/f615_decomp.py`, tabela D do relatório da F6.15) Decomposição evitável/inevitável nos níveis S3/S6
+- [x] Gate da F6 aprovado (D60, 2026-11-11)
+- [ ] F6.9 Relatório F06 (confirmação + resumo da F6, inclusive os negativos)
+- [-] Cortados (D55): F6.2 A2.2; A3.2/A3.3; F6.5 A4 (virou a A12, F13); F6.6 ablação ampla (virou a F15); F6.7 sensibilidade de margem/`H`/`θ`/ciclo; F6.11 comparação com `fair`; F6.12 A9.3; A10.2/A10.3; F6.8 absorvido nos critérios de cada fase
 
-## F7 — Admissão e arbitragem com custo de ativação (A5, A6) · gate [HUMANO]
-- [ ] F7.1 A5.1 recusa na chegada
-- [ ] F7.2 A5.2 recusa por envelhecimento
-- [ ] F7.3 A5.3 rebaixamento para lote
-- [ ] F7.4 A0.5 (se não existir) e A6 Moore-Hodgson com custo de ativação + testes
-- [ ] F7.5 Medida de recusas "erradas"
-- [ ] F7.6 Campanha em C1, C4, C5, C7, C9, T1, com resultados nas três vistas; relatório F07
+## F14 — Modelos heterogêneos: políticas cientes do tamanho e do tempo de ativação · gate [HUMANO] · PRÓXIMA (D58)
+- [ ] F14.0 Ler no texto as fontes das distribuições de popularidade (MuxServe α 0,9/2,1, DeltaZip Zipf 1,5, BurstGPT pequenos populares, Prism §3.1 grandes populares, ServeGen) e registrar em `referencias.md`; popularidade × tamanho do LMSYS-Chat-1M para a H-real; [HUMANO] lista de modelos, cargas H e limiar de "grande perda de SLO"
+- [ ] F14.1 Baixar Llama-3.2-1B, Qwen2.5-7B, Mistral-Nemo (`hf_download.sh`); smoke de cada modelo no SGLang 0.3.4
+- [ ] F14.2 Base dedicada (`latencia_ded.json`) e `Ĉ_at`/`Ĉ_rot` por modelo, com e sem preempção (substitui os extrapolados de 27,5 e 61 GB)
+- [ ] F14.3 Cargas H-unif, H-G-α, H-P-α (α ∈ {0,9; 2,1}; 1,5 opcional), H-real em `workloads.py`; `cargas.md`; dry runs VALIDA
+- [ ] F14.4 Métricas por classe de tamanho (`slo_metrics.py`, `f60_fairness.py`, padrão das tabelas)
+- [ ] F14.5 Linha de base heterogênea, 2 rep.: A0.2+A1, A0.4, A9.2, A2.1 e a vencedora da F6.15, sem adaptação, nas cargas H e no C10
+- [ ] F14.6 Literatura (custo por tamanho: R7, R8, serving multi-modelo heterogêneo) + desenho de A14.1–A14.4 para aprovação
+- [ ] F14.7 Implementação atrás de `PRISM_*` + testes
+- [ ] F14.8 Triagem, 2 rep.: cada adaptação pareada com a versão sem adaptação, A0.2+A1 e A0.4; S3 `k_A`=5, S6 `k_R` ∈ {1, 2, 4}; smoke antes
+- [ ] F14.9 Confirmação, 5 rep., do que passar
+- [ ] F14.10 Relatório F14; [HUMANO] ordem das fases seguintes
+
+## F12 — Redução do custo da troca (A13) · gate [HUMANO] · depois da F14 (ordem revista no gate da F14)
+- [ ] F12.1 Decomposição do custo da troca nos dados da F6.15 e da F14 (`swap_cost.py`), por política e tamanho; ordem de ataque
+- [ ] F12.2 Literatura + desenho de A13.1–A13.4; aprovação do Gabriel
+- [ ] F12.3 Implementação atrás de `PRISM_*`, estados explícitos (D45), testes
+- [ ] F12.4 Triagem pareada (com × sem cada mecanismo) nas melhores políticas, 2 rep.; confirmação de 5 do que entrar
+- [ ] F12.5 Remedir `Ĉ_rot` (decisão sobre a base do S6); relatório F12
+
+## F13 — Política candidata: troca por throughput com garantia de justiça (A12) · gate [HUMANO]
+- [ ] F13.1 Literatura (VTC e justiça em serving multi-modelo) + desenho de A12.1–A12.3
+- [ ] F13.2 Implementação + testes (com as adaptações da F14 e os mecanismos da F12 aprovados)
+- [ ] F13.3 Triagem, 2 rep., nas cargas da F6 e nas heterogêneas, contra A0.2+A1, A0.4, A9.2, vencedora da F6.15
+- [ ] F13.4 Confirmação, 5 rep.; sensibilidade do parâmetro de justiça
+- [ ] F13.5 Relatório F13; [HUMANO] política candidata principal
+
+## F15 — Generalização das políticas finais · gate [HUMANO]
+- [ ] F15.1 [HUMANO] Cargas não usadas na F6 nem na F14 (proposta: C7, C2, T2; C8 opcional), com justificativa da seção 0.9
+- [ ] F15.2 Políticas finais contra A0.2+A1 e A0.4, 5 rep. pareadas
+- [ ] F15.3 Relatório F15
+
+## F7 — **CORTADA (D55, D57)**
+## F9 — **CORTADA (D55)**
 
 ## F8 — Classes e pesos (A7) · gate automático
-- [ ] F8.0 Antes de começar: reapresentar ao Gabriel os SLOs das classes (provisórios na D19: interativa S2 `k_T`=10, `k_D`=5; lote TTFT 60 s, sem TPOT) com os dados da F5–F7, e esperar a confirmação
-- [ ] F8.1 Classes e pesos em A2, A3, A5
+- [ ] F8.0 Antes de começar: reapresentar ao Gabriel os SLOs das classes (provisórios na D19: interativa S2 `k_T`=10, `k_D`=5; lote TTFT 60 s, sem TPOT) com os dados da F5–F13, e esperar a confirmação
+- [ ] F8.1 Classes e pesos nas políticas finais (F13, F14)
 - [ ] F8.2 Campanha em C9 e C6 com proporções de classe variadas
 - [ ] F8.3 Curvas SLO agregado × pior modelo para cada política, nas três vistas e por classe
 - [ ] F8.4 Objetivo padrão decidido pelo Gabriel e registrado; relatório F08
 
-## F9 — Oráculo offline (A8) · gate [HUMANO] · pode rodar em paralelo após F3
-- [ ] F9.1 Formulação ILP e implementação (HiGHS ou CP-SAT)
-- [ ] F9.2 Validação por enumeração em instâncias minúsculas
-- [ ] F9.3 Solução nos traces curtos; gap e tempo registrados
-- [ ] F9.4 Política `oracle_replay` e execução real do plano ótimo
-- [ ] F9.5 Erro do modelo (ILP × execução real) e lacuna das políticas online; relatório F09
-
 ## F10 — Campanha final · gate [HUMANO]
 - [ ] F10.1 Congelar commit e imagem
-- [ ] F10.2 Matriz completa com repetições mínimas
-- [ ] F10.3 Figuras e tabelas regeneráveis por um comando a partir de `execucoes.csv`, todas nas três vistas
+- [ ] F10.2 Matriz completa com repetições mínimas (inclui as cargas heterogêneas da F14)
+- [ ] F10.3 Figuras e tabelas regeneráveis por um comando a partir de `execucoes.csv`, todas nas três vistas e com justiça
 - [ ] F10.4 Relatório final com conclusões, limitações e ameaças à validade
 
 ## F11 — Consolidação · gate [HUMANO]

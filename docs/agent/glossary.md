@@ -56,8 +56,10 @@ The reports are in Portuguese. Common words: *sobrecarga* = overload, *ociosidad
 
 | Prefix | Meaning | Where defined |
 | --- | --- | --- |
-| F0–F11 | Mission phases | `PLANO_AGENTE.md` §6, `TODO.md` |
-| A0–A9 | Policy families (A0 baselines, A1 structural constraints, A2 least slack, A3 expected-loss eviction, A5 admission, A6 Moore-Hodgson, A7 classes, A8 offline oracle, A9 SuperInfer's Virtual Lag Time) | `PLANO_AGENTE.md` §4 |
+| F0–F15 | Mission phases. Execution order (D58): F0, F1, F2, F6a, F3, F4, F5, F6, F14 (heterogeneous models, size- and activation-aware policies), then F12 (swap cost), F13 (candidate policy), F15 (generalization), F8, F10, F11 (order after F14 revisited at its gate); F7 and F9 were cut | `PLANO_AGENTE.md` §2, §6, `TODO.md` |
+| H-unif, H-G-α, H-P-α, H-real | Heterogeneous-model workloads of F14 (size mix from the Prism paper Table 3): uniform popularity; power-law α ∈ {0.9, 2.1} with large models popular (G) or small models popular (P); real popularity × size from LMSYS-Chat-1M (D58) | `PLANO_AGENTE.md` §5.3 |
+| A14 | Size- and activation-time-aware adaptations of the best policies (F14, D58) | `PLANO_AGENTE.md` §4.2 |
+| A0–A14 | Policy families (A0 baselines, A1 structural constraints, A2 least slack, A3 expected-loss eviction, A9 SuperInfer's Virtual Lag Time (A9.2 residence-aware, A9.4 per-swap preemption), A10 value swap, A11 cancel deactivation, A12 throughput swap with fairness guarantee (candidate, F13), A13 swap-cost reduction mechanisms (F12), A14 size- and activation-aware adaptations (F14); A6 Moore-Hodgson and A8 offline oracle were cut in D55; request refusal (old A5) removed from the plan in D57) | `PLANO_AGENTE.md` §4 |
 | D1, D2, … | Decisions | `reports/registro/decisoes.md` |
 | R2.1–R2.5 | Round-2 fixes (accounting, prefill/worker exit, race, infra health gate, TTFT fix) | change log report |
 | K1 | kvcached `abort()` on a driver OOM, which kills the worker | `reports/erros.md`, limits report |

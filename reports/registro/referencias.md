@@ -7,7 +7,7 @@ antes de ser tomada, e cita as entradas daqui em `decisoes.md`.
 
 | id | referência | usada em |
 | --- | --- | --- |
-| R1 | Prism (OSDI'26) | D45 (contexto); D46 item 3; D56 (SLO de TPOT) |
+| R1 | Prism (OSDI'26) | D45 (contexto); D46 item 3; D55 (lista inicial de modelos heterogêneos, F14); D56 (SLO de TPOT) |
 | R2 | Clockwork (OSDI'20) | D45 itens 1–2; A9.2 (prioridade de carga) |
 | R3 | SwapServeLLM (SC Workshops'25) | D45 item 3; A11 |
 | R4 | SuperInfer (MLSys'26) | A9 (D4) |
@@ -29,6 +29,12 @@ Yu, Xing et al., OSDI 2026. arXiv 2505.04021 (v3): <https://arxiv.org/abs/2505.0
 - **Por que foi adicionada:** é o sistema que estudamos. Mostra que o desenho publicado deixa implícito o intervalo entre
   decisão e carga/saída (lacuna que a D45 torna explícita) e que, na migração, o próprio Prism já espera um evento
   ("target is ready") em vez de um tempo fixo — o mesmo princípio que a D45 aplica à reserva de troca.
+- **Adendo (D55, 2026-11-10, versão OSDI'26 em `Prism.pdf`):** base da lista inicial de modelos heterogêneos da F14.
+  Tabela 3: 58 modelos avaliados, 43 de 1–3B, 8 de 4–8B, 3 de 9–30B, 4 de 31–70B; §7.2: 18 modelos de 1B a 8B numa GPU;
+  §7.4: 32B com TP=4 e 70B com TP=4/8 (por isso o 70B fica fora numa H200); Fig. 1 (trace da Novita): Llama-3.2-1B,
+  Llama-3.1-8B, Qwen2-7B, Qwen2.5-7B, Mistral-Nemo, DS-R1-Distill-Qwen-14B/32B, QwQ-32B, Llama-3.3-70B; §3.1: modelos
+  grandes de uso geral com tráfego contínuo, destilados menores em rajadas esparsas (padrão da carga H2); Fig. 10 /
+  §7.5: ativação de 0,7 s (1–8B), 1,3 s (14B), 1,5 s (70B) em H100.
 - **Adendo (D56, 2026-11-10, `Prism.pdf` e arXiv v3):** SLO de TPOT. §7.1: "we first ran its workload on dedicated
   GPUs to measure its P95 TTFT and TPOT latencies [...] TPOT SLOs from 5.2ms to 50.9ms. We then scaled these base values
   by a factor"; §2: TPOT = latência média entre tokens; escalas de TTFT e TPOT separadas (§7.4: "SLO scale is 5 and TPOT
