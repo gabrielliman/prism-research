@@ -370,10 +370,17 @@ início da F14 (`PLANO_AGENTE.md` seção 8, item 2).
 4. **F6.9 (relatório da F6)** em seguida, juntando F6a, F6.0, F6.16 e esta confirmação, inclusive os resultados
    negativos (A9.4, A2.3, A3.1, A10.1 e a preempção global).
 
+## Decisão (Gabriel, 2026-11-11, D60)
+
+1. Gate da F6 **aprovado**; a F6.18 fica feita pela tabela D.
+2. **Vencedora da F6.15: A9.2** (proposta aceita).
+3. **F6.17 pulada.**
+4. **Sem limiar fixo de "grande perda de SLO":** cada relatório mostra a diferença de total com IC 95% pareado ao lado do
+   ganho de justiça e das caudas, e a leitura é feita no gate.
+
 ## Pendências
 
-- Gate da F6 (acima), F6.17 conforme a decisão, F6.9.
-- Limiar de "grande perda de SLO" (início da F14).
+- F6.9 (relatório da F06), depois F14 (D58).
 - Recalcular a A9.2 e a A0.4 com o código da D59 na linha de base da F14 (limitação do item 2 das anomalias).
 
 ## Reprodução
