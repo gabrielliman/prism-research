@@ -17,5 +17,5 @@ f615-c6n14-4	polyaxon/configs/f615_C6n14_o4_suite.tsv	017c800f6aaf4d6bbeed11eb57
 f615-t3-4	polyaxon/configs/f615_T3_o4_suite.tsv	c2be91069cb54cbab8ca947cab186030	2026-11-11 03:37	succeeded	1
 f615-c1n10-5	polyaxon/configs/f615_C1n10_o5_suite.tsv	8a316540793143ed9da99aaaf43456c3	2026-11-11 05:09	succeeded	1
 f615-t1-5	polyaxon/configs/f615_T1_o5_suite.tsv	aea0d9296ea74192aaa8ff8a0eebed5a	2026-11-11 05:49	succeeded	1
-f615-c6n14-5	polyaxon/configs/f615_C6n14_o5_suite.tsv	31e61442952a48c1b729e0d1ac03018e	2026-11-11 07:47	running	0
+f615-c6n14-5	polyaxon/configs/f615_C6n14_o5_suite.tsv	31e61442952a48c1b729e0d1ac03018e	2026-11-11 07:47	succeeded	1
 f615-t3-5	polyaxon/configs/f615_T3_o5_suite.tsv	493cf4f22ded42aa8a430a030cb241cb	2026-11-11 08:00	running	0
