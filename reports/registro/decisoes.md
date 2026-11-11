@@ -849,6 +849,18 @@ toca o SGLang.
 Efeito nas comparações: execuções a partir de `8912fbf` têm o ciclo de vida corrigido. Pela regra 3, compare apenas com
 braços da mesma janela. Reexecuções da F6.15 devem usar o código anterior (`4d86101`).
 
+**Teste curto (smoke) do código D59 (2026-11-11):** job `prism-examples-d59-smoke-curto` (`d1a2dc23`), um nível com a
+A9.2 no C2 (`ovl_phases`) reduzido. Comando:
+`PRISM_JOB_SUFFIX=-d59-smoke-curto PRISM_JOB_ENV="PRISM_STEPS=ovl_phases PRISM_OVL_RATES=0.5 PRISM_OVL_DURATION=180
+PRISM_OVL_PHASE=45 PRISM_OVL_DRAIN=120 PRISM_EVICTION=lvf PRISM_LVF_COST_AWARE=1 PRISM_SWAP_PREEMPT=0
+PRISM_ACTIVATION_HEADROOM_GB=0 PRISM_KV_RESERVE_REQS=4 PRISM_DEADLOCK_S=30 PRISM_MIN_RESIDENCY=10
+PRISM_OVL_SLO_SPEC=S3:kA=5,kD=5 PRISM_TIMEOUT=1800" polyaxon/submit.sh`. Resultado: **VALIDA**
+(`reports/data/D59/validador/d59-smoke-curto.csv`). 431/431 requisições atendidas; 15 ativações e 15 desativações
+enviadas com `rid`, todas confirmadas; nenhuma instância presa em ACTIVATING/DEACTIVATING; nenhum traceback. Os caminhos de
+exceção (resposta atrasada, timeout, `not_served`, `already_inactive`) não ocorreram nesta execução; eles estão cobertos
+pelos testes unitários. Dois envios anteriores foram parados sem resultado: `bb7575fb` (enviado sem a suíte) e
+`f3abc7dc` (3 níveis, longo demais para um smoke).
+
 ## D60 — Gate da F6 aprovado; A9.2 é a vencedora da F6.15; F6.17 pulada; sem limiar fixo de "grande perda de SLO" (2026-11-11, Gabriel)
 
 Contexto: confirmação F6.15 concluída (`reports/fases/F06_15_confirmacao.md`, 20 jobs, 300/300 VALIDA, sem reexecução).

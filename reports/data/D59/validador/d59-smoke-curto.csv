@@ -1,0 +1,2 @@
+level,root,uuid,source,status,failed,motivo,t0_utc,sinal_infra,t1_frozen_s,V1,V2,V3,V4,V5,V6,V7,V8,V9,V10,V11,V12,V13,V14,V15
+outputs/ovl_phases/rate0.5,/mnt/scratch/scheduler/prism-raw/d59-smoke/d59-smoke-curto,,d59-smoke/d59-smoke-curto/outputs/ovl_phases/rate0.5,VALIDA,,,2026-11-11 13:06:12,,0,OK,OK,OK,OK,OK,N/A,OK,OK,OK,OK,OK,OK,OK,OK,OK
