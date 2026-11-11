@@ -112,7 +112,7 @@ Em todo relatório e toda apresentação com resultados de uma política nova:
 - **Objetivo das políticas (D52):** justiça entre modelos sem grande perda de SLO total, junto com TTFT típico e nenhuma espera absurda (seção 7).
 - **Concluído:** F0–F5 e F6a, com gate aprovado; da F6, a correção da P16, a triagem F6.0 e a triagem F6.16 (resumos na seção 6.1).
 - **F6.15 concluída e gate da F6 aprovado (D60, 2026-11-11):** vencedora A9.2; F6.17 pulada; F6.18 feita sobre os dados
-  da F6.15. Falta o relatório F6.9; depois, F14.
+  da F6.15. Relatório da fase escrito (F6.9, `reports/fases/F06_politicas_por_prazo.md`). **Próxima: F14** (D58).
 - **Próximo passo (D58):** F14, modelos heterogêneos, testando adaptações das melhores políticas cientes do tamanho de cada modelo e do tempo de ativação (seção 6.3).
 - **O que sabemos até aqui:**
   - despejo por ociosidade de 10 s com A1 (A0.2+A1): maior SLO total, mas deixa 2–5 modelos por carga com fome (20 de 96 pares modelo × job abaixo de 10% no prazo, esperas de até 623 s);
@@ -138,7 +138,7 @@ Os números das fases não mudam, para não quebrar as referências nos relatór
 | F3 | Catálogo de cargas | [HUMANO] | APROVADO (D29) |
 | F4 | Restrições estruturais (A1) | automático | APROVADO (D38) |
 | F5 | Linhas de base na nova metodologia | [HUMANO] | APROVADO (D49) |
-| F6 | Políticas por prazo e por atraso virtual: triagens e confirmação | [HUMANO] | gate aprovado (D60); falta o relatório F6.9 |
+| F6 | Políticas por prazo e por atraso virtual: triagens e confirmação | [HUMANO] | concluída (gate D60; relatório `F06_politicas_por_prazo.md`) |
 | **F14** | **Modelos heterogêneos: políticas cientes do tamanho e do tempo de ativação** | [HUMANO] | **próxima (D58)** |
 | F12 | Redução do custo da troca (A13) | [HUMANO] | planejada (D55) |
 | F13 | Política candidata: troca por throughput com garantia de justiça (A12) | [HUMANO] | planejada (D55) |
@@ -436,8 +436,8 @@ de baixa prioridade: figuras de CDF da F5.2c.
   
   **Gate aprovado (D60): vencedora A9.2; F6.17 pulada.**
 
-**A fazer.**
-- **F6.9 Relatório F06:** confirmação e resumo da fase, inclusive os resultados negativos.
+- **F6.9, relatório da fase (`reports/fases/F06_politicas_por_prazo.md`, 2026-11-11):** resumo das quatro rodadas,
+  resultados negativos, correções e limitações. **F6 concluída.**
 
 **Critérios de aceitação:** testes passando; linhas de base no mesmo job; para cada carga, diferença contra cada linha de
 base com IC 95% pareado, nas três vistas, com a decomposição das violações e as métricas de justiça; toda diferença

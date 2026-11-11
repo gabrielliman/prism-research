@@ -103,7 +103,7 @@ Leia `PLANO_AGENTE.md` antes de começar. Regras principais:
 - [x] F6.17 Sensibilidade da vencedora: **pulada** (D60; a F14 adapta a A9.2 ao tamanho dos modelos)
 - [x] F6.18 (2026-11-11, `polyaxon/f615_decomp.py`, tabela D do relatório da F6.15) Decomposição evitável/inevitável nos níveis S3/S6
 - [x] Gate da F6 aprovado (D60, 2026-11-11)
-- [ ] F6.9 Relatório F06 (confirmação + resumo da F6, inclusive os negativos)
+- [x] F6.9 (2026-11-11, `reports/fases/F06_politicas_por_prazo.md`) Relatório F06 (confirmação + resumo da F6, inclusive os negativos)
 - [-] Cortados (D55): F6.2 A2.2; A3.2/A3.3; F6.5 A4 (virou a A12, F13); F6.6 ablação ampla (virou a F15); F6.7 sensibilidade de margem/`H`/`θ`/ciclo; F6.11 comparação com `fair`; F6.12 A9.3; A10.2/A10.3; F6.8 absorvido nos critérios de cada fase
 
 ## F14 — Modelos heterogêneos: políticas cientes do tamanho e do tempo de ativação · gate [HUMANO] · PRÓXIMA (D58)
