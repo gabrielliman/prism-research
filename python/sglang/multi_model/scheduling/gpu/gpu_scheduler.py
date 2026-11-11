@@ -33,6 +33,17 @@ logger = logging.getLogger(__name__)
 TRACE_RIDS = os.environ.get("PRISM_TRACE_RIDS", "0") == "1"  # F1.2: log every request hop by rid
 
 
+
+@dataclass(frozen=True)
+class Command:
+    """An activate/deactivate command of the global controller for one model on this GPU (D59). `rid` identifies
+    it in the controller's events; `engine_rid` is the engine request whose answer completes it (None when no engine
+    will answer: answered here, or the model had no worker)."""
+
+    kind: str  # "activate" | "deactivate"
+    rid: str
+    engine_rid: Optional[str]
+
 class GPUScheduler:
     """
     GPU scheduler responsible for managing model scheduling and request processing on a single GPU.
@@ -51,10 +62,9 @@ class GPUScheduler:
         init_model_names: List[str],
     ):
         self._model_states = {}
-        # Deactivations of a model still in progress, and how many of them a newer activation of the same model
-        # has superseded: their late "deactivation succeeded" must not mark the re-activated model deactivated.
-        self._pending_deacts: Dict[str, int] = {}
-        self._stale_deacts: Dict[str, int] = {}
+        # The current activate/deactivate command of each model here (D59): its rid goes in every event sent to the
+        # controller, and only the engine's answer to it counts; late answers to older commands are dropped.
+        self._commands: Dict[str, Command] = {}
         self.redis_client = RedisClient(
             multi_model_server_args.redis_host,
             multi_model_server_args.redis_port,
@@ -110,6 +120,7 @@ class GPUScheduler:
                 instance_idx=self.gpu_id,
                 gpu_id=self.gpu_id,
             )
+            self._commands[model_name] = Command("activate", activate_req.rid, activate_req.rid)
             self.worker_pool.handle_activate_model(activate_req)
 
         while True:
@@ -240,6 +251,20 @@ class GPUScheduler:
             recv_reqs.extend(reqs)
         return recv_reqs
 
+    def _answers_current(self, model_name: str, kind: str, engine_rid: str) -> bool:
+        """The engine's answer is to the model's current command (D59); with no command known, as before D59."""
+        command = self._commands.get(model_name)
+        return command is None or (command.kind == kind and command.engine_rid == engine_rid)
+
+    def _send_event(self, event: str, model_name: str, **extra):
+        """Tell the global controller about the model's current command (state.py apply_lifecycle_event)."""
+        command = self._commands.get(model_name)
+        self.redis_client.send_pyobj(
+            key=controller_events_key(self.server_args),
+            obj={"event": event, "model_name": model_name, "gpu_id": self.gpu_id,
+                 "rid": command.rid if command else None, **extra},
+        )
+
     def _recv_from_engine(self):
         """Receive activation/deactivation result messages from engine."""
         messages = self.redis_client.pop_all(
@@ -255,13 +280,13 @@ class GPUScheduler:
                     f"Model {model_name} (instance {instance_idx}) activation "
                     f"{'succeeded' if success else 'failed'} on GPU {self.gpu_id}"
                 )
-                if success:
+                if not self._answers_current(model_name, "activate", message.rid):
+                    logger.info(f"Ignoring the late activation answer {message.rid} of {model_name}: "
+                                f"superseded by command {self._commands[model_name]}")
+                elif success:
                     self._set_model_state(model_name, "activated")
                     # the controller stops counting this activation's memory as pending (activation accounting)
-                    self.redis_client.send_pyobj(
-                        key=controller_events_key(self.server_args),
-                        obj={"event": "model_activated", "model_name": model_name, "gpu_id": self.gpu_id},
-                    )
+                    self._send_event("model_activated", model_name)
                 elif self._model_states.get(model_name) == "activating":
                     # The engine rolled the activation back (no GPU memory) and stays alive.
                     self._on_model_lost(model_name, "activation failed", release_worker=True)
@@ -274,22 +299,16 @@ class GPUScheduler:
                     f"Model {model_name} (instance {instance_idx}) deactivation "
                     f"{'succeeded' if success else 'failed'} on GPU {self.gpu_id}"
                 )
-                if self._pending_deacts.get(model_name, 0) > 0:
-                    self._pending_deacts[model_name] -= 1
-                if self._stale_deacts.get(model_name, 0) > 0:
-                    # superseded by a newer activation of this model (on another worker): keep its state
-                    self._stale_deacts[model_name] -= 1
-                    logger.info(f"Ignoring the late deactivation of {model_name}: it was re-activated since")
+                if not self._answers_current(model_name, "deactivate", message.rid):
+                    # e.g. superseded by a newer activation of this model (on another worker): keep its state
+                    logger.info(f"Ignoring the late deactivation answer {message.rid} of {model_name}: "
+                                f"superseded by command {self._commands[model_name]}")
                 else:
-                    if success:
-                        self._set_model_state(model_name, "deactivated")
-                    # the controller's instance leaves DEACTIVATING (D45); a failed deactivation is reported too, the
-                    # controller treated the model as inactive from the moment it sent the request, as before D45
-                    self.redis_client.send_pyobj(
-                        key=controller_events_key(self.server_args),
-                        obj={"event": "model_deactivated", "model_name": model_name, "gpu_id": self.gpu_id,
-                             "success": bool(success)},
-                    )
+                    # The engine fails a deactivation only when it was not active ("already deactivated"), so the
+                    # model is not served here either way; its worker was released when the request arrived (D59)
+                    self._set_model_state(model_name, "deactivated")
+                    self._send_event("model_deactivated", model_name, success=bool(success),
+                                     reason=None if success else "already_inactive")
             else:
                 logger.info(f"Received unsupported message type: {type(message)}")
 
@@ -310,43 +329,53 @@ class GPUScheduler:
                 # Process activate, deactivate and resize memory pool requests
                 if isinstance(message, DeactivateReqInput):
                     model_name = message.model_name
-                    self._pending_deacts[model_name] = self._pending_deacts.get(model_name, 0) + 1
-                    logger.info(f"Received deactivate request for model {model_name}")
                     self._set_model_state(model_name, "deactivating")
                     logger.info(
                         f"Received deactivate request for {model_name}, "
                         f"model_states: {self._model_states}"
                     )
+                    sent = True
                     if self.server_args.enable_worker_pool:
-                        self.worker_pool.handle_deactivate_model(message)
+                        sent = self.worker_pool.handle_deactivate_model(message)
+                    self._commands[model_name] = Command("deactivate", message.rid, message.rid if sent else None)
                     self._return_requests_to_frontend(model_name)
-                    
+                    if not sent:
+                        # no worker serves it (e.g. lost, or its activation found no worker): no engine will
+                        # answer, so answer now instead of leaving the controller waiting (D59)
+                        self._set_model_state(model_name, "deactivated")
+                        self._send_event("model_deactivated", model_name, success=False, reason="not_served")
+
                 elif isinstance(message, ActivateReqInput):
-                    logger.info(
-                        f"Received activate request for model {message.model_name}"
-                    )
-                    # deactivations of this model still in progress are superseded by this activation
-                    self._stale_deacts[message.model_name] = self._pending_deacts.get(message.model_name, 0)
+                    model_name = message.model_name
+                    previous = self._commands.get(model_name)
+                    previous_state = self._model_states.get(model_name)
                     # No special handling needed here, only take action when tokenizer sends activation result
-                    self._set_model_state(message.model_name, "activating")
+                    self._set_model_state(model_name, "activating")
                     logger.info(
-                        f"Received activate request for {message.model_name}, "
+                        f"Received activate request for {model_name}, "
                         f"model_states: {self._model_states}"
                     )
-                    if self.server_args.enable_worker_pool:
-                        result = self.worker_pool.handle_activate_model(message)
-                        if not result and message.model_name in self.worker_pool._model_to_worker:
-                            self._set_model_state(message.model_name, "activated")  # already served
-                            # without this the controller kept the activation pending (and, since D45, its instance
-                            # ACTIVATING) until the 120 s timeout
-                            self.redis_client.send_pyobj(
-                                key=controller_events_key(self.server_args),
-                                obj={"event": "model_activated", "model_name": message.model_name,
-                                     "gpu_id": self.gpu_id},
-                            )
-                        elif not result:
-                            # e.g. no idle worker: the controller still believes it activated the model
-                            self._on_model_lost(message.model_name, "no worker to activate it", release_worker=False)
+                    if not self.server_args.enable_worker_pool:
+                        self._commands[model_name] = Command("activate", message.rid, message.rid)
+                        continue
+                    if self.worker_pool.handle_activate_model(message):
+                        # deactivations of this model still in progress are superseded by this command
+                        self._commands[model_name] = Command("activate", message.rid, message.rid)
+                    elif model_name in self.worker_pool._model_to_worker:
+                        if (previous_state == "activating" and previous is not None
+                                and previous.kind == "activate" and previous.engine_rid is not None):
+                            # still loading on its worker: this command is answered by that load's result (D59)
+                            self._commands[model_name] = Command("activate", message.rid, previous.engine_rid)
+                        else:
+                            self._commands[model_name] = Command("activate", message.rid, None)
+                            self._set_model_state(model_name, "activated")  # already served
+                            # without this the controller kept the activation pending (and, since D45, its
+                            # instance ACTIVATING) until the 120 s timeout
+                            self._send_event("model_activated", model_name)
+                    else:
+                        # e.g. no idle worker: the controller still believes it activated the model
+                        self._commands[model_name] = Command("activate", message.rid, None)
+                        self._on_model_lost(model_name, "no worker to activate it", release_worker=False)
             return messages
         except Exception as e:
             logger.error(
@@ -381,10 +410,7 @@ class GPUScheduler:
             self.worker_pool.release_worker(model_name)
         self._set_model_state(model_name, "deactivated")
         self._return_requests_to_frontend(model_name)
-        self.redis_client.send_pyobj(
-            key=controller_events_key(self.server_args),
-            obj={"event": "model_lost", "model_name": model_name, "gpu_id": self.gpu_id, "reason": reason},
-        )
+        self._send_event("model_lost", model_name, reason=reason)
 
     def _set_model_state(self, model_name: str, new_state: str):
         """Set model state and update resource manager."""

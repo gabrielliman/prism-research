@@ -45,12 +45,12 @@ multi_model_server.py ─ endpoint.py / request_handler*.py   frontend: receives
 | `policy/base.py`, `policy/base_global.py` | Abstract `BasePolicy` / `GlobalPolicy` with `gen_actions(...)` |
 | `policy/simple_global.py` | **The only policy.** Prism's original algorithm plus our eviction strategies (`PRISM_EVICTION`). See [policies.md](policies.md) |
 | `action.py` | `ActivateAction`, `DeactivateAction` (preempt), `ResizeAction`: what a policy returns |
-| `state.py` | `ModelInstanceState`, `ModelState` (ACTIVE / INACTIVE / ACTIVATING / DEACTIVATING; the lifecycle diagram, `apply_lifecycle_event` for the GPU schedulers' `model_activated` / `model_deactivated` / `model_lost` events, and `serving`, the two-state view the policies use; D45) |
+| `state.py` | `ModelInstanceState`, `ModelState` (ACTIVE / INACTIVE / ACTIVATING / DEACTIVATING; the lifecycle diagram, `apply_lifecycle_event` for the GPU schedulers' `model_activated` / `model_deactivated` / `model_lost` events, and `serving`, the two-state view the policies use; D45). Each command carries a `rid` (`cmd_rid`) and only events answering the current command move an instance; a transition with no event for 120 s is not assumed done (`expired_transitions`: the controller cleans up an activation with a deactivation; D59) |
 | `model_queue_tracker.py` | Per-model queue (`waiting_reqs`, running, `served_tokens`, last arrival/finish): the policy's input |
 | `estimators.py` | Pure estimators for the deadline-aware policies (F2): activation cost Ĉ_at, prefill p̂, queue q̂_r, rate λ̂. Coefficients in `reports/data/F02/cat/cat_model.json` and `reports/registro/latencia_ref.json` |
 | `decision_log.py` | `PRISM_DECISION_LOG=<path>`: one JSON line per cycle (GPU free/pending memory, per-model state, actions, notes). `run_examples.sh` turns it on by default (`<level>/decisions.jsonl`) |
 | `stats.py`, `constants.py` | Helpers |
-| `gpu/gpu_scheduler.py` | Local scheduler: dead-worker detection (`PRISM_DETECT_DEAD_WORKERS`, default 1), stale-deactivation guard (R2.3), `_on_model_lost` |
+| `gpu/gpu_scheduler.py` | Local scheduler: dead-worker detection (`PRISM_DETECT_DEAD_WORKERS`, default 1), current command per model (`Command`, D59: late engine answers to older commands are dropped, every event carries the command's `rid`; replaces the R2.3 stale-deactivation counters), `_on_model_lost` |
 
 ## `python/sglang/srt/`: SGLang files Prism changed
 

@@ -100,16 +100,68 @@ class TransitionsTest(unittest.TestCase):
             st.apply_lifecycle_event([i], {"event": "model_lost", "gpu_id": 0, "reason": "x"})
             self.assertEqual(i.state, S.INACTIVE)
 
-    def test_transition_without_event_expires(self):
+    def test_transition_without_event_is_reported_not_assumed(self):
+        """D59: a missing confirmation is not a success; the instance keeps its state for the controller to act."""
         a, d, ok = inst("a", S.INACTIVE), inst("d", S.ACTIVE), inst("k", S.INACTIVE)
         a.on_activating(MEM)
         d.on_deactivating(MEM)
         ok.on_activating(MEM)
         a.state_since = d.state_since = 100.0
         ok.state_since = 200.0
-        moved = st.expire_transitions({"a": [a], "d": [d], "k": [ok]}, now=221.0, timeout_s=120.0)
-        self.assertEqual((a.state, d.state, ok.state), (S.ACTIVE, S.INACTIVE, S.ACTIVATING))
-        self.assertEqual(sorted(i.model_name for i in moved), ["a", "d"])
+        expired = st.expired_transitions({"a": [a], "d": [d], "k": [ok]}, now=221.0, timeout_s=120.0)
+        self.assertEqual((a.state, d.state, ok.state), (S.ACTIVATING, S.DEACTIVATING, S.ACTIVATING))
+        self.assertEqual(sorted(i.model_name for i in expired), ["a", "d"])
+
+
+class CommandRidTest(unittest.TestCase):
+    """D59: an event moves an instance only if it answers the instance's current command."""
+
+    def test_late_activation_does_not_confirm_a_newer_one(self):
+        i = inst("m", S.INACTIVE)
+        i.on_activating(MEM, gpu_id=0, cmd_rid="a1")
+        i.on_deactivating(MEM, cmd_rid="d1")  # evicted while loading
+        i.on_activating(MEM, gpu_id=0, cmd_rid="a2")  # and activated again
+        late = {"event": "model_activated", "gpu_id": 0, "rid": "a1"}
+        self.assertTrue(st.is_stale_event([i], late))
+        self.assertEqual(st.apply_lifecycle_event([i], late), [])
+        self.assertEqual(i.state, S.ACTIVATING)
+        current = {"event": "model_activated", "gpu_id": 0, "rid": "a2"}
+        self.assertFalse(st.is_stale_event([i], current))
+        self.assertEqual(st.apply_lifecycle_event([i], current), [i])
+        self.assertEqual(i.state, S.ACTIVE)
+
+    def test_late_loss_does_not_drop_a_newer_activation(self):
+        i = inst("m", S.INACTIVE)
+        i.on_activating(MEM, gpu_id=0, cmd_rid="a1")
+        i.on_deactivating(MEM, cmd_rid="d1")
+        i.on_activating(MEM, gpu_id=0, cmd_rid="a2")
+        st.apply_lifecycle_event([i], {"event": "model_lost", "gpu_id": 0, "rid": "a1", "reason": "activation failed"})
+        self.assertEqual(i.state, S.ACTIVATING)
+        st.apply_lifecycle_event([i], {"event": "model_lost", "gpu_id": 0, "rid": "a2", "reason": "worker died"})
+        self.assertEqual(i.state, S.INACTIVE)
+
+    def test_without_rid_as_before(self):
+        """Initial placement (no command sent yet) and events without rid behave as before D59."""
+        i = inst("m", S.ACTIVE)  # cmd_rid None
+        st.apply_lifecycle_event([i], {"event": "model_lost", "gpu_id": 0, "rid": "init", "reason": "worker died"})
+        self.assertEqual(i.state, S.INACTIVE)
+        j = inst("m", S.INACTIVE)
+        j.on_activating(MEM, gpu_id=0, cmd_rid="a1")
+        st.apply_lifecycle_event([j], {"event": "model_activated", "gpu_id": 0})
+        self.assertEqual(j.state, S.ACTIVE)
+
+    def test_stale_only_on_the_event_gpu(self):
+        i0, i1 = inst("m", S.INACTIVE, gpu=0), inst("m", S.INACTIVE, gpu=1)
+        i0.on_activating(MEM, gpu_id=0, cmd_rid="a0")
+        i1.on_activating(MEM, gpu_id=1, cmd_rid="a1")
+        self.assertTrue(st.is_stale_event([i0, i1], {"event": "model_activated", "gpu_id": 0, "rid": "a1"}))
+        self.assertFalse(st.is_stale_event([i0, i1], {"event": "model_activated", "gpu_id": 1, "rid": "a1"}))
+
+    def test_actions_carry_distinct_rids(self):
+        from sglang.multi_model.scheduling import action
+        a, b = action.ActivateAction(model_name="m", gpu_id=0), action.DeactivateAction(model_name="m", gpu_id=0)
+        self.assertNotEqual(a.rid, b.rid)
+        self.assertEqual(a.to_dict()["rid"], a.rid)  # sent to /activate, echoed by the GPU scheduler
 
 
 class SameDecisionsTest(unittest.TestCase):

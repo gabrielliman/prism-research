@@ -160,12 +160,15 @@ class ModelQueueTracker:
         else:
             # existed request
             req = self.received_reqs[generate_req.rid]
+            # a request sent back by an engine (deactivation, RECOMPUTE) comes with output_len=512
+            # (scheduler._convert_req_to_frontend_reqs), not its own: keep the length it arrived with, which is also
+            # what is left to generate, since it restarts from its prompt
             req.update_wait_info(
                 generate_req.arrival_time,
                 generate_req.slo,
                 self.model_name,
                 generate_req.prompt_len,
-                generate_req.output_len,
+                req.output_len if req.output_len is not None else generate_req.output_len,
                 generate_req.is_warmup,
             )
             self.received_reqs[generate_req.rid] = req

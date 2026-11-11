@@ -17,7 +17,7 @@ import zmq
 
 from sglang.multi_model.scheduling.policy.simple_global import SimpleGlobalPolicy
 from sglang.multi_model.multi_model_server_args import MultiModelServerArgs
-from sglang.multi_model.scheduling.action import BaseAction
+from sglang.multi_model.scheduling.action import BaseAction, DeactivateAction
 from sglang.multi_model.scheduling.constants import (
     AIOHTTP_TIMEOUT_SECONDS,
     LIFECYCLE_TIMEOUT_S,
@@ -31,7 +31,8 @@ from sglang.multi_model.scheduling.state import (
     ModelInstanceState,
     ModelState,
     apply_lifecycle_event,
-    expire_transitions,
+    expired_transitions,
+    is_stale_event,
 )
 from sglang.multi_model.scheduling.stats import ScheduleStats
 from sglang.srt.managers.io_struct import (
@@ -77,6 +78,7 @@ class GlobalController:
 
         self._shutdown_event = threading.Event()
         self.model_service_lost = False  # P12, set by a model_service_lost event
+        self._expired_cmds: set = set()  # commands already reported/cleaned up after LIFECYCLE_TIMEOUT_S (D59)
 
         self.models = model_names_to_model_paths.keys()
         self.model_names_to_model_paths = model_names_to_model_paths
@@ -298,7 +300,9 @@ class GlobalController:
 
         logger.info("Starting model scheduling")
         while not self._shutdown_event.is_set():
-            self.handle_model_events()
+            cleanups = self.handle_model_events()
+            if cleanups:
+                self.execute_actions(cleanups)
             with self.model_queues_lock:
                 # Deep copy is not thread-safe, so we do it within the lock
                 model_queues_cpy = copy.deepcopy(self.model_queues)
@@ -318,11 +322,13 @@ class GlobalController:
             else:
                 time.sleep(SCHEDULE_INTERVAL)
 
-    def handle_model_events(self):
+    def handle_model_events(self) -> List[BaseAction]:
         """Apply the GPU schedulers' events to the instances' lifecycle (state.py ModelState): ACTIVATING -> ACTIVE
         on "model_activated", DEACTIVATING -> INACTIVE on "model_deactivated", and INACTIVE on "model_lost" (failed
         activation, dead worker), so the policy sees a lost model as inactive with requests and can activate it
-        again. A transition with no event for LIFECYCLE_TIMEOUT_S is assumed finished."""
+        again. Only events answering an instance's current command count (D59); a late one is logged and dropped.
+        A transition with no event for LIFECYCLE_TIMEOUT_S is not assumed done (D59): returns the deactivations
+        that clean up the activations that timed out; a deactivation that timed out stays DEACTIVATING."""
         for event in self.redis_client.pop_all(key=controller_events_key(self.server_args)) or []:
             if event.get("event") == "model_service_lost" and not self.model_service_lost:
                 # P12: no model can be loaded any more; keep the active models serving instead of evicting them
@@ -330,16 +336,40 @@ class GlobalController:
                 self.model_service_lost = True
                 logger.error("Model service lost: no more activations or evictions until the server restarts")
                 continue
+            instances = self.model_instance_state_dict.get(event.get("model_name"), [])
+            if event.get("event") in ("model_activated", "model_deactivated", "model_lost") \
+                    and is_stale_event(instances, event):
+                logger.info(f"Ignoring a late {event['event']} of {event.get('model_name')} on GPU "
+                            f"{event.get('gpu_id')}: command {event.get('rid')} was superseded")
+                continue
             if event.get("event") in ("model_activated", "model_lost") and hasattr(self.policy, "activation_done"):
                 self.policy.activation_done(event["model_name"], event["gpu_id"])
-            changed = apply_lifecycle_event(self.model_instance_state_dict.get(event.get("model_name"), []), event)
+            changed = apply_lifecycle_event(instances, event)
             if event.get("event") == "model_lost" and changed:
                 logger.warning(
                     f"Model {event['model_name']} on GPU {event['gpu_id']} marked inactive: {event['reason']}"
                 )
-        for instance in expire_transitions(self.model_instance_state_dict, time.time(), LIFECYCLE_TIMEOUT_S):
-            logger.warning(f"{instance.model_name}:{instance.instance_idx} got no event for {LIFECYCLE_TIMEOUT_S:.0f} s; "
-                           f"transition assumed finished, now {instance.state.name}")
+            if event.get("event") == "model_deactivated" and not event.get("success", True):
+                logger.warning(f"Deactivation of {event['model_name']} on GPU {event['gpu_id']} reported "
+                               f"{event.get('reason', 'failed')}: the model is not served there")
+        cleanups = []
+        for instance in expired_transitions(self.model_instance_state_dict, time.time(), LIFECYCLE_TIMEOUT_S):
+            if instance.cmd_rid in self._expired_cmds:
+                continue  # handled once per command
+            self._expired_cmds.add(instance.cmd_rid)
+            gpu_id = instance.gpu_ids[0]
+            if instance.state == ModelState.ACTIVATING:
+                logger.warning(f"{instance.model_name}:{instance.instance_idx} activation got no answer for "
+                               f"{LIFECYCLE_TIMEOUT_S:.0f} s; deactivating it to clean it up (D59)")
+                if hasattr(self.policy, "activation_done"):
+                    self.policy.activation_done(instance.model_name, gpu_id)
+                cleanups.append(DeactivateAction(model_name=instance.model_name, instance_idx=instance.instance_idx,
+                                                 preempt=True, preempt_mode="RECOMPUTE",
+                                                 evict_waiting_requests=True, gpu_id=gpu_id))
+            else:
+                logger.warning(f"{instance.model_name}:{instance.instance_idx} deactivation got no answer for "
+                               f"{LIFECYCLE_TIMEOUT_S:.0f} s; it stays DEACTIVATING (not serving) (D59)")
+        return cleanups
 
     def execute_actions(self, actions: List[BaseAction]):
         """Execute a list of scheduling actions in parallel."""

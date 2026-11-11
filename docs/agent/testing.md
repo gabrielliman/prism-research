@@ -12,6 +12,8 @@ $PY -m unittest tests/robustness/test_model_service_alive.py  # P12 model-servic
 $PY -m unittest tests/policy/test_deadline.py tests/policy/test_structural.py  # F6a A2.1/A9.1, F4 A1.1-A1.3
 $PY -m unittest tests/metrics/test_slo_metrics.py tests/metrics/test_gpu_idle.py  # SLO families, F5.0c/d metrics
 $PY -m unittest tests/controller/test_reservation_lapsed.py  # F5.0f lapsed-reservation note in the decision log
+$PY -m unittest tests/controller/test_lifecycle.py tests/controller/test_gpu_scheduler_commands.py  # D45 lifecycle, D59 command rids
+$PY -m unittest tests/controller/test_requeue_output_len.py  # requeued requests keep their output_len
 KVCACHED_SRC=/mnt/scratch/scheduler/kvcached $PY test/multi-model/test_memory_robustness.py  # from a worktree, or all 8 skip
 $PY test/multi-model/test_memory_robustness.py             # memory arbiter + kvcached fixes, simulated device (8 tests)
 $PY tests/controller/bench_decision_log.py                 # cost per cycle of the decision log (benchmark, not a test)

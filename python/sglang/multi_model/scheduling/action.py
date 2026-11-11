@@ -1,5 +1,6 @@
 import dataclasses
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
@@ -37,6 +38,8 @@ class BaseAction(ABC):
 class ActivateAction(BaseAction):
     memory_pool_size: Optional[int] = None
     gpu_id: Optional[int] = None
+    # the command's id, echoed in the GPU scheduler's events: only they move the instance (D59)
+    rid: str = dataclasses.field(default_factory=lambda: uuid.uuid4().hex)
 
     def execute(
         self, url: str, model_instance_state_dict: Dict[str, List[ModelInstanceState]]
@@ -64,9 +67,9 @@ class ActivateAction(BaseAction):
                 instance = model_instance_state_dict[self.model_name][self.instance_idx]
                 if response.json()["memory_usage"] is None:
                     # worker pool: the request was only handed to the GPU scheduler; ACTIVE on "model_activated"
-                    instance.on_activating(memory_usage, gpu_id=self.gpu_id)
+                    instance.on_activating(memory_usage, gpu_id=self.gpu_id, cmd_rid=self.rid)
                 else:
-                    instance.on_activate(memory_usage, gpu_id=self.gpu_id)
+                    instance.on_activate(memory_usage, gpu_id=self.gpu_id, cmd_rid=self.rid)
                 success = True
             else:
                 success = False
@@ -84,6 +87,7 @@ class DeactivateAction(BaseAction):
     preempt: bool = True
     preempt_mode: str = "RECOMPUTE"
     evict_waiting_requests: bool = False
+    rid: str = dataclasses.field(default_factory=lambda: uuid.uuid4().hex)  # as ActivateAction.rid (D59)
 
     def execute(
         self, url: str, model_instance_state_dict: Dict[str, List[ModelInstanceState]]
@@ -111,9 +115,9 @@ class DeactivateAction(BaseAction):
                 instance = model_instance_state_dict[self.model_name][self.instance_idx]
                 if response.json()["memory_usage"] is None:
                     # worker pool: the request was only handed to the GPU scheduler; INACTIVE on "model_deactivated"
-                    instance.on_deactivating(memory_usage)
+                    instance.on_deactivating(memory_usage, cmd_rid=self.rid)
                 else:
-                    instance.on_deactivate(memory_usage)
+                    instance.on_deactivate(memory_usage, cmd_rid=self.rid)
                 success = True
             else:
                 success = False
