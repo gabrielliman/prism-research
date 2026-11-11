@@ -879,3 +879,19 @@ OK, com a decomposição das violações feita sobre os dados da F6.15 (`polyaxo
    feita no gate. O item "limiar" sai da F14.0 e das decisões pendentes.
 
 Próximo: F6.9 (relatório da F06), depois F14 (D58).
+
+## D61 — Deriva do nó é por janelas de horas, não por dia; não se reexecuta só porque o dia mudou (2026-11-11, Gabriel)
+
+- **Contexto:** a análise de 2026-11-11 comparou as linhas de base com configuração, carga, nível, nº de modelos e semente idênticos, dentro da mesma campanha (mesmo código), em dias diferentes: F4 (11-05 × 11-06), F5 (11-07 × 11-08), F6.15 (11-10 × 11-11, 300 níveis, código `b9348dd`), mais as referências de outubro (A0.1 em `ovl_phases`). Teste de permutação dentro de cada configuração. Scripts e inventários em `/mnt/scratch/scheduler/analise-deriva-no-2026-11-11/` (`inv2.py`, `anal.py`, `anal2.py`).
+- **Resultados:**
+  - F4: sem efeito do dia (TPOT p = 0,70; SLO p = 0,17).
+  - F5: o efeito do dia some com a faixa horária fixada (p = 1,0); a faixa horária continua (R² 0,08).
+  - F6.15: dia com a faixa fixada R² 0,02; faixa com o dia fixado R² 0,36. TPOT p50 +32% às 10–14h UTC de 11-10 e −20% às 20–04h, SLO ~17 pontos, com ~3 jobs nossos o tempo todo e em todas as GPUs do nó.
+  - Outubro: em 10-30 houve janela lenta (04–05h, TPOT +11–30%) e janela normal (13:52, igual a 10-29).
+  - As janelas lentas caem em horários diferentes (01–06h, 02–10h, 10–18h UTC): não há padrão diário. Causa desconhecida (o nó é compartilhado com outras equipes).
+- **Decisão (Gabriel):**
+  1. Não se reexecutam casos de teste só porque o dia mudou; reaproveitam-se os dados existentes.
+  2. As métricas são lidas juntas, com o TPOT como medidor da velocidade do nó. Em toda janela de 2 h em que o SLO caiu mais de 4 pontos, o TPOT subiu 10–33% (correlação por janela −0,80 a −0,96); com TPOT a ±5% não houve perda de SLO. Se o TPOT estava normal, a diferença de SLO é da política e se tira a conclusão.
+     O TPOT só é sinal de deriva quando (a) é comparado dentro da mesma configuração (política, carga, semente) contra as execuções dela mesma, nunca entre políticas (na mesma carga diferem 30–110%); (b) a mudança é do nó inteiro, com outras configurações ou jobs da mesma janela no mesmo sentido; (c) é ≥ ~10% (ruído da mesma configuração na mesma janela: ~4%). Nesse caso, com o SLO andando junto, a comparação é inconclusiva (observação do agente, aceita).
+  3. Reexecução conjunta e intercalada com IC 95% só quando o Gabriel pedir.
+- **Muda:** a D8 ("nunca se compara com uma campanha de outro dia") deixa de valer como regra fixa; o limite de 3 jobs (D6) não muda.

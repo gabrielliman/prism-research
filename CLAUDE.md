@@ -16,9 +16,23 @@ commits are in `f3-cargas`) and `f3-cargas` was renamed `scheduling-research`. O
    `polyaxon ops ls` first and queue larger campaigns in waves of 3. With 4 or more jobs, 38–79% of levels
    hit kvcached CUDA VMM driver failures (`cuMemSetAccess`/`cuMemCreate` out of memory), which makes the
    runs invalid. Short `cluster_probe` jobs don't count toward the limit.
-3. **Compare only runs from the same time window.** The node's speed drifts 10–30% between days. To
-   compare policies or check a regression, run both arms concurrently (interleaved). Never trust a
-   reference run from another day.
+3. **Node drift is by hours, not by day (D61).** The node's speed swings in node-wide episodes of a few
+   hours: TPOT p50 went +32% to −20% within one F6.15 campaign, with SLO moving ~17 points, at a constant
+   3 jobs. Once the time window is held fixed, the date adds nothing (F4, F5, F6.15; analysis in
+   `/mnt/scratch/scheduler/analise-deriva-no-2026-11-11/`). So:
+   - **Don't re-run a test case just because it's a different day.** A same-day reference is no safer than
+     an older one. Reuse existing data.
+   - **Read TPOT and SLO together; TPOT is the gauge of the node's speed.** Every 2 h window where SLO fell
+     > 4 points had TPOT +10–33% (window correlation −0.80 to −0.96), and windows with TPOT within ±5% had no
+     SLO loss. So if TPOT was normal, an SLO difference comes from the policy, not drift: draw the conclusion.
+   - **TPOT is a real drift signal only when all three hold:**
+     1. It is compared **within the same config** (policy, workload, seed) against that config's own runs.
+        Never compare one policy's TPOT with another's: on the same workload they differ by 30–110%.
+     2. The shift is **node-wide**: other configs or jobs in the same window moved the same way. One level
+        alone may be that run's own scheduling.
+     3. It is **≥ ~10%**. Same config in the same window varies ~4%; the drift episodes were +10% to +33%.
+     When TPOT shifted under these conditions and SLO moved with it, the comparison is inconclusive.
+   - Concurrent, interleaved re-runs with 95% CIs happen only when Gabriel asks for them.
 4. **Download Polyaxon artifacts one job at a time.** Parallel `polyaxon ops artifacts` calls mix files
    between jobs. Afterwards, check that the pod uuid in `environment.txt` matches the run.
 5. **Git: never push** without the user's explicit OK. Remote `origin` is the public Multi-LLM org repo,

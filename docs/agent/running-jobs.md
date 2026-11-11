@@ -9,8 +9,9 @@ it only for CPU work (tests, analysis). Never kill other users' jobs.
 - **At most 3 Prism jobs running or queued at once, counting all sessions.** Check before submitting:
   `polyaxon ops ls -p kunumi/hpc4ai -l 30`. Probe jobs (`cluster_probe`) don't count.
 - **SGLang only.** Use the default image; never set `PRISM_BACKEND=vllm` or use a vLLM image.
-- **Arms you compare go in the same job (one suite) or in jobs that run concurrently.** Never compare against
-  a run from another day.
+- **Don't re-run because the day changed; reuse existing data (D61).** Read TPOT and SLO together: if TPOT was
+  normal, an SLO difference is the policy. TPOT signals drift only for the same config against its own runs,
+  node-wide, and ≥ ~10% (CLAUDE.md rule 3); never compare TPOT between policies (they differ by 30–110%). Concurrent, interleaved re-runs with CIs only when Gabriel asks.
 - Latency reference runs (`iso_lat`, `PRISM_OVL_DEDICATED`) must run **alone on the node** (D18).
 - Think about the job count before a campaign. N reps × M suites at 3 concurrent jobs is the wall time.
 
